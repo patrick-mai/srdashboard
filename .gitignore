@@ -1,0 +1,28 @@
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/srdashboard
+/send-shot
+/replay-log
+/dist/
+/docs/
+
+# Go
+/vendor/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Local overrides / runtime
+host/inbox/*
+!host/inbox/.gitkeep
+plugins/*/config.xml
+*.log

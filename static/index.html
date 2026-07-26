@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRDashboard – Live Range</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('srdashboard-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="shooter-app" hidden></div>
+  <div id="master-chrome">
+    <header class="side-rail" id="top-bar">
+      <div class="side-rail-slim">
+        <button type="button" class="menu-toggle btn btn-ghost" id="menu-toggle" aria-expanded="false" aria-controls="top-bar-menu" title="Menü">
+          <span class="menu-toggle-icon" aria-hidden="true"></span>
+          <span class="menu-toggle-label">Menü</span>
+        </button>
+        <div id="match-status-compact" class="match-status-compact" aria-live="polite">
+          <span class="status-idle">Live</span>
+        </div>
+      </div>
+      <div class="side-rail-menu" id="top-bar-menu" hidden>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div class="brand-text">
+            <span class="brand-name">SRDashboard</span>
+            <span class="brand-sub">Live Range</span>
+          </div>
+        </div>
+        <div id="match-status-strip" class="match-status-strip" aria-live="polite">
+          <span class="status-idle">Plugin…</span>
+        </div>
+        <div id="control-strip" class="control-strip"></div>
+      </div>
+    </header>
+    <div class="master-main">
+      <div id="config-editor-panel" class="drawer settings-drawer" hidden></div>
+      <main class="stage lcars-content" id="stage">
+        <div id="ranges-grid"></div>
+      </main>
+    </div>
+  </div>
+  <script src="/target-core.js"></script>
+  <script src="/plugin-shell.js"></script>
+  <script src="/config-editor.js"></script>
+  <script src="/app.js"></script>
+  <script>
+    (function () {
+      const display = new URLSearchParams(location.search).get('display') || 'master';
+      const s = document.createElement('script');
+      s.src = display === 'shooter' ? '/shooter.js' : '/master.js';
+      document.body.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

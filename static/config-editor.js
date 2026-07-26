@@ -1,0 +1,455 @@
+(function () {
+  const FOOTER_FIELDS = [
+    ['currentShotValue', 'Aktueller Schuss'],
+    ['teiler', 'Teiler'],
+    ['shotNumber', 'Schussnummer'],
+    ['overallSumInt', 'Summe (ganz)'],
+    ['overallSumDecimal', 'Summe (dezimal)'],
+    ['predictionInt', 'Prognose (ganz)'],
+    ['predictionDecimal', 'Prognose (dezimal)'],
+    ['seriesSumsInt', 'Serien (ganz)'],
+    ['seriesSumsDecimal', 'Serien (dezimal)'],
+    ['last10Int', 'Letzte 10 (ganz)'],
+    ['last10Decimal', 'Letzte 10 (dezimal)']
+  ];
+
+  let panel = null;
+  let globalData = null;
+  let pluginData = null;
+  let pluginId = '';
+  let controlHeadersFn = function () { return { 'Content-Type': 'application/json' }; };
+  let getRangesFn = function () { return 6; };
+
+  const PLUGIN_FIELD_LABELS = {
+    laps: 'Laps to win',
+    sectorsPerLap: 'Sectors per lap',
+    sectorProgressMax: 'Sector progress to complete',
+    speedDivisor: 'Speed divisor (higher = slower)',
+    overtakeRingGap: 'Overtake ring gap (normal)',
+    drsOvertakeRingGap: 'Overtake ring gap (DRS)',
+    drsRequiresTokens: 'DRS requires bonus tokens',
+    drsZoneSector: 'DRS sector number',
+    lapBonusCarryCap: 'Max lap bonus tokens',
+    ringTenBonusTokens: 'Tokens per ring ten',
+    cleanSectorBonusTokens: 'Tokens per clean sector',
+    overtakeBonusTokens: 'Tokens per clean overtake',
+    perfectLapBonusTokens: 'Tokens per perfect lap',
+    ringTenMovementBonus: 'Extra movement on ring ten',
+    roundTimeoutSec: 'Round timeout (seconds)',
+    reactionWindowMs: 'Reaction bonus window (ms)',
+    reactionBonusMax: 'Max reaction bonus (0–1)',
+    lightCount: 'Start light count',
+    lightIntervalMs: 'Ms between red lights',
+    greenDelayMinMs: 'Min random delay before green',
+    greenDelayMaxMs: 'Max random delay before green',
+    falseStartPenalty: 'False start penalty (sector progress)',
+    preferOpticScoreTime: 'Use OpticScore ShotDateTime for reaction',
+    defaultDifficulty: 'Default handicap tier',
+    rangeDifficulties: 'Per-range handicap tier',
+    rangeHandicaps: 'Per-range movement multiplier',
+    handicapEasyMovementScale: 'Easy movement scale',
+    handicapNormalMovementScale: 'Normal movement scale',
+    handicapHardMovementScale: 'Hard movement scale',
+    handicapNormalScoreOffset: 'Normal score offset',
+    handicapHardScoreOffset: 'Hard score offset',
+    handicapEasyScoreMin: 'Easy score floor',
+    handicapEasyScoreMax: 'Easy score ceiling'
+  };
+
+  function fieldLabel(key) {
+    return PLUGIN_FIELD_LABELS[key] || key;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function setStatus(el, text, isError) {
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'config-editor-status' + (isError ? ' config-editor-status-error' : '');
+  }
+
+  function schemaType(prop) {
+    return prop && prop.type ? prop.type : 'string';
+  }
+
+  function isOverridden(key, merged, defaults) {
+    if (!defaults || !(key in defaults)) return key in (pluginData && pluginData.overrides || {});
+    return JSON.stringify(merged[key]) !== JSON.stringify(defaults[key]);
+  }
+
+  function renderSchemaField(key, prop, value, defaults, merged) {
+    const t = schemaType(prop);
+    const overridden = isOverridden(key, merged, defaults);
+    const hint = overridden ? ' <span class="config-override-badge">Override</span>' : '';
+    const id = 'pcfg-' + key;
+    const label = esc(fieldLabel(key));
+
+    if (key === 'rangeHandicaps') {
+      const ranges = getRangesFn();
+      const rh = (value && typeof value === 'object') ? value : {};
+      let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend><div class="config-check-grid">';
+      for (let r = 1; r <= ranges; r++) {
+        const rk = String(r);
+        const cur = rh[rk] != null ? rh[rk] : (rh[r] != null ? rh[r] : 1);
+        html += '<label class="config-field">Bahn ' + r +
+          '<input type="number" step="any" min="0.1" max="3" data-key="' +
+          esc(key) + '" data-range="' + r + '" value="' + esc(cur) + '"></label>';
+      }
+      html += '</div></fieldset>';
+      return html;
+    }
+
+    if (key === 'rangeDifficulties' || (t === 'object' && prop.additionalProperties && prop.additionalProperties.enum)) {
+      const ranges = getRangesFn();
+      const rd = (value && typeof value === 'object') ? value : {};
+      let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend><div class="config-check-grid">';
+      for (let r = 1; r <= ranges; r++) {
+        const rk = String(r);
+        const cur = rd[rk] || rd[r] || 'normal';
+        const enums = (prop.additionalProperties && prop.additionalProperties.enum) || ['easy', 'normal', 'hard'];
+        html += '<label class="config-field">Bahn ' + r + '<select data-key="' + esc(key) + '" data-range="' + r + '">';
+        enums.forEach(function (opt) {
+          html += '<option value="' + esc(opt) + '"' + (cur === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+        });
+        html += '</select></label>';
+      }
+      html += '</div></fieldset>';
+      return html;
+    }
+
+    if (t === 'boolean') {
+      return '<label class="config-check"><input type="checkbox" id="' + id + '" data-key="' + esc(key) + '"' +
+        (value ? ' checked' : '') + '> <span>' + label + hint + '</span></label>';
+    }
+    if (prop.enum) {
+      let html = '<label class="config-field">' + label + hint + '<select id="' + id + '" data-key="' + esc(key) + '">';
+      prop.enum.forEach(function (opt) {
+        html += '<option value="' + esc(opt) + '"' + (value === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+      });
+      html += '</select></label>';
+      return html;
+    }
+    const inputType = (t === 'integer' || t === 'number') ? 'number' : 'text';
+    const step = t === 'integer' ? ' step="1"' : (t === 'number' ? ' step="any"' : '');
+    const min = prop.minimum != null ? ' min="' + prop.minimum + '"' : '';
+    const max = prop.maximum != null ? ' max="' + prop.maximum + '"' : '';
+    return '<label class="config-field">' + label + hint + '<input type="' + inputType + '" id="' + id +
+      '" data-key="' + esc(key) + '" value="' + esc(value == null ? '' : value) + '"' + step + min + max + '></label>';
+  }
+
+  function collectPluginMerged() {
+    if (!panel || !pluginData) return {};
+    const merged = Object.assign({}, pluginData.manifestDefaults || {});
+    const schema = (pluginData.configSchema && pluginData.configSchema.properties) || {};
+    Object.keys(schema).forEach(function (key) {
+      const prop = schema[key];
+      if (key === 'rangeHandicaps') {
+        const rh = {};
+        panel.querySelectorAll('[data-key="' + key + '"][data-range]').forEach(function (inp) {
+          rh[String(inp.getAttribute('data-range'))] = parseFloat(inp.value);
+        });
+        merged[key] = rh;
+        return;
+      }
+      if (key === 'rangeDifficulties' || (schemaType(prop) === 'object' && prop.additionalProperties && prop.additionalProperties.enum)) {
+        const rd = {};
+        panel.querySelectorAll('[data-key="' + key + '"][data-range]').forEach(function (sel) {
+          rd[String(sel.getAttribute('data-range'))] = sel.value;
+        });
+        merged[key] = rd;
+        return;
+      }
+      const el = panel.querySelector('[data-key="' + key + '"]');
+      if (!el) return;
+      if (el.type === 'checkbox') merged[key] = el.checked;
+      else if (el.type === 'number') merged[key] = el.value.includes('.') ? parseFloat(el.value) : parseInt(el.value, 10);
+      else if (schemaType(prop) === 'integer') merged[key] = parseInt(el.value, 10);
+      else if (schemaType(prop) === 'number') merged[key] = parseFloat(el.value);
+      else merged[key] = el.value;
+    });
+    return merged;
+  }
+
+  function collectGlobalConfig() {
+    const footer = {};
+    FOOTER_FIELDS.forEach(function (pair) {
+      const el = panel.querySelector('#gfooter-' + pair[0]);
+      footer[pair[0]] = el ? el.checked : false;
+    });
+    const pins = [];
+    panel.querySelectorAll('.plugin-pin-row').forEach(function (row) {
+      const id = row.querySelector('.pin-id');
+      const ver = row.querySelector('.pin-version');
+      if (id && id.value.trim()) {
+        pins.push({ id: id.value.trim(), version: ver ? ver.value.trim() : '' });
+      }
+    });
+    return {
+      udpPort: parseInt(panel.querySelector('#g-udpPort').value, 10),
+      odbcName: panel.querySelector('#g-odbcName').value,
+      ranges: parseInt(panel.querySelector('#g-ranges').value, 10),
+      layoutColumns: parseInt(panel.querySelector('#g-layoutColumns').value, 10),
+      defaultTarget: panel.querySelector('#g-defaultTarget').value,
+      pluginsDir: panel.querySelector('#g-pluginsDir').value,
+      activePlugin: panel.querySelector('#g-activePlugin').value,
+      pluginPins: pins,
+      defaultDisplayMode: panel.querySelector('#g-defaultMode').value,
+      controlToken: panel.querySelector('#g-controlToken').value,
+      shotStrokeWidth: parseFloat(panel.querySelector('#g-shotStrokeWidth').value),
+      footer: footer
+    };
+  }
+
+  function renderGlobalSection() {
+    const c = globalData || {};
+    const f = c.footer || {};
+    let pinRows = '';
+    (c.pluginPins || []).forEach(function (p) {
+      pinRows += '<div class="plugin-pin-row">' +
+        '<input class="pin-id" placeholder="Plugin-ID" value="' + esc(p.id || p.ID || '') + '">' +
+        '<input class="pin-version" placeholder="Version" value="' + esc(p.version || p.Version || '') + '">' +
+        '</div>';
+    });
+    if (!pinRows) {
+      pinRows = '<div class="plugin-pin-row">' +
+        '<input class="pin-id" placeholder="Plugin-ID"> <input class="pin-version" placeholder="Version">' +
+        '</div>';
+    }
+
+    let footerHtml = '';
+    FOOTER_FIELDS.forEach(function (pair) {
+      footerHtml += '<label class="config-check"><input type="checkbox" id="gfooter-' + pair[0] + '"' +
+        (f[pair[0]] ? ' checked' : '') + '> <span>' + esc(pair[1]) + '</span></label>';
+    });
+
+    return '<section class="config-section">' +
+      '<header class="config-section-head">' +
+      '<h3>Standort</h3>' +
+      '<p class="config-hint">Globale Einstellungen aus <code>config.xml</code></p>' +
+      '</header>' +
+      '<div class="config-grid">' +
+      '<label class="config-field">UDP-Port<input type="number" id="g-udpPort" value="' + esc(c.udpPort) + '"></label>' +
+      '<label class="config-field">ODBC-Name<input type="text" id="g-odbcName" value="' + esc(c.odbcName) + '"></label>' +
+      '<label class="config-field">Bahnen<input type="number" id="g-ranges" min="1" value="' + esc(c.ranges) + '"></label>' +
+      '<label class="config-field">Layout-Spalten<input type="number" id="g-layoutColumns" min="1" value="' + esc(c.layoutColumns) + '"></label>' +
+      '<label class="config-field">Standard-Scheibe<input type="text" id="g-defaultTarget" value="' + esc(c.defaultTarget) + '"></label>' +
+      '<label class="config-field">Plugin-Ordner<input type="text" id="g-pluginsDir" value="' + esc(c.pluginsDir) + '"></label>' +
+      '<label class="config-field">Standard-Plugin<input type="text" id="g-activePlugin" value="' + esc(c.activePlugin || 'classic-range') + '"></label>' +
+      '<label class="config-field">Anzeige-Modus<input type="text" id="g-defaultMode" value="' + esc(c.defaultDisplayMode) + '"></label>' +
+      '<label class="config-field">Control-Token<input type="text" id="g-controlToken" value="' + esc(c.controlToken || '') + '"></label>' +
+      '<label class="config-field">Schuss-Kontur (mm)<input type="number" id="g-shotStrokeWidth" min="0" max="2" step="0.01" value="' +
+        esc(c.shotStrokeWidth != null ? c.shotStrokeWidth : 0.1) + '"></label>' +
+      '</div>' +
+      '<fieldset class="config-fieldset"><legend>Plugin-Versionen pinnen</legend>' +
+      pinRows +
+      '<button type="button" class="btn btn-ghost config-add-pin">Pin hinzufügen</button></fieldset>' +
+      '<fieldset class="config-fieldset"><legend>Footer-Anzeige</legend>' +
+      '<div class="config-check-grid">' + footerHtml + '</div></fieldset>' +
+      '<div class="config-actions">' +
+      '<button type="button" class="btn btn-primary" id="config-save-global">Standort speichern</button>' +
+      '<span id="config-global-status" class="config-editor-status"></span>' +
+      '</div>' +
+      '</section>';
+  }
+
+  function renderPluginSection() {
+    if (!pluginId) {
+      return '<section class="config-section">' +
+        '<header class="config-section-head"><h3>Plugin</h3>' +
+        '<p class="config-hint">Kein aktives Plugin – Overrides können hier nicht geladen werden.</p></header></section>';
+    }
+    if (!pluginData) {
+      return '<section class="config-section">' +
+        '<header class="config-section-head"><h3>Plugin</h3>' +
+        '<p class="config-hint">Laden…</p></header></section>';
+    }
+    const schema = pluginData.configSchema || {};
+    const props = schema.properties || {};
+    const merged = pluginData.merged || {};
+    const defaults = pluginData.manifestDefaults || {};
+    let fields = '';
+    Object.keys(props).forEach(function (key) {
+      fields += '<div class="config-plugin-field">' +
+        renderSchemaField(key, props[key], merged[key], defaults, merged) + '</div>';
+    });
+    if (!fields) fields = '<p class="config-hint">Dieses Plugin hat keine konfigurierbaren Einstellungen.</p>';
+    return '<section class="config-section">' +
+      '<header class="config-section-head">' +
+      '<h3>Plugin — ' + esc(pluginId) + '</h3>' +
+      '<p class="config-hint">Werte mit <span class="config-override-badge">Override</span> weichen vom Manifest ab und werden in <code>plugins/' +
+      esc(pluginId) + '/config.xml</code> gespeichert.</p>' +
+      '</header>' +
+      '<div class="config-plugin-fields">' + fields + '</div>' +
+      '<div class="config-actions">' +
+      '<button type="button" class="btn btn-primary" id="config-save-plugin">Plugin speichern</button>' +
+      '<span id="config-plugin-status" class="config-editor-status"></span>' +
+      '</div>' +
+      '</section>';
+  }
+
+  function render() {
+    if (!panel) return;
+    panel.innerHTML =
+      '<div class="drawer-inner settings-inner">' +
+      '<header class="settings-head">' +
+      '<div><h2>Einstellungen</h2><p class="settings-sub">Standort und aktives Plugin</p></div>' +
+      '<button type="button" class="btn btn-ghost settings-close" id="config-close" aria-label="Schließen">Schließen</button>' +
+      '</header>' +
+      '<div class="settings-body">' +
+      renderGlobalSection() +
+      renderPluginSection() +
+      '</div></div>';
+
+    const closeBtn = panel.querySelector('#config-close');
+    if (closeBtn) {
+      closeBtn.onclick = function () {
+        panel.hidden = true;
+        syncSettingsButton(false);
+      };
+    }
+
+    const addPin = panel.querySelector('.config-add-pin');
+    if (addPin) {
+      addPin.onclick = function () {
+        const row = document.createElement('div');
+        row.className = 'plugin-pin-row';
+        row.innerHTML = '<input class="pin-id" placeholder="Plugin-ID"> <input class="pin-version" placeholder="Version">';
+        addPin.parentNode.insertBefore(row, addPin);
+      };
+    }
+
+    const saveGlobal = panel.querySelector('#config-save-global');
+    if (saveGlobal) saveGlobal.onclick = saveGlobalConfig;
+
+    const savePlugin = panel.querySelector('#config-save-plugin');
+    if (savePlugin) savePlugin.onclick = savePluginConfig;
+  }
+
+  function syncSettingsButton(open) {
+    const btn = document.getElementById('btn-settings-drawer');
+    if (!btn) return;
+    btn.classList.toggle('is-open', !!open);
+  }
+
+  async function loadGlobal() {
+    const res = await fetch('/api/config');
+    if (res.ok) globalData = await res.json();
+    render();
+  }
+
+  async function loadPlugin(id) {
+    pluginId = id || '';
+    pluginData = null;
+    render();
+    if (!pluginId) return;
+    const res = await fetch('/api/plugins/' + encodeURIComponent(pluginId) + '/config');
+    if (res.ok) pluginData = await res.json();
+    render();
+  }
+
+  async function saveGlobalConfig() {
+    const status = panel.querySelector('#config-global-status');
+    setStatus(status, 'Speichern…', false);
+    const body = collectGlobalConfig();
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      headers: controlHeadersFn(),
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      setStatus(status, 'Fehler: ' + (await res.text()), true);
+      return;
+    }
+    const result = await res.json();
+    globalData = body;
+    if (result.restartRequired) {
+      setStatus(status, 'Gespeichert. Neustart nötig für: ' + (result.restartFields || []).join(', '), true);
+    } else {
+      setStatus(status, 'Gespeichert.', false);
+      if (window.SRCore && window.SRCore.fetchConfig) await window.SRCore.fetchConfig();
+    }
+  }
+
+  async function savePluginConfig() {
+    const status = panel.querySelector('#config-plugin-status');
+    setStatus(status, 'Speichern…', false);
+    const merged = collectPluginMerged();
+    const res = await fetch('/api/plugins/' + encodeURIComponent(pluginId) + '/config', {
+      method: 'PUT',
+      headers: controlHeadersFn(),
+      body: JSON.stringify({ merged: merged })
+    });
+    if (!res.ok) {
+      setStatus(status, 'Fehler: ' + (await res.text()), true);
+      return;
+    }
+    const result = await res.json();
+    pluginData = Object.assign({}, pluginData, {
+      overrides: result.overrides,
+      merged: result.merged
+    });
+    render();
+    setStatus(panel.querySelector('#config-plugin-status'), 'Gespeichert. Wirkt beim nächsten Plugin-Start.', false);
+  }
+
+  function applyOptions(options) {
+    options = options || {};
+    if (options.getRanges) getRangesFn = options.getRanges;
+    if (options.controlHeaders) {
+      controlHeadersFn = options.controlHeaders;
+    } else if (options.controlToken != null) {
+      const token = options.controlToken;
+      controlHeadersFn = function () {
+        const h = { 'Content-Type': 'application/json' };
+        if (token) h['X-SR-Control-Token'] = token;
+        return h;
+      };
+    }
+  }
+
+  function ensurePanel(container) {
+    if (panel) return panel;
+    if (container) {
+      panel = typeof container === 'string' ? document.getElementById(container) : container;
+    } else {
+      panel = document.getElementById('config-editor-panel');
+    }
+    return panel;
+  }
+
+  window.SRConfigEditor = {
+    init: function (container, options) {
+      ensurePanel(container);
+      if (!panel) return;
+      applyOptions(options);
+    },
+    open: function (options) {
+      ensurePanel();
+      if (!panel) return;
+      applyOptions(options);
+      const opening = !!panel.hidden;
+      panel.hidden = !opening;
+      syncSettingsButton(opening);
+      if (!opening) return;
+      panel.style.display = '';
+      loadGlobal();
+      if (options && options.pluginId) loadPlugin(options.pluginId);
+    },
+    show: function () {
+      if (panel) { panel.hidden = false; panel.style.display = ''; }
+      syncSettingsButton(true);
+    },
+    hide: function () {
+      if (panel) { panel.hidden = true; panel.style.display = 'none'; }
+      syncSettingsButton(false);
+    },
+    loadGlobal: loadGlobal,
+    loadPlugin: loadPlugin
+  };
+})();
