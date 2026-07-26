@@ -36,7 +36,7 @@ Open **http://localhost:8080** (master display). For a single-range tablet: `htt
 .\scripts\build-arm64.ps1
 ```
 
-Pre-built binaries for each platform live in the `dist/` folder (e.g. `dist/windows-amd64/`, `dist/linux-amd64/`, `dist/linux-arm64/`). This folder is gitignored; build or download it locally.
+Pre-built binaries for each platform live in the `dist/` folder (e.g. `dist/windows-amd64/`, `dist/linux-amd64/`, `dist/linux-arm64/`). Non-developers can run those directly without installing Go.
 
 ---
 

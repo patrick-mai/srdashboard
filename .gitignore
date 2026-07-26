@@ -7,8 +7,10 @@
 /srdashboard
 /send-shot
 /replay-log
-/dist/
 /docs/
+
+# Ship pre-built binaries for non-developers
+!dist/**/*.exe
 
 # Go
 /vendor/

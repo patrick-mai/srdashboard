@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="classic-range" label="Classic Range View" version="1.0.0" mode="per-range" kind="display">
+  <description>Standard target, footer stats, and last-10 chart — the default range display.</description>
+  <entrypoints view="view.js"/>
+  <assetsDir>assets</assetsDir>
+</plugin>

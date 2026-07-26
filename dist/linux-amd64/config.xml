@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <udpPort>30169</udpPort>
+  <odbcName>SRDashboard_Access_DSN</odbcName>
+  <ranges>6</ranges>
+  <layoutColumns>3</layoutColumns>
+  <defaultTarget>10_m_Air_Rifle_target.svg</defaultTarget>
+  <footer>
+    <currentShotValue>true</currentShotValue>
+    <teiler>true</teiler>
+    <shotNumber>true</shotNumber>
+    <overallSumInt>true</overallSumInt>
+    <overallSumDecimal>true</overallSumDecimal>
+    <predictionInt>true</predictionInt>
+    <predictionDecimal>true</predictionDecimal>
+    <seriesSumsInt>true</seriesSumsInt>
+    <seriesSumsDecimal>true</seriesSumsDecimal>
+    <last10Int>true</last10Int>
+    <last10Decimal>true</last10Decimal>
+  </footer>
+  <plugins dir="plugins" active="classic-range"/>
+  <display>
+    <!-- Pellet outline width in mm (SVG units). Typical: 0.06–0.12; clubs often disagree. -->
+    <shotStrokeWidth>0.1</shotStrokeWidth>
+  </display>
+</config>
