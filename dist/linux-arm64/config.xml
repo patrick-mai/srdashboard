@@ -4,7 +4,6 @@
   <odbcName>SRDashboard_Access_DSN</odbcName>
   <ranges>6</ranges>
   <layoutColumns>3</layoutColumns>
-  <defaultTarget>10_m_Air_Rifle_target.svg</defaultTarget>
   <footer>
     <currentShotValue>true</currentShotValue>
     <teiler>true</teiler>

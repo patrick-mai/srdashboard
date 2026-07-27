@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "defaultTargetProfile": {
+      "type": "string",
+      "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"],
+      "description": "Fallback target when discipline and per-range settings do not match"
+    },
+    "disciplineTargets": {
+      "type": "object",
+      "description": "Maps OpticScore discipline name (substring match) to a target profile id",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+      }
+    },
+    "rangeTargets": {
+      "type": "object",
+      "description": "Per-range target overrides (range number → settings)",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "targetProfile": {
+            "type": "string",
+            "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+          },
+          "disciplineHint": {
+            "type": "string",
+            "description": "Optional label shown when lane is idle (before OpticScore discipline arrives)"
+          }
+        }
+      }
+    }
+  }
+}
