@@ -99,7 +99,11 @@ func SavePluginConfig(configDir, pluginID string, overrides map[string]any) erro
 
 func upsertPluginConfigKey(root *etree.Element, key string, v any) {
 	if key == "rangeDifficulties" || key == "rangeHandicaps" {
-		upsertRangeDifficulties(root, key, v)
+		upsertRangeScalarMap(root, key, v)
+		return
+	}
+	if key == "rangeTargets" {
+		upsertRangeNestedMap(root, key, v)
 		return
 	}
 	if m, ok := v.(map[string]any); ok {
@@ -119,7 +123,7 @@ func upsertPluginConfigKey(root *etree.Element, key string, v any) {
 	setScalarText(el, v)
 }
 
-func upsertRangeDifficulties(root *etree.Element, key string, v any) {
+func upsertRangeScalarMap(root *etree.Element, key string, v any) {
 	m, ok := v.(map[string]any)
 	if !ok {
 		return
@@ -132,5 +136,29 @@ func upsertRangeDifficulties(root *etree.Element, key string, v any) {
 		r := el.CreateElement("range")
 		r.CreateAttr("num", num)
 		setScalarText(r, val)
+	}
+}
+
+func upsertRangeNestedMap(root *etree.Element, key string, v any) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return
+	}
+	el := selectOrCreate(root, key)
+	for _, child := range el.SelectElements("range") {
+		el.RemoveChild(child)
+	}
+	for num, val := range m {
+		r := el.CreateElement("range")
+		r.CreateAttr("num", num)
+		sub, ok := val.(map[string]any)
+		if !ok {
+			setScalarText(r, val)
+			continue
+		}
+		for sk, sv := range sub {
+			child := r.CreateElement(sk)
+			setScalarText(child, sv)
+		}
 	}
 }

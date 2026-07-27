@@ -22,6 +22,18 @@
     if (!res.ok) return;
     const list = await res.json();
     activePlugin = (list && list[0]) || null;
+    if (activePlugin && activePlugin.id === 'classic-range' && !window.SRTargetRegistry) {
+      await new Promise(function (resolve, reject) {
+        const script = document.createElement('script');
+        script.src = '/plugins/classic-range/target-registry.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      }).catch(function () {});
+    }
+    if (activePlugin && activePlugin.defaults && core.setPluginTargetConfig) {
+      core.setPluginTargetConfig(activePlugin.defaults);
+    }
   }
 
   async function fetchInstalledPlugins() {

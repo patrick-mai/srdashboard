@@ -70,8 +70,11 @@ func TestInstallDisplayPluginZip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ap.Logic != nil {
+	if ap.Logic == nil {
 		t.Fatal("display plugin should have no WASM logic")
+	}
+	if _, ok := ap.Logic.(*DisplayLogic); !ok {
+		t.Fatalf("expected DisplayLogic, got %T", ap.Logic)
 	}
 }
 

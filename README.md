@@ -76,13 +76,12 @@ DISAG OpticScore (UDP JSON)
 | `udpPort` | 30169 | OpticScore JSON Live UDP port |
 | `ranges` | 6 | Number of shooting ranges |
 | `layoutColumns` | 3 | Panels per row on master display |
-| `defaultTarget` | `10_m_Air_Rifle_target.svg` | Target SVG under `static/assets/` |
 | `odbcName` | — | ODBC DSN for historic DB (**not wired in UI yet**) |
 | `footer/*` | mostly `true` | Footer stat visibility toggles |
 | `display/controlToken` | — | If set, master POSTs need header `X-SR-Control-Token` |
 | `plugins/dir` | `plugins` | Plugin root directory |
 
-Master UI includes a **Settings** panel (`config-editor.js`) for site + per-plugin overrides.
+Master UI includes a **Settings** panel (`config-editor.js`) for site + per-plugin overrides. Target faces and discipline mapping live in the **classic-range** plugin config (`plugins/classic-range/config.xml`), not in global `config.xml`.
 
 ---
 

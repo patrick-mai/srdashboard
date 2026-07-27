@@ -12,9 +12,8 @@ type Config struct {
 	UDPPort       int      `xml:"udpPort"`
 	ODBCName      string   `xml:"odbcName"`
 	Ranges        int      `xml:"ranges"`
-	LayoutColumns int      `xml:"layoutColumns"` // number of panels per row (e.g. 4 → 4 in first row, 2 in second for 6 ranges)
-	DefaultTarget string   `xml:"defaultTarget"` // target SVG filename, e.g. 10_m_Air_Rifle_target.svg
-	Footer        Footer   `xml:"footer"`
+	LayoutColumns int    `xml:"layoutColumns"` // number of panels per row (e.g. 4 → 4 in first row, 2 in second for 6 ranges)
+	Footer        Footer `xml:"footer"`
 	Plugins       Plugins  `xml:"plugins"`
 	Display       Display  `xml:"display"`
 }
@@ -77,9 +76,6 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.LayoutColumns <= 0 {
 		cfg.LayoutColumns = 4
-	}
-	if cfg.DefaultTarget == "" {
-		cfg.DefaultTarget = "10_m_Air_Rifle_target.svg"
 	}
 	if cfg.Plugins.Dir == "" {
 		cfg.Plugins.Dir = "plugins"

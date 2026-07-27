@@ -300,6 +300,8 @@ func (m *Manager) loadPluginLocked(id string) error {
 			return err
 		}
 		logic = w
+	} else if manifest.Kind == KindDisplay {
+		logic = NewDisplayLogic(manifest, dir)
 	}
 	if old, ok := m.loaded[id]; ok {
 		if w, ok := old.Logic.(*WasmLogic); ok {

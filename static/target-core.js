@@ -3,11 +3,12 @@ const POLL_INTERVAL_MS = 1000;
 const SAFETY_POLL_MS = 20000;
 
 // --- Target scale (DISAG OpticScore vs SVG) — see docs/target-scale-verification.md ---
-// X, Y = shot coordinates (centre 0,0) in DISAG OpticScore units. Teiler (log "Distance") = sqrt(X^2 + Y^2). DecValue 10.9 = Teiler 0-25, 10.8 = 25-50, etc.
+// X, Y = shot coordinates (centre 0,0) in DISAG OpticScore units. Distance = Teiler = sqrt(X^2+Y^2).
+// DecValue/FullValue come pre-scored from OpticScore (discipline-aware). See target-registry teilerBandDsg.
 // ±9000 DSG units = 200 mm (confirmed). DSG_PER_MM = 90. SVG viewBox 0 0 200 200, centre 100.
 const DSG_COORD_RANGE = 9000;           // max radius from DISAG OpticScore coordinate system
-const RANGE_DIAMETER_MM = 200;             // physical diameter that fits log scores (9000 = 100 mm radius)
-const DSG_PER_MM = 90;                  // 9000 / 100 (DISAG OpticScore units per mm)
+const RANGE_DIAMETER_MM = 200;             // SVG viewBox spans 200 mm (target face centred in frame)
+const DSG_PER_MM = 90;                  // rifle default: 9000 / 100 mm radius (log-verified)
 // Default mapping for legacy targets: DSG_PER_SVG_UNIT = 90, SVG viewBox 0 0 200 200, centre 100.
 const DEFAULT_DSG_PER_SVG_UNIT = 90;
 const TARGET_DIAMETER_MM = 45.5;          // ISSF scoring target (sits inside 200 mm range)
@@ -24,7 +25,7 @@ const DEFAULT_SHOT_STROKE_SVG = 0.1;
 // viewBox units = mm = SVG units (1 SVG unit = 1 mm at DSG_PER_MM = 90).
 const ONE_RING_SVG = 2.5;           // ISSF ring width (mm)
 const RING_8_RADIUS_MM = 5.25;      // ISSF ring 8 outer radius — max zoom-in frames this as outer circle
-const AUTO_ZOOM_PAD_FRAC = 0.35;    // padding when shots spill past ring 8
+const AUTO_ZOOM_PAD_FRAC = 0.04;    // small breathing room beyond outermost shot edge
 const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scoring disk starts large (like yesterday)
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
@@ -49,15 +50,6 @@ function getShotOrderColors() {
   return DEFAULT_SHOT_ORDER_COLORS;
 }
 
-function getTargetScale() {
-  return {
-    dsgPerSvgUnit: DEFAULT_DSG_PER_SVG_UNIT,
-    svgSize: DEFAULT_SVG_VIEW_SIZE,
-    centerX: DEFAULT_SVG_CENTER,
-    centerY: DEFAULT_SVG_CENTER
-  };
-}
-
 let zoomStateByRange = {};   // rangeNum -> { x, y, w, h } SVG viewBox
 let prevShotsLengthByRange = {};  // rangeNum -> number
 let prevIsWarmupByRange = {};     // rangeNum -> last isWarmup (warmup→competition resets zoom)
@@ -67,7 +59,6 @@ let pinFullUntilNewShotByRange = {}; // dblclick: stay at full disk until anothe
 let config = {
   ranges: 6,
   layoutColumns: 4,
-  defaultTarget: '10_m_Air_Rifle_target.svg',
   shotStrokeWidth: DEFAULT_SHOT_STROKE_SVG,
   footer: {
     currentShotValue: true,
@@ -84,14 +75,95 @@ let config = {
   }
 };
 
+/** Plugin config from classic-range (discipline → profile, per-range overrides). */
+let pluginTargetConfig = null;
+/** Resolved scale + SVG file per range (from SRTargetRegistry when available). */
+let targetContextByRange = {};
+/** Range currently being rendered (fallback for helpers without rangeNum). */
+let activeScaleRangeNum = null;
+
+function setPluginTargetConfig(cfg) {
+  pluginTargetConfig = cfg || null;
+  targetContextByRange = {};
+  document.querySelectorAll('svg.target-svg-root').forEach(function (el) {
+    el.remove();
+  });
+}
+
+function resolveTargetProfileId(rangeNum, rangeData) {
+  const cfg = pluginTargetConfig || {};
+  const rangeTargets = cfg.rangeTargets || {};
+  const rt = rangeTargets[String(rangeNum)] || rangeTargets[rangeNum];
+  if (rt && typeof rt === 'object' && rt.targetProfile) return rt.targetProfile;
+  const discipline = ((rangeData && rangeData.discipline) || '').trim();
+  const map = cfg.disciplineTargets || {};
+  if (discipline) {
+    const lower = discipline.toLowerCase();
+    const keys = Object.keys(map);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (lower.indexOf(String(key).toLowerCase()) >= 0) return map[key];
+    }
+  }
+  return cfg.defaultTargetProfile || 'air_rifle_10m';
+}
+
+function updateTargetContext(rangeNum, rangeData) {
+  const profileId = resolveTargetProfileId(rangeNum, rangeData);
+  const registry = window.SRTargetRegistry;
+  let scale;
+  if (registry && typeof registry.buildScale === 'function') {
+    scale = registry.buildScale(registry.getProfile(profileId));
+  } else {
+    scale = {
+      profileId: profileId,
+      file: '10_m_Air_Rifle_target.svg',
+      dsgPerSvgUnit: DEFAULT_DSG_PER_SVG_UNIT,
+      svgSize: DEFAULT_SVG_VIEW_SIZE,
+      centerX: DEFAULT_SVG_CENTER,
+      centerY: DEFAULT_SVG_CENTER,
+      targetDiameterMm: TARGET_DIAMETER_MM,
+      tenRingDiameterMm: TEN_RING_DIAMETER_MM,
+      oneRingSvg: ONE_RING_SVG,
+      ring8RadiusMm: RING_8_RADIUS_MM,
+      shotRadiusSvg: SHOT_RADIUS_SVG,
+      last10Max: 10.9
+    };
+  }
+  targetContextByRange[rangeNum] = scale;
+  activeScaleRangeNum = rangeNum;
+  return scale;
+}
+
+function getTargetScale(rangeNum) {
+  const n = rangeNum != null ? rangeNum : activeScaleRangeNum;
+  if (n != null && targetContextByRange[n]) return targetContextByRange[n];
+  return {
+    profileId: 'air_rifle_10m',
+    file: '10_m_Air_Rifle_target.svg',
+    dsgPerSvgUnit: DEFAULT_DSG_PER_SVG_UNIT,
+    svgSize: DEFAULT_SVG_VIEW_SIZE,
+    centerX: DEFAULT_SVG_CENTER,
+    centerY: DEFAULT_SVG_CENTER,
+    targetDiameterMm: TARGET_DIAMETER_MM,
+    tenRingDiameterMm: TEN_RING_DIAMETER_MM,
+    oneRingSvg: ONE_RING_SVG,
+    ring8RadiusMm: RING_8_RADIUS_MM,
+    shotRadiusSvg: SHOT_RADIUS_SVG,
+    last10Max: 10.9
+  };
+}
+
+function getShotFillRadius(rangeNum) {
+  const ts = getTargetScale(rangeNum);
+  const r = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
+  return Math.max(0.05, r - getShotStrokeWidth() / 2);
+}
+
 function getShotStrokeWidth() {
   const w = Number(config && config.shotStrokeWidth);
   if (!Number.isFinite(w) || w <= 0) return DEFAULT_SHOT_STROKE_SVG;
   return Math.min(w, 2);
-}
-
-function getShotFillRadius() {
-  return Math.max(0.05, SHOT_RADIUS_SVG - getShotStrokeWidth() / 2);
 }
 
 /** Monotonic counter: bumped on WS apply so in-flight HTTP polls can discard stale snapshots. */
@@ -144,11 +216,12 @@ function setTargetAssetBase(base) {
   });
 }
 
-function resolveTargetUrl(_rangeNum) {
-  const file = (config.defaultTarget || '10_m_Air_Rifle_target.svg').replace(/^.*[\\/]/, '');
+function resolveTargetUrl(rangeNum) {
+  const ts = getTargetScale(rangeNum);
+  const file = (ts.file || '10_m_Air_Rifle_target.svg').replace(/^.*[\\/]/, '');
   const base = targetAssetBase || '/assets/';
-  // Cache-bust when switching asset bases (plugin folder vs static)
-  const v = targetAssetBase ? 'issf-scaled-original' : 'issf-scaled-original-static';
+  // Bump when face SVGs change so browsers do not keep a stale image href.
+  const v = (ts.profileId || 'default') + '-' + (targetAssetBase ? 'plugin' : 'static') + '-face2';
   return base + encodeURIComponent(file) + '?v=' + encodeURIComponent(v);
 }
 
@@ -156,7 +229,10 @@ function applyLayout() {
   const grid = document.getElementById('ranges-grid');
   if (!grid) return;
   const cols = Math.max(1, config.layoutColumns || 4);
+  const n = Math.max(1, config.ranges || grid.querySelectorAll('.range-panel').length || 1);
+  const rows = Math.max(1, Math.ceil(n / cols));
   grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
 }
 
 async function fetchLive() {
@@ -178,11 +254,12 @@ function dsgToSvg(xDsg, yDsg) {
   };
 }
 
-/** Empty / reset: frame the ISSF scoring disk (not the full 200 mm range). */
-function fullDiskZoom() {
-  const ts = getTargetScale();
-  const half = TARGET_DIAMETER_MM / 2 + SCORING_DISK_PAD_MM;
+/** Empty / reset: frame the scoring disk (not the full 200 mm range). */
+function fullDiskZoom(rangeNum) {
+  const ts = getTargetScale(rangeNum);
+  const half = ts.targetDiameterMm / 2 + SCORING_DISK_PAD_MM;
   return clampZoomWindow(
+    rangeNum,
     ts.centerX - half, ts.centerX + half,
     ts.centerY - half, ts.centerY + half
   );
@@ -195,20 +272,21 @@ function rangeDiskZoom() {
 }
 
 function resetRangeZoom(rangeNum) {
-  zoomStateByRange[rangeNum] = fullDiskZoom();
+  zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
   userZoomedByRange[rangeNum] = false;
   pinFullUntilNewShotByRange[rangeNum] = false;
 }
 
-function viewSpan(state) {
-  if (!state || state.w == null) return TARGET_DIAMETER_MM + 2 * SCORING_DISK_PAD_MM;
+function viewSpan(state, rangeNum) {
+  const ts = getTargetScale(rangeNum);
+  if (!state || state.w == null) return ts.targetDiameterMm + 2 * SCORING_DISK_PAD_MM;
   return Math.max(state.w, state.h);
 }
 
 /** Square viewBox window, clamped to zoom limits, centred on the given bounds. */
-function clampZoomWindow(x0, x1, y0, y1) {
-  const ts = getTargetScale();
-  const minSpan = MIN_ZOOM_SPAN_MM;
+function clampZoomWindow(rangeNum, x0, x1, y0, y1) {
+  const ts = getTargetScale(rangeNum);
+  const minSpan = ts.ring8RadiusMm * 2;
   // Cap at the SVG range. span > svgSize makes [span/2, svgSize-span/2] inverted and
   // pins the viewBox at (0,0) — disk jumps to the upper-left.
   const maxSpan = ts.svgSize;
@@ -225,39 +303,43 @@ function clampZoomWindow(x0, x1, y0, y1) {
 }
 
 /** Tightest zoom that still shows all shots, always centred on the bullseye. */
-function computeAutoFit(shots) {
-  const ts = getTargetScale();
+function computeAutoFit(shots, rangeNum) {
+  const ts = getTargetScale(rangeNum);
   if (!shots || shots.length === 0) {
-    return fullDiskZoom();
+    return fullDiskZoom(rangeNum);
   }
   let maxDist = 0;
   for (let i = 0; i < shots.length; i++) {
     const pt = dsgToSvg(Number(shots[i].x), Number(shots[i].y));
-    const dist = Math.hypot(pt.x - ts.centerX, pt.y - ts.centerY) + SHOT_RADIUS_SVG;
+    const shotR = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
+    const dist = Math.hypot(pt.x - ts.centerX, pt.y - ts.centerY) + shotR;
     if (dist > maxDist) maxDist = dist;
   }
-  // All shots inside ring 8 → zoom so 8 is the outer circle (max zoom-in).
-  if (maxDist <= RING_8_RADIUS_MM) {
-    const half = RING_8_RADIUS_MM;
+  if (maxDist <= ts.ring8RadiusMm) {
+    const half = ts.ring8RadiusMm;
     return clampZoomWindow(
+      rangeNum,
       ts.centerX - half, ts.centerX + half,
       ts.centerY - half, ts.centerY + half
     );
   }
-  // Otherwise frame the group with light pad; never tighter than ring 8.
-  const pad = Math.max(ONE_RING_SVG, AUTO_ZOOM_PAD_FRAC * maxDist * 2);
-  let half = Math.max(maxDist + pad, RING_8_RADIUS_MM);
+  // maxDist already includes pellet radius — add only a thin pad so all shots stay visible.
+  const shotR = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
+  const pad = Math.max(shotR * 0.35, AUTO_ZOOM_PAD_FRAC * maxDist * 2);
+  let half = Math.max(maxDist + pad, ts.ring8RadiusMm);
   half = Math.min(half, ts.svgSize / 2);
   return clampZoomWindow(
+    rangeNum,
     ts.centerX - half, ts.centerX + half,
     ts.centerY - half, ts.centerY + half
   );
 }
 
 /** True if a shot point lies outside (or on the edge of) the current viewBox. */
-function shotOutsideView(pt, state) {
+function shotOutsideView(pt, state, rangeNum) {
   if (!state || state.w == null) return true;
-  const m = SHOT_RADIUS_SVG;
+  const ts = getTargetScale(rangeNum);
+  const m = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
   return (
     pt.x - m < state.x ||
     pt.x + m > state.x + state.w ||
@@ -276,7 +358,7 @@ function setupZoomHandlers(viewport, rangeNum) {
   viewport.dataset.zoomHandlers = '1';
 
   function getState() {
-    if (!zoomStateByRange[rangeNum]) zoomStateByRange[rangeNum] = fullDiskZoom();
+    if (!zoomStateByRange[rangeNum]) zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     return zoomStateByRange[rangeNum];
   }
 
@@ -288,28 +370,27 @@ function setupZoomHandlers(viewport, rangeNum) {
     e.preventDefault();
     userZoomedByRange[rangeNum] = true;
     const state = getState();
-    const span = viewSpan(state);
+    const span = viewSpan(state, rangeNum);
     const factor = e.deltaY > 0 ? 1.12 : 1 / 1.12;
     const half = (span * factor) / 2;
-    // Always zoom about the bullseye — never pan/recenter via wheel.
-    const ts = getTargetScale();
+    const ts = getTargetScale(rangeNum);
     zoomStateByRange[rangeNum] = clampZoomWindow(
+      rangeNum,
       ts.centerX - half, ts.centerX + half,
       ts.centerY - half, ts.centerY + half
     );
     applyViewBox(getSvg(), zoomStateByRange[rangeNum]);
   }, { passive: false });
 
-  // Pan disabled: view stays centred on the target; only zoom in/out + dblclick reset.
   viewport.addEventListener('dblclick', () => {
-    zoomStateByRange[rangeNum] = fullDiskZoom();
+    zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     userZoomedByRange[rangeNum] = false;
     pinFullUntilNewShotByRange[rangeNum] = true;
     applyViewBox(getSvg(), zoomStateByRange[rangeNum]);
   });
 }
 
-function ensureTargetSvg(container) {
+function ensureTargetSvg(container, rangeNum) {
   let wrapper = container.querySelector('.target-wrapper');
   if (!wrapper) {
     wrapper = document.createElement('div');
@@ -321,24 +402,28 @@ function ensureTargetSvg(container) {
   wrapper.style.transform = '';
 
   let svg = wrapper.querySelector('svg.target-svg-root');
+  const ts = getTargetScale(rangeNum);
+  if (svg && svg.dataset.profileId && svg.dataset.profileId !== ts.profileId) {
+    svg.remove();
+    svg = null;
+  }
   if (svg && svg.querySelector('.target-face') && svg.querySelector('.target-shots')) {
     return svg;
   }
   if (svg) svg.remove();
 
-  const ts = getTargetScale();
   svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'target-svg-root');
+  svg.dataset.profileId = ts.profileId || '';
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('viewBox', `0 0 ${ts.svgSize} ${ts.svgSize}`);
 
-  // ISSF artwork 1:1 into viewBox 0 0 200 200 — shots share this user space via viewBox zoom.
   const face = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   face.setAttribute('class', 'target-face');
-  face.setAttribute('data-style', 'issf-original');
+  face.setAttribute('data-style', ts.profileId || 'issf-original');
   const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-  img.setAttribute('href', resolveTargetUrl());
-  img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', resolveTargetUrl());
+  img.setAttribute('href', resolveTargetUrl(rangeNum));
+  img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', resolveTargetUrl(rangeNum));
   img.setAttribute('x', '0');
   img.setAttribute('y', '0');
   img.setAttribute('width', String(ts.svgSize));
@@ -348,7 +433,7 @@ function ensureTargetSvg(container) {
   const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   marker.setAttribute('cx', String(ts.centerX));
   marker.setAttribute('cy', String(ts.centerY));
-  marker.setAttribute('r', '22.75');
+  marker.setAttribute('r', String(ts.targetDiameterMm / 2));
   marker.setAttribute('fill', 'none');
   marker.setAttribute('stroke', 'none');
   marker.setAttribute('pointer-events', 'none');
@@ -362,7 +447,7 @@ function ensureTargetSvg(container) {
   return svg;
 }
 
-function upsertShotCircles(shotsGroup, shots) {
+function upsertShotCircles(shotsGroup, shots, rangeNum) {
   const colors = getShotOrderColors();
   // Keep the whole shot stack above the target face.
   if (shotsGroup.parentNode && shotsGroup.parentNode.lastElementChild !== shotsGroup) {
@@ -410,7 +495,7 @@ function upsertShotCircles(shotsGroup, shots) {
     }
     fill.setAttribute('cx', String(pt.x));
     fill.setAttribute('cy', String(pt.y));
-    fill.setAttribute('r', String(getShotFillRadius()));
+    fill.setAttribute('r', String(getShotFillRadius(rangeNum)));
     fill.setAttribute('fill', colors[i % colors.length]);
     fill.setAttribute('fill-opacity', '1');
     fill.setAttribute('stroke', 'none');
@@ -427,7 +512,7 @@ function upsertShotCircles(shotsGroup, shots) {
     }
     ring.setAttribute('cx', String(pt.x));
     ring.setAttribute('cy', String(pt.y));
-    ring.setAttribute('r', String(getShotFillRadius()));
+    ring.setAttribute('r', String(getShotFillRadius(rangeNum)));
     ring.setAttribute('stroke', colors[i % colors.length]);
     ring.setAttribute('stroke-width', String(getShotStrokeWidth()));
     ring.setAttribute('stroke-opacity', '1');
@@ -445,17 +530,24 @@ function upsertShotCircles(shotsGroup, shots) {
 function renderTarget(container, rangeData, isWarmup) {
   if (!container || !rangeData) return;
 
+  const rangeNum = rangeData.rangeNum;
+  updateTargetContext(rangeNum, rangeData);
+
   container.querySelectorAll('.target-plot').forEach((el) => el.remove());
 
   let svg = container.querySelector('svg.target-svg-root');
+  const ts = getTargetScale(rangeNum);
+  if (svg && svg.dataset.profileId && svg.dataset.profileId !== ts.profileId) {
+    svg.remove();
+    svg = null;
+  }
   if (!svg || !svg.querySelector('.target-face') || !svg.querySelector('.target-shots')) {
-    svg = ensureTargetSvg(container);
+    svg = ensureTargetSvg(container, rangeNum);
   }
   const shotsGroup = svg.querySelector('.target-shots');
   if (!shotsGroup) return;
 
   const shots = rangeData.shots || [];
-  const rangeNum = rangeData.rangeNum;
   const prevLen = prevShotsLengthByRange[rangeNum] ?? 0;
   const currentLen = shots.length;
   const warmupFlag = !!(isWarmup != null ? isWarmup : rangeData.isWarmup);
@@ -472,19 +564,18 @@ function renderTarget(container, rangeData, isWarmup) {
 
   if (currentLen === 0 || pinFullUntilNewShotByRange[rangeNum]) {
     if (!userZoomedByRange[rangeNum]) {
-      zoomStateByRange[rangeNum] = fullDiskZoom();
+      zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     }
   } else if (!userZoomedByRange[rangeNum]) {
-    zoomStateByRange[rangeNum] = computeAutoFit(shots);
+    zoomStateByRange[rangeNum] = computeAutoFit(shots, rangeNum);
   } else {
-    // Keep bullseye-centred user zoom, but expand if a shot would be clipped.
     const state = zoomStateByRange[rangeNum];
     const latest = shots[shots.length - 1];
     if (latest) {
       const pt = dsgToSvg(Number(latest.x), Number(latest.y));
-      if (shotOutsideView(pt, state)) {
-        const fitted = computeAutoFit(shots);
-        if (viewSpan(fitted) > viewSpan(state)) {
+      if (shotOutsideView(pt, state, rangeNum)) {
+        const fitted = computeAutoFit(shots, rangeNum);
+        if (viewSpan(fitted, rangeNum) > viewSpan(state, rangeNum)) {
           zoomStateByRange[rangeNum] = fitted;
         }
       }
@@ -494,11 +585,11 @@ function renderTarget(container, rangeData, isWarmup) {
   prevIsWarmupByRange[rangeNum] = warmupFlag;
 
   if (!zoomStateByRange[rangeNum] || zoomStateByRange[rangeNum].w == null) {
-    zoomStateByRange[rangeNum] = fullDiskZoom();
+    zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
   }
   applyViewBox(svg, zoomStateByRange[rangeNum]);
   setupZoomHandlers(container, rangeNum);
-  upsertShotCircles(shotsGroup, shots);
+  upsertShotCircles(shotsGroup, shots, rangeNum);
 }
 
 const DEFAULT_CHART_COLORS = {
@@ -524,35 +615,34 @@ function getChartColors() {
   };
 }
 
-/** Absolute ceiling for decimal ring values (10.9). */
-const LAST10_VALUE_MAX = 10.9;
-
 /** Series-relative Y range so tight high scores still use the full plot height. */
-function computeValueRange(last10Values) {
-  if (!last10Values || last10Values.length === 0) return [0, LAST10_VALUE_MAX];
+function computeValueRange(last10Values, rangeNum) {
+  const ts = getTargetScale(rangeNum);
+  const maxVal = ts.last10Max != null ? ts.last10Max : 10.9;
+  if (!last10Values || last10Values.length === 0) return [0, maxVal];
   const vals = last10Values.map(Number).filter((n) => !Number.isNaN(n));
-  if (vals.length === 0) return [0, LAST10_VALUE_MAX];
+  if (vals.length === 0) return [0, maxVal];
   let minV = Math.min(...vals);
   let maxV = Math.max(...vals);
   const padding = 0.15;
   if (minV === maxV) {
     minV = Math.max(0, minV - 0.5);
-    maxV = Math.min(LAST10_VALUE_MAX, maxV + 0.5);
+    maxV = Math.min(maxVal, maxV + 0.5);
   } else {
     const span = maxV - minV;
     minV = Math.max(0, minV - padding * span);
-    maxV = Math.min(LAST10_VALUE_MAX, maxV + padding * span);
+    maxV = Math.min(maxVal, maxV + padding * span);
   }
-  if (maxV <= minV) maxV = Math.min(LAST10_VALUE_MAX, minV + 0.5);
+  if (maxV <= minV) maxV = Math.min(maxVal, minV + 0.5);
   return [minV, maxV];
 }
 
-function renderLast10Chart(container, last10Values) {
+function renderLast10Chart(container, last10Values, rangeNum) {
   if (!container) return;
   const colors = getChartColors();
   const shotColors = getShotOrderColors();
   const values = (last10Values || []).map(Number).filter((n) => !Number.isNaN(n));
-  const [yMin, yMax] = computeValueRange(last10Values);
+  const [yMin, yMax] = computeValueRange(last10Values, rangeNum);
   const ySpan = Math.max(0.01, yMax - yMin);
 
   // Match viewBox to the laid-out size so labels are not stretched by preserveAspectRatio=none.
@@ -734,6 +824,51 @@ function rangeChromeSignature(r) {
   ].join('|');
 }
 
+function paintShotValCanvas(canvas, text) {
+  const label = text == null || text === '' ? '–' : String(text);
+  canvas.setAttribute('aria-label', label);
+  const rootStyle = getComputedStyle(document.documentElement);
+  const score = (rootStyle.getPropertyValue('--score') || '').trim();
+  const ink = (rootStyle.getPropertyValue('--ink') || '#15202b').trim() || '#15202b';
+  const fill = score || ink;
+  // Heavier than the shooter name (600/20px) so the current value leads the header row
+  const fontCss = '700 32px "Segoe UI", system-ui, sans-serif';
+  const dpr = window.devicePixelRatio || 1;
+  const ss = 4; // supersample, then CSS-downscale — smooths Skia stair-steps vs Notepad
+  const scale = dpr * ss;
+
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = fontCss;
+  const textW = Math.ceil(measure.measureText(label).width);
+  const cssW = Math.max(52, textW + 6);
+  const cssH = 30;
+
+  canvas.width = Math.ceil(cssW * scale);
+  canvas.height = Math.ceil(cssH * scale);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  ctx.font = fontCss;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = fill;
+  ctx.fillText(label, cssW - 2, cssH / 2);
+}
+
+function repaintAllShotVals() {
+  document.querySelectorAll('canvas.shot-val').forEach(function (c) {
+    paintShotValCanvas(c, c.getAttribute('aria-label') || '–');
+  });
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('srdashboard:themechange', repaintAllShotVals);
+  window.addEventListener('resize', repaintAllShotVals);
+}
+
 function fillRangeHeader(header, rangeData) {
   header.className = 'range-header' + (rangeData.shooterName ? '' : ' empty');
   const h = formatRangeHeader(rangeData);
@@ -749,7 +884,7 @@ function fillRangeHeader(header, rangeData) {
     top.className = 'range-header-top';
     top.innerHTML =
       '<div class="range-header-text"><div class="range-header-line1"></div></div>' +
-      '<div class="range-shot-chip"><span class="shot-val"></span></div>';
+      '<div class="range-shot-chip"><canvas class="shot-val" role="img"></canvas></div>';
     header.appendChild(top);
 
     metaRow = document.createElement('div');
@@ -765,11 +900,20 @@ function fillRangeHeader(header, rangeData) {
 
   header.querySelector('.range-sum-row')?.remove();
 
+  // Migrate older span.shot-val nodes to canvas (live panels without remount).
+  let shotVal = header.querySelector('.shot-val');
+  if (shotVal && shotVal.tagName !== 'CANVAS') {
+    const canvas = document.createElement('canvas');
+    canvas.className = 'shot-val';
+    canvas.setAttribute('role', 'img');
+    shotVal.replaceWith(canvas);
+    shotVal = canvas;
+  }
+
   const line1 = header.querySelector('.range-header-line1');
   const clubEl = metaRow.querySelector('.range-club');
   const discEl = line3.querySelector('.range-discipline');
   const standEl = line3.querySelector('.range-stand');
-  const shotVal = header.querySelector('.shot-val');
   const shotMeta = metaRow.querySelector('.shot-meta');
 
   if (line1) line1.textContent = h.line1;
@@ -781,7 +925,7 @@ function fillRangeHeader(header, rangeData) {
   if (discEl) discEl.textContent = h.line3;
   if (standEl) standEl.textContent = h.stand;
   line3.hidden = false;
-  if (shotVal) shotVal.textContent = chip.val;
+  if (shotVal) paintShotValCanvas(shotVal, chip.val);
   if (shotMeta) shotMeta.textContent = chip.meta;
 }
 
@@ -818,7 +962,7 @@ function renderRangePanel(rangeData) {
   renderTarget(targetContainer, rangeData, rangeData.isWarmup);
   if (showLast10) {
     const chartWrap = panel.querySelector('.last10-chart-wrap');
-    if (chartWrap) renderLast10Chart(chartWrap, rangeData.last10Values);
+    if (chartWrap) renderLast10Chart(chartWrap, rangeData.last10Values, rangeData.rangeNum);
   }
   panel.dataset.chromeSig = rangeChromeSignature(rangeData);
 
@@ -847,7 +991,7 @@ function renderClassicRangeView(container, rangeData) {
       if (footerEl) container.insertBefore(chartWrap, footerEl);
       else container.appendChild(chartWrap);
     }
-    renderLast10Chart(chartWrap, rangeData.last10Values);
+    renderLast10Chart(chartWrap, rangeData.last10Values, rangeData.rangeNum);
   } else if (chartWrap) {
     chartWrap.remove();
   }
@@ -896,7 +1040,7 @@ function syncRangePanel(panel, r) {
       chartWrap.className = 'last10-chart-wrap';
       panel.insertBefore(chartWrap, footerEl);
     }
-    renderLast10Chart(chartWrap, r.last10Values);
+    renderLast10Chart(chartWrap, r.last10Values, r.rangeNum);
   } else {
     const chartWrap = panel.querySelector('.last10-chart-wrap');
     if (chartWrap) chartWrap.remove();
@@ -994,5 +1138,6 @@ window.SRCore = {
   getShotOrderColors,
   getTargetScale,
   setTargetAssetBase,
+  setPluginTargetConfig,
   dsgToSvg
 };

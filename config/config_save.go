@@ -27,8 +27,10 @@ func Save(path string, cfg *Config) error {
 	setChildScalar(root, "odbcName", cfg.ODBCName)
 	setChildScalar(root, "ranges", cfg.Ranges)
 	setChildScalar(root, "layoutColumns", cfg.LayoutColumns)
-	setChildScalar(root, "defaultTarget", cfg.DefaultTarget)
 
+	if oldTarget := root.SelectElement("defaultTarget"); oldTarget != nil {
+		root.RemoveChild(oldTarget)
+	}
 	if oldSkin := root.SelectElement("skin"); oldSkin != nil {
 		root.RemoveChild(oldSkin)
 	}

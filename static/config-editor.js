@@ -53,8 +53,13 @@
     handicapNormalScoreOffset: 'Normal score offset',
     handicapHardScoreOffset: 'Hard score offset',
     handicapEasyScoreMin: 'Easy score floor',
-    handicapEasyScoreMax: 'Easy score ceiling'
+    handicapEasyScoreMax: 'Easy score ceiling',
+    defaultTargetProfile: 'Standard-Scheibe (Fallback)',
+    disciplineTargets: 'Scheibe pro Disziplin',
+    rangeTargets: 'Scheibe pro Bahn'
   };
+
+  const TARGET_PROFILE_ENUM = ['air_rifle_10m', 'air_pistol_10m', 'smallbore_50m_prone', 'smallbore_50m_3p'];
 
   function fieldLabel(key) {
     return PLUGIN_FIELD_LABELS[key] || key;
@@ -105,6 +110,46 @@
       return html;
     }
 
+    if (key === 'rangeTargets') {
+      const ranges = getRangesFn();
+      const rt = (value && typeof value === 'object') ? value : {};
+      const profileEnums = (prop.additionalProperties && prop.additionalProperties.properties &&
+        prop.additionalProperties.properties.targetProfile &&
+        prop.additionalProperties.properties.targetProfile.enum) || TARGET_PROFILE_ENUM;
+      let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend><p class="config-hint">Überschreibt Disziplin-Zuordnung für einzelne Bahnen.</p><div class="config-check-grid">';
+      for (let r = 1; r <= ranges; r++) {
+        const rk = String(r);
+        const cur = rt[rk] || rt[r];
+        const profile = (cur && typeof cur === 'object' && cur.targetProfile) ? cur.targetProfile : '';
+        html += '<label class="config-field">Bahn ' + r + '<select data-key="' + esc(key) + '" data-range="' + r + '" data-subkey="targetProfile">';
+        html += '<option value="">— automatisch —</option>';
+        profileEnums.forEach(function (opt) {
+          html += '<option value="' + esc(opt) + '"' + (profile === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+        });
+        html += '</select></label>';
+      }
+      html += '</div></fieldset>';
+      return html;
+    }
+
+    if (key === 'disciplineTargets') {
+      const dt = (value && typeof value === 'object') ? value : {};
+      const profileEnums = (prop.additionalProperties && prop.additionalProperties.enum) || TARGET_PROFILE_ENUM;
+      const keys = Object.keys(dt).length ? Object.keys(dt) : ['Luftgewehr', 'Luftpistole', 'Kleinkaliber'];
+      let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend><p class="config-hint">Substring-Match auf OpticScore-Disziplin → Scheibenprofil.</p><div class="config-check-grid">';
+      keys.forEach(function (discKey, idx) {
+        const cur = dt[discKey] || '';
+        html += '<label class="config-field">' + esc(discKey) +
+          '<select data-key="' + esc(key) + '" data-discipline="' + esc(discKey) + '">';
+        profileEnums.forEach(function (opt) {
+          html += '<option value="' + esc(opt) + '"' + (cur === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+        });
+        html += '</select></label>';
+      });
+      html += '</div></fieldset>';
+      return html;
+    }
+
     if (key === 'rangeDifficulties' || (t === 'object' && prop.additionalProperties && prop.additionalProperties.enum)) {
       const ranges = getRangesFn();
       const rd = (value && typeof value === 'object') ? value : {};
@@ -149,6 +194,25 @@
     const schema = (pluginData.configSchema && pluginData.configSchema.properties) || {};
     Object.keys(schema).forEach(function (key) {
       const prop = schema[key];
+      if (key === 'rangeTargets') {
+        const rt = {};
+        panel.querySelectorAll('[data-key="' + key + '"][data-range]').forEach(function (sel) {
+          const profile = sel.value;
+          if (profile) {
+            rt[String(sel.getAttribute('data-range'))] = { targetProfile: profile };
+          }
+        });
+        merged[key] = rt;
+        return;
+      }
+      if (key === 'disciplineTargets') {
+        const dt = {};
+        panel.querySelectorAll('[data-key="' + key + '"][data-discipline]').forEach(function (sel) {
+          dt[sel.getAttribute('data-discipline')] = sel.value;
+        });
+        merged[key] = dt;
+        return;
+      }
       if (key === 'rangeHandicaps') {
         const rh = {};
         panel.querySelectorAll('[data-key="' + key + '"][data-range]').forEach(function (inp) {
@@ -195,7 +259,6 @@
       odbcName: panel.querySelector('#g-odbcName').value,
       ranges: parseInt(panel.querySelector('#g-ranges').value, 10),
       layoutColumns: parseInt(panel.querySelector('#g-layoutColumns').value, 10),
-      defaultTarget: panel.querySelector('#g-defaultTarget').value,
       pluginsDir: panel.querySelector('#g-pluginsDir').value,
       activePlugin: panel.querySelector('#g-activePlugin').value,
       pluginPins: pins,
@@ -238,7 +301,6 @@
       '<label class="config-field">ODBC-Name<input type="text" id="g-odbcName" value="' + esc(c.odbcName) + '"></label>' +
       '<label class="config-field">Bahnen<input type="number" id="g-ranges" min="1" value="' + esc(c.ranges) + '"></label>' +
       '<label class="config-field">Layout-Spalten<input type="number" id="g-layoutColumns" min="1" value="' + esc(c.layoutColumns) + '"></label>' +
-      '<label class="config-field">Standard-Scheibe<input type="text" id="g-defaultTarget" value="' + esc(c.defaultTarget) + '"></label>' +
       '<label class="config-field">Plugin-Ordner<input type="text" id="g-pluginsDir" value="' + esc(c.pluginsDir) + '"></label>' +
       '<label class="config-field">Standard-Plugin<input type="text" id="g-activePlugin" value="' + esc(c.activePlugin || 'classic-range') + '"></label>' +
       '<label class="config-field">Anzeige-Modus<input type="text" id="g-defaultMode" value="' + esc(c.defaultDisplayMode) + '"></label>' +

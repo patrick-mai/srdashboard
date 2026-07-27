@@ -1,4 +1,4 @@
-// One-off helper: send demo shot series to all ranges over UDP.
+// One-off helper: send demo shot series to ranges over UDP (OpticScore-shaped payloads).
 package main
 
 import (
@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const decMax = 10.9
+
 func main() {
 	addr := "127.0.0.1:30169"
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -22,39 +24,50 @@ func main() {
 
 	pick := func(ss []string) string { return ss[rng.Intn(len(ss))] }
 
-	// DecValue from lo..10.9 in 0.1 steps
 	pickDec := func(lo float64) float64 {
-		steps := int(math.Round((10.9 - lo) * 10))
+		steps := int(math.Round((decMax - lo) * 10))
+		if steps < 0 {
+			steps = 0
+		}
 		return math.Round((lo+float64(rng.Intn(steps+1))/10)*10) / 10
 	}
 
-	teiler := func(dec float64) float64 {
-		var d float64
-		switch {
-		case dec >= 10.9:
-			d = 0.05 + rng.Float64()*0.08
-		case dec >= 10.0:
-			d = 0.15 + (10.9-dec)*0.45 + rng.Float64()*0.15
-		default:
-			d = 1.8 + (10.0-dec)*3.2 + rng.Float64()*1.2
+	// Teiler (Distance) in DISAG units: one 0.1 DecValue step spans teilerBandDsg.
+	pickShotCoords := func(dec float64, teilerBandDsg float64) (x, y int, distance float64) {
+		if dec > decMax {
+			dec = decMax
 		}
-		return math.Round(d*100) / 100
+		band := int(math.Round((decMax - dec) * 10))
+		lo := float64(band) * teilerBandDsg
+		hi := lo + teilerBandDsg
+		if dec >= decMax {
+			distance = rng.Float64() * teilerBandDsg * 0.4
+		} else {
+			distance = lo + rng.Float64()*(hi-lo)
+		}
+		distance = math.Round(distance*10) / 10
+		angle := rng.Float64() * 2 * math.Pi
+		x = int(math.Round(math.Cos(angle) * distance))
+		y = int(math.Round(math.Sin(angle) * distance))
+		// Keep Distance = sqrt(X²+Y²) as in real OpticScore logs.
+		distance = math.Round(math.Hypot(float64(x), float64(y))*10) / 10
+		return x, y, distance
 	}
 
-	sendSeries := func(rangeNum, nShots int, menu string, lo float64) {
+	sendSeries := func(rangeNum, nShots int, menu string, lo float64, teilerBandDsg float64) {
 		fn, ln, club := pick(first), pick(last), pick(clubs)
-		log.Printf("range %d: %s %s (%s) — %s, %d shots, %.1f–10.9", rangeNum, fn, ln, club, menu, nShots, lo)
+		log.Printf("range %d: %s %s (%s) — %s, %d shots, %.1f–%.1f (teiler band %.0f DSG)",
+			rangeNum, fn, ln, club, menu, nShots, lo, decMax, teilerBandDsg)
 		base := time.Now()
 		for i := 0; i < nShots; i++ {
 			dec := pickDec(lo)
-			dist := teiler(dec)
-			angle := rng.Float64() * 2 * math.Pi
-			radius := dist * 90
-			x := int(math.Cos(angle) * radius)
-			y := int(math.Sin(angle) * radius)
+			x, y, dist := pickShotCoords(dec, teilerBandDsg)
 			full := int(math.Floor(dec))
 			if full > 10 {
 				full = 10
+			}
+			if full < 0 {
+				full = 0
 			}
 			msg := map[string]any{
 				"MessageType": "Event",
@@ -89,17 +102,23 @@ func main() {
 				log.Fatal(err)
 			}
 			if (i+1)%10 == 0 || i+1 == nShots {
-				log.Printf("  range %d: %d/%d (last=%.1f)", rangeNum, i+1, nShots, dec)
+				log.Printf("  range %d: %d/%d (last=%.1f teiler=%.1f)", rangeNum, i+1, nShots, dec, dist)
 			}
 			time.Sleep(12 * time.Millisecond)
 		}
 	}
 
-	sendSeries(1, 30, "LG Auflage 30 Schuss", 10.0)
-	for r := 2; r <= 6; r++ {
-		sendSeries(r, 40, "LG 40 Schuss", 8.5)
+	const rifleBand = 25.0
+	const pistolBand = 72.0
+
+	sendSeries(1, 30, "LG Aufgelegt", 10.0, rifleBand)
+	for r := 2; r <= 3; r++ {
+		sendSeries(r, 40, "LG 40 Schuss", 8.5, rifleBand)
 	}
-	fmt.Println("done: range1=30 LG Auflage (10.0–10.9), ranges 2–6=40 shots (8.5–10.9)")
+	for r := 4; r <= 6; r++ {
+		sendSeries(r, 40, "LP 40 Schuss", 6.0, pistolBand)
+	}
+	fmt.Println("done: range1=30 LG Aufgelegt (10.0–10.9); ranges 2–3=40 LG (8.5–10.9); ranges 4–6=40 LP (6.0–10.9)")
 }
 
 func sendUDP(addr string, data []byte) error {

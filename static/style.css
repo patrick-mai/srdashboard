@@ -47,9 +47,9 @@
   --maedn-stroke: rgba(0, 0, 0, 0.28);
   --mini-target-bg: rgba(21, 32, 43, 0.04);
   --shooter-glow: rgba(10, 122, 140, 0.12);
-  /* System UI stack for ClearType sharpness; display face only for big scores */
+  /* System UI only — webfonts (e.g. Barlow) render with stepped curves on Windows ClearType */
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display: "Barlow Condensed", "Segoe UI", sans-serif;
+  --font-display: "Segoe UI", system-ui, -apple-system, sans-serif;
   --radius: 6px;
   --top-h: auto;
 }
@@ -110,7 +110,9 @@ body {
     radial-gradient(900px 500px at 88% 0%, var(--glow-2), transparent 50%),
     linear-gradient(165deg, var(--bg-0) 0%, var(--bg-1) 48%, var(--bg-2) 100%);
   background-attachment: fixed;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 body::before {
@@ -140,12 +142,24 @@ body::before {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .master-main {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -724,7 +738,7 @@ body::before {
 }
 .range-plugin-view.classic-range-view .range-target {
   flex: 1 1 auto;
-  min-height: 280px;
+  min-height: 0;
 }
 
 .plugin-score-header {
@@ -1345,7 +1359,14 @@ body::before {
   gap: 0.85rem;
   padding: 0.85rem 1rem 1.25rem;
   max-width: 1680px;
+  width: 100%;
   margin: 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  align-content: stretch;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .range-panel {
@@ -1356,6 +1377,8 @@ body::before {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow);
+  min-height: 0;
+  height: 100%;
 }
 
 .range-header {
@@ -1371,7 +1394,7 @@ body::before {
 
 .range-header-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
@@ -1379,9 +1402,10 @@ body::before {
 .range-header-text { min-width: 0; flex: 1; }
 
 .range-header-line1 {
-  font-weight: 700;
-  font-size: 24px;
-  line-height: 28px;
+  /* Soften vs score — name sits with club as the identity block */
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 26px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1393,11 +1417,12 @@ body::before {
   justify-content: space-between;
   gap: 8px;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 18px;
+  line-height: 17px;
   color: var(--muted);
   min-width: 0;
+  margin-top: 1px;
 }
 
 .range-header-meta-row .range-club {
@@ -1452,17 +1477,15 @@ body::before {
 }
 
 .range-shot-chip .shot-val {
-  font-family: var(--font-display);
-  font-size: 40px;
-  font-weight: 700;
-  line-height: 40px;
-  color: var(--score);
-  font-variant-numeric: tabular-nums;
+  display: block;
+  width: auto;
+  height: 30px;
+  image-rendering: auto;
 }
 
 .range-target {
   flex: 1 1 auto;
-  min-height: 280px;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   cursor: grab;
@@ -1532,18 +1555,20 @@ body::before {
   line-height: 22px;
   flex-shrink: 0;
   background: var(--panel);
+  text-align: center;
 }
 .range-footer .footer-stack {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  align-items: flex-start;
+  align-items: center;
 }
 .range-footer .footer-inner-table {
   width: auto;
   max-width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
+  margin: 0 auto;
 }
 .range-footer .footer-th,
 .range-footer .footer-td {
@@ -1581,6 +1606,7 @@ body::before {
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   max-width: 100%;
 }
@@ -1623,17 +1649,17 @@ body::before {
   min-width: 4ch;
 }
 
-/* Fit 1366×768 / 1280×720 without oversized chrome; keep disk square + readable */
-@media (max-height: 900px) {
-  #ranges-grid { gap: 0.55rem; padding: 0.55rem 0.75rem 0.75rem; }
-  .range-header { padding: 6px 10px 4px; font-size: 20px; }
+/* Fit 1920×1080 / 1366×768 without page scroll; panels share viewport height */
+@media (max-height: 1100px) {
+  #ranges-grid { gap: 0.5rem; padding: 0.5rem 0.75rem 0.65rem; }
+  .range-header { padding: 5px 10px 4px; font-size: 20px; gap: 1px; }
   .range-header-line1 { font-size: 20px; line-height: 24px; }
-  .range-header-meta-row { font-size: 14px; line-height: 16px; }
-  .range-header-line3 { font-size: 14px; line-height: 17px; }
-  .range-shot-chip .shot-val { font-size: 34px; line-height: 34px; }
-  .range-target { min-height: 200px; }
-  .last10-chart-wrap { height: 48px; min-height: 48px; }
-  .range-footer { padding: 8px 10px; font-size: 16px; line-height: 20px; }
+  .range-header-meta-row { font-size: 12px; line-height: 14px; }
+  .range-header-line3 { font-size: 12px; line-height: 14px; }
+  .range-shot-chip .shot-val { height: 28px; }
+  .last10-chart-wrap { height: 44px; min-height: 44px; }
+  .range-footer { padding: 6px 10px; font-size: 15px; line-height: 18px; }
+  .range-footer .footer-stack { gap: 4px; }
 }
 
 @media (max-width: 1280px) {
@@ -1641,6 +1667,5 @@ body::before {
   .range-footer { font-size: 16px; line-height: 20px; }
   .range-header { font-size: 20px; }
   .range-header-line1 { font-size: 20px; line-height: 24px; }
-  .range-header-meta-row { font-size: 14px; line-height: 16px; }
-  .range-shot-chip .shot-val { font-size: 32px; line-height: 32px; }
+  .range-header-meta-row { font-size: 12px; line-height: 14px; }
 }

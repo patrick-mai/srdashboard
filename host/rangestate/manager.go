@@ -75,7 +75,7 @@ func (m *Manager) Activate(pluginID string) error {
 	for i := 1; i <= m.numRanges; i++ {
 		var sess logicapi.SessionState
 		var vm map[string]any
-		if ap.Logic != nil {
+		if ap.Manifest.HasLogic() {
 			sess, err = ap.Logic.Init(cfg)
 			if err != nil {
 				return err
@@ -156,7 +156,7 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 		return
 	}
 
-	if ap.Logic != nil {
+	if ap.Manifest.HasLogic() {
 		newState, events, err := ap.Logic.OnShot(s.State, rangeNum, shot, shotIndex)
 		if err != nil {
 			return
@@ -183,7 +183,7 @@ func (m *Manager) RefreshDisplayViewModels() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	ap, err := m.plugins.Get(m.activeID)
-	if err != nil || ap.Logic != nil {
+	if err != nil || ap.Manifest.HasLogic() {
 		return
 	}
 	for i := 1; i <= m.numRanges; i++ {
@@ -216,7 +216,7 @@ func (m *Manager) snapshotRangeInternal(rangeNum int) SessionSnapshot {
 		return SessionSnapshot{RangeNum: rangeNum, Phase: PhaseIdle}
 	}
 	// Refresh display VM from latest live data when reading
-	if ap, err := m.plugins.Get(s.PluginID); err == nil && ap.Logic == nil {
+	if ap, err := m.plugins.Get(s.PluginID); err == nil && ap.Manifest.IsDisplay() {
 		s.ViewModel = m.displayViewModelLocked(rangeNum, ap)
 	}
 	snap := s.snapshot()

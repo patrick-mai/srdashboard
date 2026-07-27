@@ -121,7 +121,7 @@ func finalizePluginConfigElement(start xml.StartElement, text string, children [
 	if len(children) == 0 {
 		return coerceScalar(text), nil
 	}
-	if start.Name.Local == "rangeDifficulties" || start.Name.Local == "rangeHandicaps" {
+	if start.Name.Local == "rangeDifficulties" || start.Name.Local == "rangeHandicaps" || start.Name.Local == "rangeTargets" {
 		out := make(map[string]any)
 		for _, c := range children {
 			if c.start.Name.Local != "range" {

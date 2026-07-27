@@ -13,9 +13,8 @@ type ConfigResponse struct {
 	UDPPort       int                `json:"udpPort"`
 	ODBCName      string             `json:"odbcName"`
 	Ranges        int                `json:"ranges"`
-	LayoutColumns int                `json:"layoutColumns"`
-	DefaultTarget string             `json:"defaultTarget"`
-	Footer        config.Footer      `json:"footer"`
+	LayoutColumns int           `json:"layoutColumns"`
+	Footer        config.Footer `json:"footer"`
 	PluginsDir    string             `json:"pluginsDir"`
 	ActivePlugin  string             `json:"activePlugin"`
 	PluginPins    []config.PluginRef `json:"pluginPins"`
@@ -46,9 +45,8 @@ func (h *Handlers) configResponse() ConfigResponse {
 		UDPPort:         h.Cfg.UDPPort,
 		ODBCName:        h.Cfg.ODBCName,
 		Ranges:          h.Cfg.Ranges,
-		LayoutColumns:   h.Cfg.LayoutColumns,
-		DefaultTarget:   h.Cfg.DefaultTarget,
-		Footer:          h.Cfg.Footer,
+		LayoutColumns: h.Cfg.LayoutColumns,
+		Footer:        h.Cfg.Footer,
 		PluginsDir:      h.Cfg.Plugins.Dir,
 		ActivePlugin:    active,
 		PluginPins:      h.Cfg.Plugins.Plugin,
@@ -74,7 +72,6 @@ func (h *Handlers) responseToConfig(resp ConfigResponse) *config.Config {
 		ODBCName:      resp.ODBCName,
 		Ranges:        resp.Ranges,
 		LayoutColumns: resp.LayoutColumns,
-		DefaultTarget: resp.DefaultTarget,
 		Footer:        resp.Footer,
 		Plugins: config.Plugins{
 			Dir:    resp.PluginsDir,
@@ -114,7 +111,6 @@ func (h *Handlers) applyConfigHotReload(newCfg *config.Config) {
 	h.Cfg.ODBCName = newCfg.ODBCName
 	h.Cfg.Ranges = newCfg.Ranges
 	h.Cfg.LayoutColumns = newCfg.LayoutColumns
-	h.Cfg.DefaultTarget = newCfg.DefaultTarget
 	h.Cfg.Footer = newCfg.Footer
 	h.Cfg.Plugins = newCfg.Plugins
 	h.Cfg.Display = newCfg.Display
@@ -192,7 +188,12 @@ func (h *Handlers) PluginConfig(w http.ResponseWriter, r *http.Request, pluginID
 		http.NotFound(w, r)
 		return
 	}
-	defaults := ap.Logic.DefaultConfig()
+	defaults := map[string]any{}
+	if ap.Logic != nil {
+		defaults = ap.Logic.DefaultConfig()
+	} else if ap.Manifest.Config.Defaults != nil {
+		defaults = ap.Manifest.Config.Defaults
+	}
 	overrides, err := config.LoadPluginConfig(h.Plugins.RootDir(), pluginID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -203,12 +204,16 @@ func (h *Handlers) PluginConfig(w http.ResponseWriter, r *http.Request, pluginID
 	switch r.Method {
 	case http.MethodGet:
 		w.Header().Set("Content-Type", "application/json")
+		schema := map[string]any{"type": "object"}
+		if ap.Logic != nil {
+			schema = ap.Logic.ConfigSchema()
+		}
 		_ = json.NewEncoder(w).Encode(pluginConfigResponse{
 			ID:               pluginID,
 			Overrides:        overrides,
 			ManifestDefaults: defaults,
 			Merged:           merged,
-			ConfigSchema:     ap.Logic.ConfigSchema(),
+			ConfigSchema:     schema,
 		})
 	case http.MethodPut:
 		if !h.checkControlToken(r) {

@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<plugin id="classic-range" label="Classic Range View" version="1.0.0" mode="per-range" kind="display">
-  <description>Standard target, footer stats, and last-10 chart — the default range display.</description>
+<plugin id="classic-range" label="Classic Range View" version="1.1.0" mode="per-range" kind="display">
+  <description>Standard target, footer stats, and last-10 chart — supports mixed disciplines per range.</description>
   <entrypoints view="view.js"/>
   <assetsDir>assets</assetsDir>
+  <config>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+    <disciplineTargets>
+      <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <Luftpistole>air_pistol_10m</Luftpistole>
+      <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK>smallbore_50m_prone</KK>
+    </disciplineTargets>
+  </config>
 </plugin>
