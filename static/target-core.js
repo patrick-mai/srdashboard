@@ -707,6 +707,10 @@ function renderFooter(rangeData) {
   const f = config.footer || {};
   const w = rangeData.currentValue != null && f.currentShotValue ? rangeData.currentValue.toFixed(1) : '–';
   const t = rangeData.currentTeiler != null && f.teiler ? rangeData.currentTeiler.toFixed(1) : '–';
+  const best =
+    f.teiler && rangeData.bestTeilerShot > 0
+      ? Number(rangeData.bestTeiler).toFixed(1) + ' #' + rangeData.bestTeilerShot
+      : '–';
   const sumInt = f.overallSumInt || f.overallSumDecimal ? String(rangeData.overallSumInt ?? 0) : '–';
   const sumDec = f.overallSumInt || f.overallSumDecimal ? (rangeData.overallSumDecimal ?? 0).toFixed(1) : '–';
   const hasPred = (rangeData.predictionInt != null && rangeData.predictionInt > 0) || (rangeData.predictionDecimal != null && rangeData.predictionDecimal > 0);
@@ -767,7 +771,7 @@ function renderFooter(rangeData) {
     '<table class="footer-inner-table"><thead><tr>' +
     thLabel('Wert') + thValue(w) + thLabel('Teiler') + thValue(t) + thLabel('Summe') + thValueLeft(sumInt) + thLabel('Prognose') + thValueLeft(predInt) +
     '</tr></thead><tbody><tr>' +
-    tdLabel('#') + tdValue(sharp) + tdLabel('') + tdValue('') + tdLabel('') + tdValueLeft(sumDec) + tdLabel('') + tdValueLeft(predDec) +
+    tdLabel('#') + tdValue(sharp) + tdLabel('Bester') + tdValue(best) + tdLabel('') + tdValueLeft(sumDec) + tdLabel('') + tdValueLeft(predDec) +
     '</tr></tbody></table>';
 
   return (
@@ -812,6 +816,8 @@ function rangeChromeSignature(r) {
     r.overallSumDecimal,
     r.currentValue,
     r.currentTeiler,
+    r.bestTeiler,
+    r.bestTeilerShot,
     r.predictionInt,
     r.predictionDecimal,
     r.isWarmup ? 1 : 0,

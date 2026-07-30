@@ -13,12 +13,12 @@ import (
 
 // Handlers provides HTTP handlers for the API
 type Handlers struct {
-	State      *state.LiveState
-	Cfg        *config.Config
-	ConfigPath string
-	Plugins    *loader.Manager
+	State       *state.LiveState
+	Cfg         *config.Config
+	ConfigPath  string
+	Plugins     *loader.Manager
 	PluginState *rangestate.Manager
-	Hub        *Hub
+	Hub         *Hub
 }
 
 // LiveResponse is the JSON response for GET /api/live
@@ -37,6 +37,8 @@ type RangeResponse struct {
 	ShotNumber       int          `json:"shotNumber"`
 	CurrentValue     float64      `json:"currentValue"`
 	CurrentTeiler    float64      `json:"currentTeiler"`
+	BestTeiler       float64      `json:"bestTeiler"`
+	BestTeilerShot   int          `json:"bestTeilerShot"`
 	OverallSumInt    int          `json:"overallSumInt"`
 	OverallSumDec    float64      `json:"overallSumDecimal"`
 	PredictionInt    int          `json:"predictionInt"`
@@ -46,7 +48,6 @@ type RangeResponse struct {
 	Last10Values     []float64    `json:"last10Values"`
 	TotalShotsToFire int          `json:"totalShotsToFire"`
 }
-
 
 // Live returns the current live state for all ranges. Uses a thread-safe snapshot to avoid data races with UDP.
 // POST /api/live/reset?range=N clears one range to defaults.
@@ -157,6 +158,8 @@ func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 		ShotNumber:       s.ShotNumber,
 		CurrentValue:     s.CurrentValue,
 		CurrentTeiler:    s.CurrentTeiler,
+		BestTeiler:       s.BestTeiler,
+		BestTeilerShot:   s.BestTeilerShot,
 		OverallSumInt:    s.OverallSumInt,
 		OverallSumDec:    s.OverallSumDec,
 		PredictionInt:    s.PredictionInt,
@@ -179,6 +182,8 @@ func responseToSnapshot(r RangeResponse) state.RangeSnapshot {
 		ShotNumber:       r.ShotNumber,
 		CurrentValue:     r.CurrentValue,
 		CurrentTeiler:    r.CurrentTeiler,
+		BestTeiler:       r.BestTeiler,
+		BestTeilerShot:   r.BestTeilerShot,
 		OverallSumInt:    r.OverallSumInt,
 		OverallSumDec:    r.OverallSumDec,
 		PredictionInt:    r.PredictionInt,

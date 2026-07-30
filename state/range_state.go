@@ -23,21 +23,23 @@ type Shot struct {
 
 // RangeState holds the live state for one shooting range
 type RangeState struct {
-	RangeNum      int     `json:"rangeNum"`
-	ShooterName   string  `json:"shooterName"`
-	ClubName      string  `json:"clubName"`
-	Discipline    string  `json:"discipline"`
-	IsWarmup      bool    `json:"isWarmup"`
-	Shots         []Shot  `json:"shots"`
-	ShotNumber    int     `json:"shotNumber"`
-	CurrentValue  float64 `json:"currentValue"`
-	CurrentTeiler float64 `json:"currentTeiler"`
-	OverallSumInt int     `json:"overallSumInt"`
-	OverallSumDec float64 `json:"overallSumDecimal"`
-	SeriesSumsInt []int     `json:"seriesSumsInt"`
-	SeriesSums    []float64 `json:"seriesSums"`
-	Last10Values  []float64 `json:"last10Values"`
-	TotalShotsToFire int   `json:"totalShotsToFire"`
+	RangeNum         int       `json:"rangeNum"`
+	ShooterName      string    `json:"shooterName"`
+	ClubName         string    `json:"clubName"`
+	Discipline       string    `json:"discipline"`
+	IsWarmup         bool      `json:"isWarmup"`
+	Shots            []Shot    `json:"shots"`
+	ShotNumber       int       `json:"shotNumber"`
+	CurrentValue     float64   `json:"currentValue"`
+	CurrentTeiler    float64   `json:"currentTeiler"`
+	BestTeiler       float64   `json:"bestTeiler"`
+	BestTeilerShot   int       `json:"bestTeilerShot"` // 0 = none yet; otherwise shot number of best Teiler
+	OverallSumInt    int       `json:"overallSumInt"`
+	OverallSumDec    float64   `json:"overallSumDecimal"`
+	SeriesSumsInt    []int     `json:"seriesSumsInt"`
+	SeriesSums       []float64 `json:"seriesSums"`
+	Last10Values     []float64 `json:"last10Values"`
+	TotalShotsToFire int       `json:"totalShotsToFire"`
 }
 
 // LiveState holds state for all ranges. Safe for concurrent use: UDP applies shots under mu, HTTP reads via Snapshot().
@@ -93,6 +95,8 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		ShotNumber:       snap.ShotNumber,
 		CurrentValue:     snap.CurrentValue,
 		CurrentTeiler:    snap.CurrentTeiler,
+		BestTeiler:       snap.BestTeiler,
+		BestTeilerShot:   snap.BestTeilerShot,
 		OverallSumInt:    snap.OverallSumInt,
 		OverallSumDec:    snap.OverallSumDec,
 		SeriesSumsInt:    append([]int(nil), snap.SeriesSumsInt...),
@@ -105,15 +109,15 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 
 // ShotPayload is the parsed DISAG OpticScore shot from JSON
 type ShotPayload struct {
-	X         int     `json:"X"`
-	Y         int     `json:"Y"`
-	Distance  float64 `json:"Distance"`
-	FullValue int     `json:"FullValue"`
-	DecValue  float64 `json:"DecValue"`
-	Range     int     `json:"Range"`
-	IsWarmup  bool    `json:"IsWarmup"`
-	IsHot        bool   `json:"IsHot"`
-	ShotDateTime string `json:"ShotDateTime"` // DISAG: yyyy-MM-dd HH:mm:ss.fff
+	X            int     `json:"X"`
+	Y            int     `json:"Y"`
+	Distance     float64 `json:"Distance"`
+	FullValue    int     `json:"FullValue"`
+	DecValue     float64 `json:"DecValue"`
+	Range        int     `json:"Range"`
+	IsWarmup     bool    `json:"IsWarmup"`
+	IsHot        bool    `json:"IsHot"`
+	ShotDateTime string  `json:"ShotDateTime"` // DISAG: yyyy-MM-dd HH:mm:ss.fff
 	// TLStatus / LastTLChange exist in DISAG but are not available on all ranges — not used by game logic.
 	TLStatus     string `json:"TLStatus"`
 	LastTLChange int    `json:"LastTLChange"`
@@ -156,6 +160,8 @@ func resetRangeFooter(rs *RangeState) {
 	rs.OverallSumDec = 0
 	rs.CurrentValue = 0
 	rs.CurrentTeiler = 0
+	rs.BestTeiler = 0
+	rs.BestTeilerShot = 0
 	rs.TotalShotsToFire = 0
 }
 
@@ -229,6 +235,11 @@ func (ls *LiveState) ApplyShot(rng int, sp *ShotPayload) {
 	rs.ShotNumber++
 	rs.CurrentValue = sp.DecValue
 	rs.CurrentTeiler = sp.Distance
+	// Best Teiler = lowest Distance (closest to centre) across the series.
+	if rs.BestTeilerShot == 0 || sp.Distance < rs.BestTeiler {
+		rs.BestTeiler = sp.Distance
+		rs.BestTeilerShot = rs.ShotNumber
+	}
 	rs.OverallSumInt += sp.FullValue
 	rs.OverallSumDec += sp.DecValue
 
@@ -283,6 +294,8 @@ type RangeSnapshot struct {
 	ShotNumber       int       `json:"shotNumber"`
 	CurrentValue     float64   `json:"currentValue"`
 	CurrentTeiler    float64   `json:"currentTeiler"`
+	BestTeiler       float64   `json:"bestTeiler"`
+	BestTeilerShot   int       `json:"bestTeilerShot"`
 	OverallSumInt    int       `json:"overallSumInt"`
 	OverallSumDec    float64   `json:"overallSumDecimal"`
 	PredictionInt    int       `json:"predictionInt"`
@@ -321,6 +334,8 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 			ShotNumber:       rs.ShotNumber,
 			CurrentValue:     rs.CurrentValue,
 			CurrentTeiler:    rs.CurrentTeiler,
+			BestTeiler:       rs.BestTeiler,
+			BestTeilerShot:   rs.BestTeilerShot,
 			OverallSumInt:    rs.OverallSumInt,
 			OverallSumDec:    rs.OverallSumDec,
 			PredictionInt:    predInt,
