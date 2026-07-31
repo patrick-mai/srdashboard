@@ -145,6 +145,9 @@ func LoadManifest(dir string) (*Manifest, error) {
 
 func (m *Manifest) IsDisplay() bool { return m.Kind == KindDisplay }
 func (m *Manifest) HasLogic() bool  { return m.Entrypoints.Logic != "" }
+func (m *Manifest) IsBuiltin() bool {
+	return strings.EqualFold(strings.TrimSpace(m.Entrypoints.Logic), "builtin")
+}
 
 func (m *Manifest) ValidateFiles(dir string) error {
 	required := []string{
@@ -156,13 +159,16 @@ func (m *Manifest) ValidateFiles(dir string) error {
 			return fmt.Errorf("missing required file %s: %w", filepath.Base(p), err)
 		}
 	}
+	if m.IsBuiltin() {
+		return nil
+	}
 	if m.HasLogic() {
 		wasmPath := filepath.Join(dir, m.Entrypoints.Logic)
 		if _, err := os.Stat(wasmPath); err != nil {
 			return fmt.Errorf("missing required file %s: %w", filepath.Base(wasmPath), err)
 		}
 	} else if m.Kind == KindGame {
-		return fmt.Errorf("game plugin %q requires logic.wasm", m.ID)
+		return fmt.Errorf("game plugin %q requires logic.wasm or logic=\"builtin\"", m.ID)
 	}
 	return nil
 }

@@ -1,6 +1,27 @@
 (function () {
-  const params = new URLSearchParams(location.search);
-  const display = params.get('display') || 'master';
+  function resolveDisplay() {
+    const params = new URLSearchParams(location.search);
+    const qDisplay = params.get('display');
+    const qRange = params.get('range');
+    if (qDisplay === 'shooter' || qDisplay === 'master' || qDisplay === 'config') {
+      return {
+        display: qDisplay,
+        rangeNum: qDisplay === 'shooter' ? (parseInt(qRange, 10) || 1) : null
+      };
+    }
+    if (/^\/config\/?$/.test(location.pathname)) {
+      return { display: 'config', rangeNum: null };
+    }
+    const m = location.pathname.match(/^\/(\d+)\/?$/);
+    if (m) {
+      return { display: 'shooter', rangeNum: parseInt(m[1], 10) };
+    }
+    return { display: 'master', rangeNum: null };
+  }
+
+  const resolved = resolveDisplay();
+  const display = resolved.display;
+  window.SRDisplay = resolved;
 
   const THEME_KEY = 'srdashboard-theme';
 
@@ -32,17 +53,23 @@
     toggle: toggleTheme
   };
 
-  if (display === 'shooter') {
-    document.addEventListener('DOMContentLoaded', function () {
-      const chrome = document.getElementById('master-chrome');
-      const app = document.getElementById('shooter-app');
+  document.addEventListener('DOMContentLoaded', function () {
+    const chrome = document.getElementById('master-chrome');
+    const shooter = document.getElementById('shooter-app');
+    const config = document.getElementById('config-app');
+    if (display === 'shooter') {
       if (chrome) chrome.hidden = true;
-      if (app) app.hidden = false;
-    });
-  } else {
-    document.addEventListener('DOMContentLoaded', function () {
-      const app = document.getElementById('shooter-app');
-      if (app) app.hidden = true;
-    });
-  }
+      if (config) config.hidden = true;
+      if (shooter) shooter.hidden = false;
+    } else if (display === 'config') {
+      if (chrome) chrome.hidden = true;
+      if (shooter) shooter.hidden = true;
+      if (config) config.hidden = false;
+      document.body.classList.add('config-display');
+    } else {
+      if (shooter) shooter.hidden = true;
+      if (config) config.hidden = true;
+      if (chrome) chrome.hidden = false;
+    }
+  });
 })();

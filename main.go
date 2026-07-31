@@ -1,16 +1,23 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"srdashboard/api"
 	"srdashboard/config"
+	_ "srdashboard/host/games/f1race"
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
 	"srdashboard/state"
@@ -54,6 +61,7 @@ func main() {
 	}
 	udpListener.SetShotNotifier(func(rng int, shot state.Shot, shotIndex int) {
 		ps.OnShot(rng, shot, shotIndex)
+		ps.SyncLiveReady()
 		snap := st.Snapshot()
 		for _, rs := range snap {
 			if rs.RangeNum == rng {
@@ -83,6 +91,7 @@ func main() {
 	http.HandleFunc("/api/historic", handlers.Historic)
 	http.HandleFunc("/api/plugins/active", handlers.PluginsActiveList)
 	http.HandleFunc("/api/plugins/session", handlers.PluginSession)
+	http.HandleFunc("/api/plugins/control", handlers.PluginControl)
 	http.HandleFunc("/api/plugins", handlers.PluginsList)
 	http.HandleFunc("/api/plugins/install", handlers.PluginInstall)
 	http.HandleFunc("/api/plugins/activate", handlers.PluginActivate)
@@ -97,11 +106,38 @@ func main() {
 	if _, err := os.Stat(staticDir); err == nil {
 		staticHandler = http.FileServer(http.Dir(staticDir))
 	} else {
-		sub, _ := fs.Sub(staticFS, "static")
+		sub, err := fs.Sub(staticFS, "static")
+		if err != nil {
+			log.Fatalf("embedded static assets: %v", err)
+		}
 		staticHandler = http.FileServer(http.FS(sub))
 	}
+	rangePath := regexp.MustCompile(`^/(\d+)/?$`)
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if _, err := os.Stat(filepath.Join(staticDir, "index.html")); err == nil {
+			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+			return
+		}
+		data, err := staticFS.ReadFile("static/index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(data)
+	}
 	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".css") || r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, ".html") {
+		path := r.URL.Path
+		if path == "/config" || path == "/config/" || rangePath.MatchString(path) {
+			serveIndex(w, r)
+			return
+		}
+		if path == "/" || path == "/index.html" {
+			serveIndex(w, r)
+			return
+		}
+		if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".html") {
 			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		}
 		staticHandler.ServeHTTP(w, r)
@@ -117,8 +153,34 @@ func main() {
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 	}
+	if cfg.Display.ControlToken == "" {
+		log.Printf("WARNING: display/controlToken is not set in %s — anyone who can reach %s may change plugins, config and live scores", configPath, addr)
+	}
 	log.Printf("HTTP server on http://localhost%s (active plugin: %s)", addr, cfg.Plugins.Active)
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("HTTP server: %v", err)
+
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+		close(serverErr)
+	}()
+
+	// Shut down on Ctrl-C so in-flight config writes finish and the UDP socket
+	// is released instead of being torn down mid-operation.
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			log.Fatalf("HTTP server: %v", err)
+		}
+	case sig := <-stop:
+		log.Printf("received %s, shutting down", sig)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("graceful shutdown: %v", err)
+		}
 	}
 }

@@ -1,0 +1,17 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 667" class="f1-circuit-svg" data-circuit="melbourne">
+  <defs>
+    <filter id="f1-title-shadow">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+  <image class="f1-circuit-bg" href="melbourne-bg.png" x="0" y="0" width="1000" height="667" preserveAspectRatio="xMidYMid meet"/>
+  <rect class="f1-circuit-dusk" width="1000" height="667" fill="#0a1220" opacity="0"/>
+  <g class="f1-circuit-title" filter="url(#f1-title-shadow)">
+    <rect x="300" y="18" width="400" height="52" rx="4" fill="#0a0e12" opacity="0.55"/>
+    <text x="500" y="42" text-anchor="middle" fill="#f4f7fa" font-family="Oswald, Arial Black, sans-serif"
+          font-size="24" letter-spacing="4">MELBOURNE · ALBERT PARK</text>
+    <text x="500" y="60" text-anchor="middle" fill="#5eb3d4" font-family="Barlow, sans-serif"
+          font-size="11" letter-spacing="3">AUSTRALIA · GRAND PRIX CIRCUIT</text>
+  </g>
+  <path id="racing-line" d="M 400 520 L 480 522 L 560 520 L 640 518 L 720 512 L 780 500 L 810 460 L 820 410 L 825 360 L 820 300 L 800 250 L 770 200 L 720 160 L 660 135 L 590 125 L 520 122 L 450 125 L 380 140 L 320 165 L 270 200 L 230 250 L 205 310 L 195 370 L 200 430 L 230 480 L 280 510 L 340 520 L 400 520" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.18"/>
+</svg>

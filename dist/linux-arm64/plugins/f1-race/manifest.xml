@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="f1-race" label="F1 Race" version="1.0.0" mode="shared" kind="game">
+  <description>Multi-range F1 race on real circuits — Spa, Nürburgring, Melbourne. Timed pits, field events, DRS overtaking.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <circuitId>spa</circuitId>
+    <motionMode>push</motionMode>
+    <stintSize>10</stintSize>
+    <roundDurationSec>120</roundDurationSec>
+    <skippedRoundsToCrash>2</skippedRoundsToCrash>
+    <overtakeRatio>1.12</overtakeRatio>
+    <paceCompress>0.5</paceCompress>
+    <pacePivot>8</pacePivot>
+    <drsStackPerPlace>0.12</drsStackPerPlace>
+    <drsSections>2,3,4,7,8</drsSections>
+    <gridGap>0.055</gridGap>
+    <trackLength>1</trackLength>
+    <highShotThreshold>9</highShotThreshold>
+    <streakBonus>1.15</streakBonus>
+    <pitCueWindowMs>5000</pitCueWindowMs>
+    <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <requireEqualShotTotals>true</requireEqualShotTotals>
+    <fieldEventsEnabled>true</fieldEventsEnabled>
+    <holeInHoleMinOverlap>0.5</holeInHoleMinOverlap>
+    <shotDiameterMm>4.5</shotDiameterMm>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+  </config>
+</plugin>

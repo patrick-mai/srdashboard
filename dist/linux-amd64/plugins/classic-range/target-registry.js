@@ -1,6 +1,10 @@
 /**
- * Hardcoded target geometry profiles for Classic Range.
+ * Hardcoded target geometry profiles. This is the canonical copy.
  * Scoring values come from OpticScore; profiles control face SVG and zoom/scale only.
+ *
+ * Plugins ship as self-contained zips, so plugins/f1-race/target-registry.js is
+ * a verbatim copy. Keep the two identical or the same shot plots differently on
+ * master and tablet.
  */
 (function () {
   const DSG_COORD_RANGE = 9000;
@@ -50,10 +54,19 @@
       file: '50_m_Smallbore_target.svg',
       targetDiameterMm: 154.4,
       tenRingDiameterMm: 10.4,
+      innerTenDiameterMm: 5.0,
+      ringWidthMm: 8.0,
       oneRingSvg: 8.0,
-      ring8RadiusMm: 52.0,
+      ring8RadiusMm: 21.2, // ISSF 8-ring Ø 42.4 mm
       shotDiameterMm: 5.6,
-      last10Max: 10.9
+      decMax: 10.9,
+      /** Same 200 mm DISAG frame as LG (±9000 → ±100 mm). */
+      coordRadiusMm: 100,
+      /** ~8 mm ring / 10 decimal steps × 90 DSG/mm. */
+      teilerBandDsg: 72,
+      last10Max: 10.9,
+      /** Tighter auto-zoom than LG; still shows all shots, floor = ring 8. */
+      autoZoomPadFrac: 0.012
     },
     smallbore_50m_3p: {
       id: 'smallbore_50m_3p',
@@ -61,10 +74,16 @@
       file: '50_m_Smallbore_target.svg',
       targetDiameterMm: 154.4,
       tenRingDiameterMm: 10.4,
+      innerTenDiameterMm: 5.0,
+      ringWidthMm: 8.0,
       oneRingSvg: 8.0,
-      ring8RadiusMm: 52.0,
+      ring8RadiusMm: 21.2,
       shotDiameterMm: 5.6,
-      last10Max: 10.9
+      decMax: 10.9,
+      coordRadiusMm: 100,
+      teilerBandDsg: 72,
+      last10Max: 10.9,
+      autoZoomPadFrac: 0.012
     }
   };
 
@@ -105,13 +124,15 @@
       shotRadiusSvg: shotRadiusSvg,
       decMax: p.decMax != null ? p.decMax : 10.9,
       teilerBandDsg: p.teilerBandDsg,
-      last10Max: p.last10Max != null ? p.last10Max : (p.decMax != null ? p.decMax : 10.9)
+      last10Max: p.last10Max != null ? p.last10Max : (p.decMax != null ? p.decMax : 10.9),
+      autoZoomPadFrac: p.autoZoomPadFrac
     };
   }
 
   window.SRTargetRegistry = {
     profiles: PROFILES,
     defaultProfileId: DEFAULT_PROFILE_ID,
+    ownerPluginId: 'classic-range',
     getProfile: getProfile,
     profileIds: profileIds,
     buildScale: buildScale

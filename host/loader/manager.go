@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -202,16 +203,15 @@ func (m *Manager) MergedConfig(id string) map[string]any {
 }
 
 func (m *Manager) SaveToInbox(filename string, r io.Reader) (string, error) {
-	name := filepath.Base(filename)
-	if name == "" || name == "." {
-		name = "upload.srplugin.zip"
-	}
+	name := sanitizeUploadName(filename)
 	dest := filepath.Join(m.inboxDir, name)
 	f, err := os.Create(dest)
 	if err != nil {
 		return "", err
 	}
-	if _, err := io.Copy(f, r); err != nil {
+	// Independent of any limit the HTTP layer applies, never let one upload
+	// write more than the package limit into the inbox.
+	if _, err := io.Copy(f, io.LimitReader(r, MaxPluginUploadBytes)); err != nil {
 		f.Close()
 		_ = os.Remove(dest)
 		return "", err
@@ -221,6 +221,18 @@ func (m *Manager) SaveToInbox(filename string, r io.Reader) (string, error) {
 		return "", err
 	}
 	return dest, nil
+}
+
+// sanitizeUploadName reduces a client-supplied filename to a bare, safe name.
+// Both separators are stripped so a Windows-style path cannot survive on Linux.
+func sanitizeUploadName(filename string) string {
+	name := strings.ReplaceAll(filename, "\\", "/")
+	name = path.Base(name)
+	name = strings.TrimLeft(name, ".")
+	if name == "" || strings.ContainsAny(name, `/\:*?"<>|`) {
+		return "upload.srplugin.zip"
+	}
+	return name
 }
 
 func (m *Manager) ScanInbox() ([]PluginInfo, error) {
@@ -294,7 +306,13 @@ func (m *Manager) loadPluginLocked(id string) error {
 		return err
 	}
 	var logic logicapi.Logic
-	if manifest.HasLogic() {
+	if manifest.IsBuiltin() {
+		b, err := newBuiltinLogic(manifest)
+		if err != nil {
+			return err
+		}
+		logic = b
+	} else if manifest.HasLogic() {
 		w, err := NewWasmLogic(context.Background(), manifest, dir)
 		if err != nil {
 			return err
@@ -354,6 +372,41 @@ func validateZip(zipPath string) (*Manifest, error) {
 	return manifest, nil
 }
 
+// Limits applied to uploaded plugin packages.
+const (
+	// MaxPluginUploadBytes caps the compressed upload accepted by the install endpoint.
+	MaxPluginUploadBytes = 64 << 20 // 64 MiB
+	// MaxPluginUnpackedBytes caps the total extracted size, guarding against zip bombs.
+	MaxPluginUnpackedBytes = 256 << 20 // 256 MiB
+	// MaxPluginZipEntries caps the archive entry count.
+	MaxPluginZipEntries = 10000
+)
+
+// checkZipEntryName rejects archive entries that try to escape the destination
+// directory. Names are already slash-normalised and cleaned by the caller.
+func checkZipEntryName(name string) error {
+	switch {
+	case name == "." || name == "":
+		return nil
+	case strings.HasPrefix(name, "/"):
+		return fmt.Errorf("plugin package entry %q is an absolute path", name)
+	case name == ".." || strings.HasPrefix(name, "../"):
+		return fmt.Errorf("plugin package entry %q escapes the install directory", name)
+	case filepath.IsAbs(filepath.FromSlash(name)) || filepath.VolumeName(filepath.FromSlash(name)) != "":
+		return fmt.Errorf("plugin package entry %q is an absolute path", name)
+	}
+	return nil
+}
+
+// isWithin reports whether abs path child lives under abs path root.
+func isWithin(root, child string) bool {
+	rel, err := filepath.Rel(root, child)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 func unzip(src, dest string) error {
 	r, err := zip.OpenReader(src)
 	if err != nil {
@@ -399,10 +452,21 @@ func unzip(src, dest string) error {
 		}
 	}
 
+	if len(r.File) > MaxPluginZipEntries {
+		return fmt.Errorf("plugin package has %d entries, limit is %d", len(r.File), MaxPluginZipEntries)
+	}
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+
+	var written int64
 	for _, f := range r.File {
 		name := filepath.ToSlash(filepath.Clean(f.Name))
-		if strings.HasPrefix(name, "..") {
-			continue
+		// A tampered archive is rejected outright rather than silently
+		// skipped, so a partial install can never look like a clean one.
+		if err := checkZipEntryName(name); err != nil {
+			return err
 		}
 		if prefix != "" {
 			if name == strings.TrimSuffix(prefix, "/") {
@@ -416,10 +480,21 @@ func unzip(src, dest string) error {
 		if name == "" {
 			continue
 		}
-		path := filepath.Join(dest, filepath.FromSlash(name))
+		path, err := filepath.Abs(filepath.Join(absDest, filepath.FromSlash(name)))
+		if err != nil {
+			return err
+		}
+		if !isWithin(absDest, path) {
+			return fmt.Errorf("plugin package entry %q escapes the install directory", f.Name)
+		}
 		if f.FileInfo().IsDir() {
-			_ = os.MkdirAll(path, 0755)
+			if err := os.MkdirAll(path, 0755); err != nil {
+				return err
+			}
 			continue
+		}
+		if !f.FileInfo().Mode().IsRegular() {
+			return fmt.Errorf("plugin package entry %q is not a regular file", f.Name)
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
@@ -433,11 +508,17 @@ func unzip(src, dest string) error {
 			rc.Close()
 			return err
 		}
-		_, err = io.Copy(out, rc)
+		// Copy through a shrinking budget so a zip bomb cannot fill the disk
+		// however large the declared uncompressed sizes claim to be.
+		n, err := io.Copy(out, io.LimitReader(rc, MaxPluginUnpackedBytes-written+1))
 		out.Close()
 		rc.Close()
 		if err != nil {
 			return err
+		}
+		written += n
+		if written > MaxPluginUnpackedBytes {
+			return fmt.Errorf("plugin package expands beyond the %d byte limit", int64(MaxPluginUnpackedBytes))
 		}
 	}
 	return nil

@@ -4,11 +4,15 @@
   <entrypoints view="view.js"/>
   <assetsDir>assets</assetsDir>
   <config>
+    <hideIdleRanges>true</hideIdleRanges>
     <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
     <disciplineTargets>
       <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <LG>air_rifle_10m</LG>
       <Luftpistole>air_pistol_10m</Luftpistole>
+      <LP>air_pistol_10m</LP>
       <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK-Gewehr>smallbore_50m_prone</KK-Gewehr>
       <KK>smallbore_50m_prone</KK>
     </disciplineTargets>
   </config>

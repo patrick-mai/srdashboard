@@ -16,6 +16,7 @@
 </head>
 <body>
   <div id="shooter-app" hidden></div>
+  <div id="config-app" hidden></div>
   <div id="master-chrome">
     <header class="side-rail" id="top-bar">
       <div class="side-rail-slim">
@@ -42,21 +43,23 @@
       </div>
     </header>
     <div class="master-main">
-      <div id="config-editor-panel" class="drawer settings-drawer" hidden></div>
       <main class="stage lcars-content" id="stage">
         <div id="ranges-grid"></div>
       </main>
     </div>
   </div>
+  <script src="/auth.js"></script>
   <script src="/target-core.js?v=header-weight"></script>
   <script src="/plugin-shell.js"></script>
   <script src="/config-editor.js"></script>
   <script src="/app.js"></script>
   <script>
     (function () {
-      const display = new URLSearchParams(location.search).get('display') || 'master';
+      const display = (window.SRDisplay && window.SRDisplay.display) || 'master';
       const s = document.createElement('script');
-      s.src = display === 'shooter' ? '/shooter.js' : '/master.js';
+      if (display === 'shooter') s.src = '/shooter.js';
+      else if (display === 'config') s.src = '/config-page.js';
+      else s.src = '/master.js';
       document.body.appendChild(s);
     })();
   </script>

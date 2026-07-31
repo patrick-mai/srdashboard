@@ -27,6 +27,7 @@ type RangeState struct {
 	ShooterName      string    `json:"shooterName"`
 	ClubName         string    `json:"clubName"`
 	Discipline       string    `json:"discipline"`
+	DiscType         string    `json:"discType"`
 	IsWarmup         bool      `json:"isWarmup"`
 	Shots            []Shot    `json:"shots"`
 	ShotNumber       int       `json:"shotNumber"`
@@ -55,6 +56,26 @@ func NewLiveState(numRanges int) *LiveState {
 		rs[i] = emptyRangeState(i)
 	}
 	return &LiveState{Ranges: rs}
+}
+
+// SetNumRanges grows or shrinks the live range map to match config.
+// Existing ranges keep their state; new ranges start empty; removed ranges are dropped.
+func (ls *LiveState) SetNumRanges(numRanges int) {
+	if numRanges < 1 {
+		numRanges = 1
+	}
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	for i := 1; i <= numRanges; i++ {
+		if _, ok := ls.Ranges[i]; !ok {
+			ls.Ranges[i] = emptyRangeState(i)
+		}
+	}
+	for k := range ls.Ranges {
+		if k < 1 || k > numRanges {
+			delete(ls.Ranges, k)
+		}
+	}
 }
 
 func emptyRangeState(rangeNum int) *RangeState {
@@ -90,6 +111,7 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		ShooterName:      snap.ShooterName,
 		ClubName:         snap.ClubName,
 		Discipline:       snap.Discipline,
+		DiscType:         snap.DiscType,
 		IsWarmup:         snap.IsWarmup,
 		Shots:            append([]Shot(nil), snap.Shots...),
 		ShotNumber:       snap.ShotNumber,
@@ -133,7 +155,10 @@ type ShotPayload struct {
 			Name string `json:"Name"`
 		} `json:"Club"`
 	} `json:"Shooter"`
-	MenuItem *struct {
+	// DiscType is OpticScore's short discipline code (e.g. LG, LP, KK).
+	DiscType    string `json:"DiscType"`
+	DiscTypeRaw string `json:"DiscTypeRaw"`
+	MenuItem    *struct {
 		MenuPointName string `json:"MenuPointName"`
 		MenuItemName  string `json:"MenuItemName"`
 	} `json:"MenuItem"`
@@ -182,22 +207,60 @@ func ParseTotalShotsFromMenuItem(name string) int {
 	return 0
 }
 
-// ApplyShot updates range state with a new shot. Call from UDP handler only.
-func (ls *LiveState) ApplyShot(rng int, sp *ShotPayload) {
+// disciplineLabelFromShot prefers MenuPointName (e.g. "KK-Gewehr", "Luftgewehr").
+// MenuItemName is ignored when it is only a shot-count label ("10 Schuss").
+// Falls back to DiscType / DiscTypeRaw (LG, LP, KK).
+func disciplineLabelFromShot(sp *ShotPayload) string {
+	if sp == nil {
+		return ""
+	}
+	if sp.MenuItem != nil {
+		if sp.MenuItem.MenuPointName != "" {
+			return sp.MenuItem.MenuPointName
+		}
+		if name := strings.TrimSpace(sp.MenuItem.MenuItemName); name != "" {
+			if ParseTotalShotsFromMenuItem(name) == 0 && !strings.Contains(strings.ToLower(name), "schuss") {
+				return name
+			}
+		}
+	}
+	if sp.DiscType != "" {
+		return sp.DiscType
+	}
+	return sp.DiscTypeRaw
+}
+
+// maxSeriesSums bounds the per-range series history. A 100-series range day is
+// already 1000 shots; beyond that the oldest series drop off.
+const maxSeriesSums = 100
+
+// ApplyShot updates range state with a new shot, timestamped from the payload
+// when it carries a ShotDateTime. Call from UDP handler only.
+// Reports whether the range exists.
+func (ls *LiveState) ApplyShot(rng int, sp *ShotPayload) bool {
+	at, _ := sp.EventTime()
+	return ls.ApplyShotAt(rng, sp, at, time.Now())
+}
+
+// ApplyShotAt is ApplyShot with explicit timestamps, for callers that resolve
+// the shot time from the enclosing UDP message.
+func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.Time) bool {
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
 	rs, ok := ls.Ranges[rng]
 	if !ok {
-		return
+		return false
 	}
 
 	shot := Shot{
-		X:         sp.X,
-		Y:         sp.Y,
-		Distance:  sp.Distance,
-		FullValue: sp.FullValue,
-		DecValue:  sp.DecValue,
-		IsWarmup:  sp.IsWarmup,
+		X:          sp.X,
+		Y:          sp.Y,
+		Distance:   sp.Distance,
+		FullValue:  sp.FullValue,
+		DecValue:   sp.DecValue,
+		IsWarmup:   sp.IsWarmup,
+		At:         at,
+		ReceivedAt: receivedAt,
 	}
 
 	// Mode switch: Warmup -> Competition clears target and resets footer
@@ -222,14 +285,21 @@ func (ls *LiveState) ApplyShot(rng int, sp *ShotPayload) {
 		}
 	}
 
-	// Parse total shots and discipline (MenuItemName) from menu item; always update when present
+	// Parse total shots from MenuItemName (e.g. "40 Schuss"); prefer MenuPointName for discipline
+	// (e.g. "KK-Gewehr") so target mapping is not stuck on shot-count labels like "10 Schuss".
+	// DiscType (LG/LP/KK) is the OpticScore short code and is always kept for face resolution.
+	if sp.DiscType != "" {
+		rs.DiscType = sp.DiscType
+	} else if sp.DiscTypeRaw != "" {
+		rs.DiscType = sp.DiscTypeRaw
+	}
 	if sp.MenuItem != nil {
 		if n := ParseTotalShotsFromMenuItem(sp.MenuItem.MenuItemName); n > 0 {
 			rs.TotalShotsToFire = n
 		}
-		if sp.MenuItem.MenuItemName != "" {
-			rs.Discipline = sp.MenuItem.MenuItemName
-		}
+	}
+	if d := disciplineLabelFromShot(sp); d != "" {
+		rs.Discipline = d
 	}
 
 	rs.ShotNumber++
@@ -258,15 +328,22 @@ func (ls *LiveState) ApplyShot(rng int, sp *ShotPayload) {
 			sumInt += s.FullValue
 			sumDec += s.DecValue
 		}
-		rs.SeriesSumsInt = append(rs.SeriesSumsInt, sumInt)
-		rs.SeriesSums = append(rs.SeriesSums, sumDec)
+		rs.SeriesSumsInt = appendCapped(rs.SeriesSumsInt, sumInt, maxSeriesSums)
+		rs.SeriesSums = appendCapped(rs.SeriesSums, sumDec, maxSeriesSums)
 	}
 
 	// Last 10 values
-	rs.Last10Values = append(rs.Last10Values, sp.DecValue)
-	if len(rs.Last10Values) > 10 {
-		rs.Last10Values = rs.Last10Values[1:]
+	rs.Last10Values = appendCapped(rs.Last10Values, sp.DecValue, 10)
+	return true
+}
+
+// appendCapped appends v, dropping the oldest entries past max.
+func appendCapped[T any](s []T, v T, max int) []T {
+	s = append(s, v)
+	if len(s) > max {
+		s = append(s[:0], s[len(s)-max:]...)
 	}
+	return s
 }
 
 // Prediction returns the extrapolated totals to match the sum display (integer sum / decimal sum).
@@ -289,6 +366,7 @@ type RangeSnapshot struct {
 	ShooterName      string    `json:"shooterName"`
 	ClubName         string    `json:"clubName"`
 	Discipline       string    `json:"discipline"`
+	DiscType         string    `json:"discType"`
 	IsWarmup         bool      `json:"isWarmup"`
 	Shots            []Shot    `json:"shots"`
 	ShotNumber       int       `json:"shotNumber"`
@@ -329,6 +407,7 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 			ShooterName:      rs.ShooterName,
 			ClubName:         rs.ClubName,
 			Discipline:       rs.Discipline,
+			DiscType:         rs.DiscType,
 			IsWarmup:         rs.IsWarmup,
 			Shots:            shots,
 			ShotNumber:       rs.ShotNumber,
