@@ -3,12 +3,18 @@
   if (!core) return;
 
   const params = new URLSearchParams(location.search);
-  const rangeNum = parseInt(params.get('range') || '1', 10);
+  const rangeNum = (window.SRDisplay && window.SRDisplay.rangeNum) ||
+    parseInt(params.get('range') || '1', 10);
   let pluginSession = { rangeNum: rangeNum, phase: 'idle' };
   let activePlugin = null;
+  const WS_BASE_RECONNECT_MS = 1000;
+  const WS_MAX_RECONNECT_MS = 30000;
   let ws = null;
   let wsOpen = false;
   let reconnectTimer = null;
+  let reconnectDelay = WS_BASE_RECONNECT_MS;
+  let pollTimers = [];
+  let stopped = false;
   let lastLive = null;
   let renderToken = 0;
 
@@ -86,7 +92,8 @@
 
     const vm = Object.assign({}, pluginSession.viewModel || {}, {
       rangeNum: rangeNum,
-      range: liveRange || lastLive || (pluginSession.viewModel && pluginSession.viewModel.range) || null
+      range: liveRange || lastLive || (pluginSession.viewModel && pluginSession.viewModel.range) || null,
+      events: pluginSession.events || []
     });
     const viewEl = document.getElementById('shooter-plugin-view');
     await window.SRPluginShell.renderPluginView(
@@ -99,7 +106,15 @@
     );
   }
 
+  function scheduleReconnect() {
+    if (stopped || reconnectTimer) return;
+    // Back off so a server that stays down is not hit every 3s forever.
+    reconnectDelay = Math.min(reconnectDelay * 2, WS_MAX_RECONNECT_MS);
+    reconnectTimer = setTimeout(connectWS, reconnectDelay);
+  }
+
   function connectWS() {
+    if (stopped) return;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -109,14 +124,22 @@
         ws.onclose = null;
         ws.onmessage = null;
         ws.onopen = null;
+        ws.onerror = null;
         ws.close();
       } catch (_) {}
       ws = null;
     }
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(proto + '//' + location.host + '/ws?range=' + rangeNum);
-    ws.onopen = function () { wsOpen = true; };
+    ws.onopen = function () {
+      wsOpen = true;
+      reconnectDelay = WS_BASE_RECONNECT_MS;
+    };
+    ws.onerror = function (ev) {
+      console.warn('websocket error', ev);
+    };
     ws.onmessage = async function (ev) {
+      if (stopped) return;
       try {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'plugin_session' && msg.session) {
@@ -135,13 +158,20 @@
           if (window.SRPluginShell) window.SRPluginShell.clearCache();
           await fetchActivePlugin();
           await fetchSession();
+          const viewEl = document.getElementById('shooter-plugin-view');
+          if (viewEl) {
+            viewEl.innerHTML = '';
+            delete viewEl.dataset.pluginId;
+          }
           await renderShooter(lastLive);
         }
-      } catch (_) {}
+      } catch (e) {
+        console.warn('ws message', e);
+      }
     };
     ws.onclose = function () {
       wsOpen = false;
-      reconnectTimer = setTimeout(connectWS, 3000);
+      scheduleReconnect();
     };
   }
 
@@ -153,25 +183,45 @@
     await renderShooter(liveRange);
   }
 
+  function teardown() {
+    stopped = true;
+    pollTimers.forEach(clearInterval);
+    pollTimers = [];
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (ws) {
+      try {
+        ws.onclose = null;
+        ws.close();
+      } catch (_) {}
+      ws = null;
+    }
+  }
+
   async function init() {
     document.body.classList.add('shooter-display');
     const chrome = document.getElementById('master-chrome');
     if (chrome) chrome.hidden = true;
     const app = document.getElementById('shooter-app');
     if (app) app.hidden = false;
+    window.addEventListener('pagehide', teardown);
     await core.fetchConfig();
     await fetchActivePlugin();
     await fetchSession();
     connectWS();
     const live = await fetchLiveRange();
     await renderShooter(live);
-    setInterval(function () {
+    pollTimers.push(setInterval(function () {
       if (!wsOpen) pollFallback();
-    }, 1000);
-    setInterval(function () {
+    }, 1000));
+    pollTimers.push(setInterval(function () {
       if (wsOpen) pollFallback();
-    }, core.SAFETY_POLL_MS || 20000);
+    }, core.SAFETY_POLL_MS || 20000));
   }
 
-  init();
+  init().catch(function (e) {
+    console.error('shooter init failed', e);
+  });
 })();

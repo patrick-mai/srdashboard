@@ -117,11 +117,16 @@ func (l *Listener) handlePacket(data []byte) {
 	if rng == 0 {
 		rng = 1
 	}
-	l.state.ApplyShot(rng, &shot)
 	receivedAt := time.Now()
 	shotAt, hasShotAt := shot.EventTime()
 	if !hasShotAt {
 		shotAt, hasShotAt = msg.EventTime()
+	}
+	if !l.state.ApplyShotAt(rng, &shot, shotAt, receivedAt) {
+		// Silently dropping these makes a mis-set range count look like a dead
+		// lane, so say so explicitly.
+		log.Printf("UDP: dropped shot for unknown range=%d (check <ranges> in config.xml)", rng)
+		return
 	}
 	log.Printf("UDP: shot applied range=%d X=%d Y=%d DecValue=%.1f at=%v", rng, shot.X, shot.Y, shot.DecValue, shotAtOrDash(shotAt, hasShotAt))
 	if l.onShot != nil {

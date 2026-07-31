@@ -73,15 +73,32 @@ DISAG OpticScore (UDP JSON)
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `udpPort` | 30169 | OpticScore JSON Live UDP port |
-| `ranges` | 6 | Number of shooting ranges |
+| `udpPort` | 30169 | OpticScore JSON Live UDP port (1–65535) |
+| `ranges` | 6 | Number of shooting ranges (1–256) |
 | `layoutColumns` | 3 | Panels per row on master display |
 | `odbcName` | — | ODBC DSN for historic DB (**not wired in UI yet**) |
 | `footer/*` | mostly `true` | Footer stat visibility toggles |
-| `display/controlToken` | — | If set, master POSTs need header `X-SR-Control-Token` |
+| `display/controlToken` | — | See [Access control](#access-control) |
 | `plugins/dir` | `plugins` | Plugin root directory |
 
 Master UI includes a **Settings** panel (`config-editor.js`) for site + per-plugin overrides. Target faces and discipline mapping live in the **classic-range** plugin config (`plugins/classic-range/config.xml`), not in global `config.xml`.
+
+---
+
+## Access control
+
+Every state-changing endpoint (config saves, plugin install/activate/reload, race control, live reset and replace) is gated on the `display/controlToken` value.
+
+**When `controlToken` is empty the server is open** — anyone who can reach port 8080 can change plugins, edit the config and reset live scores. That is the default and is fine on an isolated range network; the server logs a warning at startup so it is never a silent condition. Set a token for anything reachable beyond the range LAN.
+
+The token is **write-only over HTTP**. `GET /api/config` reports only `controlTokenSet: true|false`, never the value, so a display cannot hand the credential to whoever asks it. Each device stores its own copy in `localStorage`:
+
+- Enter it on the master display via the **Control-Token** button in the menu, or
+- let any control action prompt for it — a `403` triggers a prompt and retries once.
+
+To change the token, save the config with a new `controlToken` value. Omitting the field on `PUT /api/config` keeps the stored token; sending an explicit empty string clears it.
+
+WebSocket upgrades are restricted to same-origin requests, so other sites cannot subscribe to live range data from a browser that has the dashboard open.
 
 ---
 
@@ -92,15 +109,24 @@ Master UI includes a **Settings** panel (`config-editor.js`) for site + per-plug
 | `/?display=master` | All ranges, plugin control, live status, settings |
 | `/?display=shooter&range=N` | Single-range tablet UI |
 
+Endpoints marked 🔒 require the `X-SR-Control-Token` header when a token is configured.
+
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/live` | Live range state (JSON) |
-| `GET /api/config` | Site config |
+| 🔒 `PUT /api/live` | Replace range state (restore after restart) |
+| 🔒 `POST /api/live/reset?range=N` | Clear one range to defaults |
+| `GET /api/config` | Site config (never includes the control token) |
+| 🔒 `PUT /api/config` | Save site config |
 | `GET /api/historic` | Historic ODBC status (stub) |
 | `GET /api/plugins`, `/api/plugins/active` | Installed / active plugins |
 | `GET /api/plugins/session?range=N` | Plugin session + viewModel for range |
-| `POST /api/plugins/control` | Start/stop plugin on all ranges |
-| `GET /ws?range=N` | WebSocket: `live`, `plugin_session`, `match` |
+| `GET`/🔒 `PUT /api/plugins/{id}/config` | Per-plugin overrides |
+| 🔒 `DELETE /api/plugins/{id}` | Uninstall a plugin |
+| 🔒 `POST /api/plugins/control` | Start/stop plugin on all ranges |
+| 🔒 `POST /api/plugins/install` | Upload a `.srplugin.zip` (max 64 MiB) |
+| 🔒 `POST /api/plugins/activate`, `/reload`, `/scan-inbox` | Plugin lifecycle |
+| `GET /ws?range=N` | WebSocket: `live`, `plugin_session`, `match` (same-origin only) |
 | `/plugins/{id}/view.js` | Plugin frontend |
 | `/assets/` | Target SVG and static assets |
 
@@ -113,6 +139,9 @@ Master UI includes a **Settings** panel (`config-editor.js`) for site + per-plug
 | ID | Label | Mode | Status |
 |----|-------|------|--------|
 | `classic-range` | Classic Range View | Solo display | **Stable** — standard target, footer, last-10 chart |
+| `f1-race` | F1 Race | Shared game | **In development** — server logic in `host/games/f1race/` |
+
+`plugins/f1-race/target-registry.js` is a verbatim copy of the classic-range one; plugins ship as self-contained zips, so keep the two identical or the same shot plots differently on master and tablet.
 
 ### Layout
 
@@ -141,8 +170,9 @@ go run ./cmd/zip-bundled
 | `static/app.js` | Core live target rendering |
 | `static/master.js` | Range grid, plugin control |
 | `static/shooter.js` | Tablet view per range |
-| `static/plugin-shell.js` | Loads plugin `view.js` + theme |
+| `static/plugin-shell.js` | Loads plugin `view.js` + theme (same-origin `/plugins/{id}/` only) |
 | `static/config-editor.js` | Site + plugin settings UI |
+| `static/auth.js` | Stores the control token per device, prompts on `403` |
 
 ---
 
@@ -160,6 +190,7 @@ srdashboard/
     loader/               Plugin manifests, Go/WASM logic
     rangestate/           Sessions, matches, standings
     logicapi/             Plugin interfaces
+    games/                Built-in Go game logic (f1race)
   plugins/                One folder per plugin
   static/                 Web UI + assets/ target SVG
   cmd/
@@ -176,7 +207,9 @@ srdashboard/
 | Area | State |
 |------|--------|
 | Historic view / ODBC | DSN in config; `GET /api/historic` stub; UI/queries not built |
-| WASM plugins | Loader supports `game.wasm`; bundled plugins may use Go builtins |
+| WASM plugins | Loader supports `game.wasm`; bundled plugins may use Go builtins; no execution timeout yet |
+| Changing `ranges` | Requires a restart; the API reports it in `restartFields` |
+| Transport security | Plain HTTP on all interfaces; put it behind a reverse proxy for TLS |
 
 ---
 
@@ -184,6 +217,12 @@ srdashboard/
 
 ```bash
 go test ./...
+```
+
+The race detector needs a C toolchain on Windows; on a machine that has one, run the concurrency-sensitive packages with it:
+
+```bash
+CGO_ENABLED=1 go test -race ./state/... ./host/... ./api/...
 ```
 
 ---

@@ -25,7 +25,9 @@ const DEFAULT_SHOT_STROKE_SVG = 0.1;
 // viewBox units = mm = SVG units (1 SVG unit = 1 mm at DSG_PER_MM = 90).
 const ONE_RING_SVG = 2.5;           // ISSF ring width (mm)
 const RING_8_RADIUS_MM = 5.25;      // ISSF ring 8 outer radius — max zoom-in frames this as outer circle
-const AUTO_ZOOM_PAD_FRAC = 0.04;    // small breathing room beyond outermost shot edge
+const AUTO_ZOOM_PAD_FRAC = 0.04;    // default breathing room beyond outermost shot edge
+/** Extra pad as a fraction of maxDist; large faces (KK/LP) use a tighter profile value. */
+const AUTO_ZOOM_PAD_FRAC_LARGE = 0.015;
 const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scoring disk starts large (like yesterday)
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
@@ -88,24 +90,74 @@ function setPluginTargetConfig(cfg) {
   document.querySelectorAll('svg.target-svg-root').forEach(function (el) {
     el.remove();
   });
+  if (lastLiveData) syncRangeVisibility(lastLiveData);
+  else syncRangeVisibility(null);
+}
+
+function hideIdleRangesEnabled() {
+  const cfg = pluginTargetConfig || {};
+  return cfg.hideIdleRanges === true || cfg.hideIdleRanges === 'true';
 }
 
 function resolveTargetProfileId(rangeNum, rangeData) {
   const cfg = pluginTargetConfig || {};
+  const map = cfg.disciplineTargets || {};
+  // Live OpticScore discipline / DiscType wins over static per-range defaults
+  // (e.g. LG on a stand that is usually LP in rangeTargets).
+  const profile = profileFromDisciplineMap(map, rangeData);
+  if (profile) return profile;
   const rangeTargets = cfg.rangeTargets || {};
   const rt = rangeTargets[String(rangeNum)] || rangeTargets[rangeNum];
   if (rt && typeof rt === 'object' && rt.targetProfile) return rt.targetProfile;
-  const discipline = ((rangeData && rangeData.discipline) || '').trim();
-  const map = cfg.disciplineTargets || {};
-  if (discipline) {
-    const lower = discipline.toLowerCase();
-    const keys = Object.keys(map);
+  return cfg.defaultTargetProfile || 'air_rifle_10m';
+}
+
+/** Built-in OpticScore DiscType codes when plugin map has no match. */
+const DISC_TYPE_FALLBACKS = {
+  lg: 'air_rifle_10m',
+  luftgewehr: 'air_rifle_10m',
+  lp: 'air_pistol_10m',
+  luftpistole: 'air_pistol_10m',
+  kk: 'smallbore_50m_prone',
+  kleinkaliber: 'smallbore_50m_prone',
+  'kk-gewehr': 'smallbore_50m_prone',
+  'kk gewehr': 'smallbore_50m_prone'
+};
+
+function disciplineCandidates(rangeData) {
+  if (!rangeData) return [];
+  const out = [];
+  const push = function (v) {
+    const s = String(v || '').trim();
+    if (!s) return;
+    // Shot-count labels are not disciplines.
+    if (/\d+\s*schuss/i.test(s)) return;
+    if (out.indexOf(s) < 0) out.push(s);
+  };
+  push(rangeData.discipline);
+  push(rangeData.discType);
+  push(rangeData.DiscType);
+  push(rangeData.discTypeRaw);
+  return out;
+}
+
+function profileFromDisciplineMap(map, rangeData) {
+  const candidates = disciplineCandidates(rangeData);
+  if (!candidates.length) return null;
+  const keys = Object.keys(map || {}).sort(function (a, b) {
+    return b.length - a.length; // longest match first (KK-Gewehr before KK)
+  });
+  for (let c = 0; c < candidates.length; c++) {
+    const lower = candidates[c].toLowerCase();
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
+      if (!key) continue;
       if (lower.indexOf(String(key).toLowerCase()) >= 0) return map[key];
     }
+    const fb = DISC_TYPE_FALLBACKS[lower] || DISC_TYPE_FALLBACKS[lower.replace(/\s+/g, '-')];
+    if (fb) return fb;
   }
-  return cfg.defaultTargetProfile || 'air_rifle_10m';
+  return null;
 }
 
 function updateTargetContext(rangeNum, rangeData) {
@@ -225,11 +277,56 @@ function resolveTargetUrl(rangeNum) {
   return base + encodeURIComponent(file) + '?v=' + encodeURIComponent(v);
 }
 
+/** Stand is "live" when OpticScore assigned a shooter or any shots exist. */
+function rangeHasActivity(r) {
+  if (!r) return false;
+  if (String(r.shooterName || '').trim()) return true;
+  if (r.shots && r.shots.length) return true;
+  if (r.shotNumber > 0) return true;
+  return false;
+}
+
+/**
+ * Optionally hide idle stands (plugin setting hideIdleRanges) so active panels
+ * get the viewport. If the setting is off, or nobody is live yet, show all.
+ */
+function syncRangeVisibility(data) {
+  const grid = document.getElementById('ranges-grid');
+  if (!grid) return false;
+  const byNum = {};
+  (data && data.ranges ? data.ranges : []).forEach(function (r) {
+    byNum[r.rangeNum] = r;
+  });
+  const panels = Array.prototype.slice.call(grid.querySelectorAll('.range-panel'));
+  let activeCount = 0;
+  for (let i = 0; i < panels.length; i++) {
+    const num = parseInt(panels[i].dataset.range, 10);
+    if (rangeHasActivity(byNum[num])) activeCount++;
+  }
+  const hideIdle = hideIdleRangesEnabled() && activeCount > 0;
+  let changed = false;
+  for (let i = 0; i < panels.length; i++) {
+    const panel = panels[i];
+    const num = parseInt(panel.dataset.range, 10);
+    const hide = hideIdle && !rangeHasActivity(byNum[num]);
+    if (panel.hidden !== hide) {
+      panel.hidden = hide;
+      changed = true;
+    }
+  }
+  applyLayout();
+  return changed;
+}
+
 function applyLayout() {
   const grid = document.getElementById('ranges-grid');
   if (!grid) return;
-  const cols = Math.max(1, config.layoutColumns || 4);
-  const n = Math.max(1, config.ranges || grid.querySelectorAll('.range-panel').length || 1);
+  const preferredCols = Math.max(1, config.layoutColumns || 4);
+  const visible = Array.prototype.slice.call(grid.querySelectorAll('.range-panel')).filter(function (p) {
+    return !p.hidden;
+  });
+  const n = Math.max(1, visible.length || config.ranges || 1);
+  const cols = Math.min(preferredCols, n);
   const rows = Math.max(1, Math.ceil(n / cols));
   grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
@@ -323,9 +420,13 @@ function computeAutoFit(shots, rangeNum) {
       ts.centerY - half, ts.centerY + half
     );
   }
-  // maxDist already includes pellet radius — add only a thin pad so all shots stay visible.
+  // maxDist already includes pellet radius — keep pad thin so zoom stays aggressive.
+  // Floor remains ring 8 (ISSF max useful zoom-in).
   const shotR = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
-  const pad = Math.max(shotR * 0.35, AUTO_ZOOM_PAD_FRAC * maxDist * 2);
+  const padFrac = ts.autoZoomPadFrac != null
+    ? ts.autoZoomPadFrac
+    : (ts.targetDiameterMm >= 100 ? AUTO_ZOOM_PAD_FRAC_LARGE : AUTO_ZOOM_PAD_FRAC);
+  const pad = Math.max(shotR * 0.15, padFrac * maxDist);
   let half = Math.max(maxDist + pad, ts.ring8RadiusMm);
   half = Math.min(half, ts.svgSize / 2);
   return clampZoomWindow(
@@ -978,7 +1079,16 @@ function renderRangePanel(rangeData) {
 function renderClassicRangeView(container, rangeData) {
   if (!container || !rangeData) return;
 
-  let targetEl = container.querySelector('.range-target');
+  // Drop leftover markup from another plugin (e.g. f1-race) before painting.
+  if (
+    container.querySelector('.f1-master-layout, .f1-shooter-layout, .plugin-fallback, .plugin-error') ||
+    (container.dataset.pluginId && container.dataset.pluginId !== 'classic-range')
+  ) {
+    container.innerHTML = '';
+  }
+  container.dataset.pluginId = 'classic-range';
+
+  let targetEl = container.querySelector(':scope > .range-target');
   if (!targetEl) {
     targetEl = document.createElement('div');
     targetEl.className = 'range-target';
@@ -1110,6 +1220,7 @@ function render(data) {
   for (let i = 1; i <= configured; i++) {
     updatePluginPanelHeader(i, byNum[i] || { rangeNum: i });
   }
+  syncRangeVisibility(data);
 }
 
 async function poll() {
@@ -1132,6 +1243,8 @@ window.SRCore = {
   fetchConfig,
   fetchLive,
   applyLayout,
+  syncRangeVisibility,
+  rangeHasActivity,
   render,
   ensurePluginPanels,
   updatePluginPanelHeader,

@@ -1,0 +1,421 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Barlow:wght@400;600&display=swap');
+
+/* Light (default) — daylight circuits, bright chrome */
+.f1-race-view {
+  --f1-bg: #d9e4ec;
+  --f1-panel: #f4f8fb;
+  --f1-panel-strong: #ffffff;
+  --f1-text: #15202b;
+  --f1-muted: #5a6b7a;
+  --f1-line: #b8c6d1;
+  --f1-accent: #e10600;
+  --f1-teal: #0a7a8c;
+  --f1-warn: #b54708;
+  --f1-track-veil: transparent;
+  --f1-side-bg: linear-gradient(180deg, #f7fafc 0%, #e8eef2 100%);
+  --f1-header-bg: linear-gradient(180deg, #ffffff, #eef3f7);
+  --f1-row-bg: rgba(21, 32, 43, 0.04);
+  --f1-me-bg: rgba(10, 122, 140, 0.12);
+  --f1-me-outline: rgba(10, 122, 140, 0.35);
+  font-family: 'Barlow', system-ui, sans-serif;
+  color: var(--f1-text);
+  background: radial-gradient(120% 80% at 50% 0%, #eef5f8 0%, var(--f1-bg) 55%);
+  min-height: 100%;
+}
+
+html[data-theme="dark"] .f1-race-view {
+  --f1-bg: #0a0e12;
+  --f1-panel: #141a22;
+  --f1-panel-strong: #1a222c;
+  --f1-text: #e8eef4;
+  --f1-muted: #8a9aaa;
+  --f1-line: #1e2a38;
+  --f1-teal: #00d2be;
+  --f1-warn: #ff8700;
+  --f1-track-veil: rgba(0, 0, 0, 0.18);
+  --f1-side-bg: linear-gradient(180deg, #121820 0%, #0c1016 100%);
+  --f1-header-bg: linear-gradient(180deg, #1a222c, #121820);
+  --f1-row-bg: rgba(255, 255, 255, 0.03);
+  --f1-me-bg: rgba(0, 210, 190, 0.12);
+  --f1-me-outline: rgba(0, 210, 190, 0.35);
+  background: radial-gradient(120% 80% at 50% 0%, #15202b 0%, var(--f1-bg) 55%);
+}
+
+.f1-race-master {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.f1-master-layout {
+  display: grid;
+  grid-template-columns: 1fr minmax(200px, 240px);
+  height: 100%;
+  min-height: 420px;
+  gap: 0;
+}
+
+.f1-master-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  background: #c5d4de;
+}
+
+html[data-theme="dark"] .f1-master-track {
+  background: #121820;
+}
+
+/* Soft edge veil — light in day, mild dusk in dark mode */
+.f1-master-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 85% 70% at 50% 45%, transparent 55%, var(--f1-track-veil) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Daylight circuit art; dark mode adds a mild dusk wash without swapping track layout */
+.f1-circuit-dusk {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html[data-theme="dark"] .f1-circuit-dusk {
+  opacity: 0.28;
+}
+
+.f1-master-track .f1-track-host {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.f1-master-track svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.f1-car-visual {
+  transition: opacity 0.25s ease;
+}
+
+.f1-car-crash {
+  animation: none;
+}
+
+g.is-crashed .f1-car-crash {
+  animation: f1-pulse 0.6s ease-in-out infinite alternate;
+}
+
+.f1-master-side {
+  background: var(--f1-side-bg);
+  border-left: 1px solid var(--f1-line);
+  padding: 0.85rem 0.75rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme="dark"] .f1-master-side {
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+}
+
+.f1-side-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--f1-muted);
+}
+
+.f1-standings-slim .f1-standings-row {
+  grid-template-columns: 0.7rem 1fr auto;
+}
+
+.f1-standings-slim .shot {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--f1-text);
+  min-width: 2.4rem;
+  text-align: right;
+}
+
+.f1-standings-slim .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.f1-hud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.f1-badge {
+  background: var(--f1-accent);
+  color: #fff;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.f1-circuit {
+  color: var(--f1-teal);
+  font-size: 0.85rem;
+}
+
+.f1-round, .f1-timer {
+  color: var(--f1-muted);
+  font-size: 0.8rem;
+}
+
+.f1-timer {
+  color: var(--f1-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.f1-event-banner {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: linear-gradient(90deg, #e10600 0%, #ff3b1f 40%, #ff8700 100%);
+  color: #fff;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  box-shadow: 0 0 24px rgba(225, 6, 0, 0.45);
+  animation: f1-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.f1-master-track .f1-event-banner {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  min-width: 280px;
+  text-align: center;
+}
+
+.f1-pit-banner {
+  background: linear-gradient(90deg, #0a7a8c 0%, #00d2be 45%, #e10600 100%);
+  letter-spacing: 0.14em;
+  font-size: 1.15rem;
+}
+
+.f1-block {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #3a2010;
+  border: 1px solid var(--f1-warn);
+  color: #ffd7a8;
+  font-size: 0.85rem;
+}
+
+html:not([data-theme="dark"]) .f1-block {
+  background: #fff4e8;
+  color: #7a3b08;
+}
+
+.f1-me-line {
+  margin-top: 0.4rem;
+  color: var(--f1-teal);
+  font-size: 0.9rem;
+}
+
+.f1-standings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.f1-standings-row {
+  display: grid;
+  grid-template-columns: 1.5rem 0.7rem 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.4rem 0.35rem;
+  background: var(--f1-row-bg);
+  border-radius: 2px;
+  font-size: 0.82rem;
+}
+
+.f1-standings-row.is-me {
+  background: var(--f1-me-bg);
+  outline: 1px solid var(--f1-me-outline);
+}
+
+.f1-standings-row.is-crash {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+.f1-standings-row .pos {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--f1-text);
+}
+
+.f1-standings-row .swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 1px;
+}
+
+.f1-standings-row .meta {
+  color: var(--f1-muted);
+  font-size: 0.7rem;
+}
+
+.f1-car-body {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+.f1-focus-ring {
+  animation: f1-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes f1-pulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+/* Shooter */
+.f1-shooter-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  background: var(--f1-bg);
+}
+
+.f1-shooter-header {
+  padding: 0.6rem 0.85rem;
+  background: var(--f1-header-bg);
+  border-bottom: 1px solid var(--f1-line);
+}
+
+.f1-sh-top {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.f1-sh-meta {
+  margin-top: 0.25rem;
+  color: var(--f1-muted);
+  font-size: 0.85rem;
+}
+
+.f1-shooter-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  min-height: 0;
+}
+
+.f1-shooter-target {
+  background: var(--f1-panel);
+  border: 1px solid var(--f1-line);
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 220px;
+}
+
+.f1-shooter-race {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.f1-track-mini-wrap {
+  flex: 1;
+  min-height: 140px;
+  background: var(--f1-panel-strong);
+  border: 1px solid var(--f1-line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.f1-track-mini-wrap svg {
+  width: 100%;
+  height: 100%;
+}
+
+.f1-shooter-footer {
+  padding: 0.55rem 0.85rem;
+  background: var(--f1-header-bg);
+  border-top: 1px solid var(--f1-line);
+}
+
+.f1-footer-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.f1-footer-grid .lbl {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--f1-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: 'Oswald', sans-serif;
+}
+
+.f1-footer-grid .val {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* Race chrome lives in master.js; only style when visible so [hidden] wins. */
+#race-controls.race-controls:not([hidden]) {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .f1-master-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .f1-master-side {
+    border-left: none;
+    border-top: 1px solid var(--f1-line);
+    max-height: 40vh;
+  }
+  .f1-shooter-main {
+    grid-template-columns: 1fr;
+  }
+}

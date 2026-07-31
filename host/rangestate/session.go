@@ -52,3 +52,19 @@ func (s *RangePluginSession) snapshot() SessionSnapshot {
 func (s *RangePluginSession) clearEvents() {
 	s.Events = nil
 }
+
+// maxSessionEvents bounds the pending-event buffer. Events are normally drained
+// by each snapshot; the cap is the safety net for a session that nothing reads.
+const maxSessionEvents = 256
+
+// appendEvents queues events for the next snapshot, discarding the oldest once
+// the buffer is full.
+func (s *RangePluginSession) appendEvents(events []logicapi.PluginEvent) {
+	if len(events) == 0 {
+		return
+	}
+	s.Events = append(s.Events, events...)
+	if overflow := len(s.Events) - maxSessionEvents; overflow > 0 {
+		s.Events = append(s.Events[:0], s.Events[overflow:]...)
+	}
+}

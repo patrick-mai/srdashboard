@@ -457,10 +457,12 @@ body::before {
   gap: 0.35rem;
 }
 
-.plugin-quick > .btn {
+.plugin-quick > .btn,
+.plugin-quick > a.btn {
   width: 100%;
   box-sizing: border-box;
   text-align: left;
+  text-decoration: none;
 }
 
 .plugin-active-label {
@@ -473,6 +475,18 @@ body::before {
 
 .plugin-active-label select {
   width: 100%;
+}
+
+#race-controls.race-controls:not([hidden]) {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tablet-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .drawer {
@@ -736,9 +750,21 @@ body::before {
   min-height: 0;
   flex: 1;
 }
+/* Target disk owns remaining height; chart/footer may shrink in dense grids. */
 .range-plugin-view.classic-range-view .range-target {
-  flex: 1 1 auto;
+  flex: 2 1 0;
+  min-height: 120px;
+}
+.range-plugin-view.classic-range-view .last10-chart-wrap {
+  flex: 0 1 auto;
+  min-height: 28px;
+  max-height: 48px;
+}
+.range-plugin-view.classic-range-view .range-footer {
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: 42%;
+  overflow: hidden;
 }
 
 .plugin-score-header {
@@ -1350,6 +1376,123 @@ body::before {
 
 .config-add-pin { margin-top: 0.15rem; }
 
+/* ——— Full-page config (/config) ——— */
+body.config-display {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #1a2838 0%, transparent 55%),
+    var(--bg, #0e1218);
+}
+
+#config-app:not([hidden]) {
+  display: block;
+  min-height: 100vh;
+}
+
+.config-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+  font-family: inherit;
+}
+
+.config-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border, #333) 80%, transparent);
+}
+
+.config-page-brand {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.config-page-back {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+  background: color-mix(in srgb, var(--panel, #1a1a1a) 90%, #fff 8%);
+  border: 1px solid color-mix(in srgb, var(--border, #444) 70%, transparent);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.config-page-back:hover {
+  border-color: var(--accent, #3a7);
+}
+
+.config-page h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.config-page-sub {
+  margin: 0.25rem 0 0;
+  color: var(--muted, #888);
+  font-size: 0.95rem;
+}
+
+.config-page-panel,
+.config-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.config-page .config-section {
+  background: color-mix(in srgb, var(--panel, #161b22) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border, #2a3340) 90%, transparent);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.config-page .config-section-head h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.15rem;
+}
+
+.config-page .config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+#f1-race-master-host {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #0a0e12;
+}
+
+#f1-race-master-host[hidden] {
+  display: none !important;
+}
+
+#race-controls[hidden] {
+  display: none !important;
+}
+
+#ranges-grid[hidden] {
+  display: none !important;
+}
+
+.stage:has(#f1-race-master-host:not([hidden])) {
+  position: relative;
+  min-height: calc(100vh - 3rem);
+}
+
+
 /* ——— Range grid ———
  * Panel count comes from /api/live (config.ranges; default 6, not hardcoded).
  * Target contract: .target-wrapper stays square (aspect-ratio 1/1); zoom is SVG viewBox only.
@@ -1379,6 +1522,9 @@ body::before {
   box-shadow: var(--shadow);
   min-height: 0;
   height: 100%;
+}
+.range-panel[hidden] {
+  display: none !important;
 }
 
 .range-header {

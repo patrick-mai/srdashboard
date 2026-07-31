@@ -17,8 +17,13 @@
   let globalData = null;
   let pluginData = null;
   let pluginId = '';
-  let controlHeadersFn = function () { return { 'Content-Type': 'application/json' }; };
-  let getRangesFn = function () { return 6; };
+  let controlFetch = function (url, options) {
+    return window.SRAuth.fetchWithAuth(url, options);
+  };
+  let getRangesFn = function () {
+    if (globalData && globalData.ranges) return globalData.ranges;
+    return (window.SRCore && window.SRCore.config && window.SRCore.config.ranges) || 6;
+  };
 
   const PLUGIN_FIELD_LABELS = {
     laps: 'Laps to win',
@@ -55,8 +60,33 @@
     handicapEasyScoreMin: 'Easy score floor',
     handicapEasyScoreMax: 'Easy score ceiling',
     defaultTargetProfile: 'Standard-Scheibe (Fallback)',
+    hideIdleRanges: 'Leere Bahnen ausblenden',
     disciplineTargets: 'Scheibe pro Disziplin',
-    rangeTargets: 'Scheibe pro Bahn'
+    rangeTargets: 'Scheibe pro Bahn',
+    circuitId: 'Rennstrecke',
+    motionMode: 'Bewegungsmodus',
+    stintSize: 'Stintlänge (Pit alle N)',
+    roundDurationSec: 'Rundenzeit (Sekunden)',
+    skippedRoundsToCrash: 'Ausgelassene Runden bis Crash',
+    overtakeRatio: 'Überhol-Faktor',
+    paceCompress: 'Pace-Kompression',
+    pacePivot: 'Pace-Pivot',
+    drsStackPerPlace: 'DRS-Stack pro Platz',
+    drsSections: 'DRS-Sektionen',
+    gridGap: 'Startabstand',
+    trackLength: 'Streckenlänge',
+    highShotThreshold: 'High-Shot-Schwelle',
+    streakBonus: 'Streak-Bonus',
+    pitCueWindowMs: 'Pit-Zeitfenster (ms)',
+    autoStartWhenAllReady: 'Auto-Start wenn alle bereit',
+    requireEqualShotTotals: 'Gleiche Schusszahl erforderlich',
+    fieldEventsEnabled: 'Feld-Events aktiv',
+    fieldEventMinGapSec: 'Min. Abstand Feld-Events (s)',
+    fieldEventChancePerRound: 'Feld-Event-Chance pro Runde',
+    holeInHoleMinOverlap: 'Hole-in-Hole Überlappung',
+    holeInHoleBonus: 'Hole-in-Hole Bonus',
+    shotDiameterMm: 'Schussdurchmesser (mm)',
+    handicaps: 'Handicap pro Bahn'
   };
 
   const TARGET_PROFILE_ENUM = ['air_rifle_10m', 'air_pistol_10m', 'smallbore_50m_prone', 'smallbore_50m_3p'];
@@ -135,7 +165,7 @@
     if (key === 'disciplineTargets') {
       const dt = (value && typeof value === 'object') ? value : {};
       const profileEnums = (prop.additionalProperties && prop.additionalProperties.enum) || TARGET_PROFILE_ENUM;
-      const keys = Object.keys(dt).length ? Object.keys(dt) : ['Luftgewehr', 'Luftpistole', 'Kleinkaliber'];
+      const keys = Object.keys(dt).length ? Object.keys(dt) : ['Luftgewehr', 'LG', 'Luftpistole', 'LP', 'Kleinkaliber', 'KK', 'KK-Gewehr'];
       let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend><p class="config-hint">Substring-Match auf OpticScore-Disziplin → Scheibenprofil.</p><div class="config-check-grid">';
       keys.forEach(function (discKey, idx) {
         const cur = dt[discKey] || '';
@@ -182,8 +212,8 @@
     }
     const inputType = (t === 'integer' || t === 'number') ? 'number' : 'text';
     const step = t === 'integer' ? ' step="1"' : (t === 'number' ? ' step="any"' : '');
-    const min = prop.minimum != null ? ' min="' + prop.minimum + '"' : '';
-    const max = prop.maximum != null ? ' max="' + prop.maximum + '"' : '';
+    const min = prop.minimum != null ? ' min="' + esc(prop.minimum) + '"' : '';
+    const max = prop.maximum != null ? ' max="' + esc(prop.maximum) + '"' : '';
     return '<label class="config-field">' + label + hint + '<input type="' + inputType + '" id="' + id +
       '" data-key="' + esc(key) + '" value="' + esc(value == null ? '' : value) + '"' + step + min + max + '></label>';
   }
@@ -254,7 +284,7 @@
         pins.push({ id: id.value.trim(), version: ver ? ver.value.trim() : '' });
       }
     });
-    return {
+    const body = {
       udpPort: parseInt(panel.querySelector('#g-udpPort').value, 10),
       odbcName: panel.querySelector('#g-odbcName').value,
       ranges: parseInt(panel.querySelector('#g-ranges').value, 10),
@@ -263,10 +293,14 @@
       activePlugin: panel.querySelector('#g-activePlugin').value,
       pluginPins: pins,
       defaultDisplayMode: panel.querySelector('#g-defaultMode').value,
-      controlToken: panel.querySelector('#g-controlToken').value,
       shotStrokeWidth: parseFloat(panel.querySelector('#g-shotStrokeWidth').value),
       footer: footer
     };
+    // The server cannot send the token back, so an empty field means "keep the
+    // stored one" rather than "clear it". Omitting the key expresses that.
+    const token = panel.querySelector('#g-controlToken').value;
+    if (token) body.controlToken = token;
+    return body;
   }
 
   function renderGlobalSection() {
@@ -304,7 +338,8 @@
       '<label class="config-field">Plugin-Ordner<input type="text" id="g-pluginsDir" value="' + esc(c.pluginsDir) + '"></label>' +
       '<label class="config-field">Standard-Plugin<input type="text" id="g-activePlugin" value="' + esc(c.activePlugin || 'classic-range') + '"></label>' +
       '<label class="config-field">Anzeige-Modus<input type="text" id="g-defaultMode" value="' + esc(c.defaultDisplayMode) + '"></label>' +
-      '<label class="config-field">Control-Token<input type="text" id="g-controlToken" value="' + esc(c.controlToken || '') + '"></label>' +
+      '<label class="config-field">Control-Token<input type="password" id="g-controlToken" autocomplete="new-password" placeholder="' +
+        (c.controlTokenSet ? 'gesetzt — leer lassen, um es zu behalten' : 'nicht gesetzt') + '"></label>' +
       '<label class="config-field">Schuss-Kontur (mm)<input type="number" id="g-shotStrokeWidth" min="0" max="2" step="0.01" value="' +
         esc(c.shotStrokeWidth != null ? c.shotStrokeWidth : 0.1) + '"></label>' +
       '</div>' +
@@ -357,52 +392,57 @@
 
   function render() {
     if (!panel) return;
-    panel.innerHTML =
-      '<div class="drawer-inner settings-inner">' +
-      '<header class="settings-head">' +
-      '<div><h2>Einstellungen</h2><p class="settings-sub">Standort und aktives Plugin</p></div>' +
-      '<button type="button" class="btn btn-ghost settings-close" id="config-close" aria-label="Schließen">Schließen</button>' +
-      '</header>' +
-      '<div class="settings-body">' +
-      renderGlobalSection() +
-      renderPluginSection() +
-      '</div></div>';
-
-    const closeBtn = panel.querySelector('#config-close');
-    if (closeBtn) {
-      closeBtn.onclick = function () {
-        panel.hidden = true;
-        syncSettingsButton(false);
-      };
-    }
-
-    const addPin = panel.querySelector('.config-add-pin');
-    if (addPin) {
-      addPin.onclick = function () {
-        const row = document.createElement('div');
-        row.className = 'plugin-pin-row';
-        row.innerHTML = '<input class="pin-id" placeholder="Plugin-ID"> <input class="pin-version" placeholder="Version">';
-        addPin.parentNode.insertBefore(row, addPin);
-      };
+    const pageMode = panel.classList.contains('config-page-panel') ||
+      document.body.classList.contains('config-display');
+    if (pageMode) {
+      panel.innerHTML =
+        '<div class="config-page-body">' +
+        renderGlobalSection() +
+        renderPluginSection() +
+        '</div>';
+    } else {
+      panel.innerHTML =
+        '<div class="drawer-inner settings-inner">' +
+        '<header class="settings-head">' +
+        '<div><h2>Plugin</h2><p class="settings-sub">Aktives Plugin</p></div>' +
+        '<button type="button" class="btn btn-ghost settings-close" id="config-close" aria-label="Schließen">Schließen</button>' +
+        '</header>' +
+        '<div class="settings-body">' +
+        renderPluginSection() +
+        '</div></div>';
+      const closeBtn = panel.querySelector('#config-close');
+      if (closeBtn) {
+        closeBtn.onclick = function () {
+          panel.hidden = true;
+          syncSettingsButton(false);
+        };
+      }
     }
 
     const saveGlobal = panel.querySelector('#config-save-global');
     if (saveGlobal) saveGlobal.onclick = saveGlobalConfig;
-
     const savePlugin = panel.querySelector('#config-save-plugin');
     if (savePlugin) savePlugin.onclick = savePluginConfig;
+    const addPin = panel.querySelector('.config-add-pin');
+    if (addPin) {
+      addPin.onclick = function () {
+        const pinFieldset = addPin.closest('.config-fieldset');
+        if (!pinFieldset) return;
+        const row = document.createElement('div');
+        row.className = 'plugin-pin-row';
+        row.innerHTML = '<input class="pin-id" placeholder="Plugin-ID"> <input class="pin-version" placeholder="Version">';
+        pinFieldset.insertBefore(row, addPin);
+      };
+    }
   }
 
   function syncSettingsButton(open) {
-    const btn = document.getElementById('btn-settings-drawer');
-    if (!btn) return;
-    btn.classList.toggle('is-open', !!open);
+    // no side-menu settings button anymore
   }
 
   async function loadGlobal() {
     const res = await fetch('/api/config');
     if (res.ok) globalData = await res.json();
-    render();
   }
 
   async function loadPlugin(id) {
@@ -419,9 +459,8 @@
     const status = panel.querySelector('#config-global-status');
     setStatus(status, 'Speichern…', false);
     const body = collectGlobalConfig();
-    const res = await fetch('/api/config', {
+    const res = await controlFetch('/api/config', {
       method: 'PUT',
-      headers: controlHeadersFn(),
       body: JSON.stringify(body)
     });
     if (!res.ok) {
@@ -442,9 +481,8 @@
     const status = panel.querySelector('#config-plugin-status');
     setStatus(status, 'Speichern…', false);
     const merged = collectPluginMerged();
-    const res = await fetch('/api/plugins/' + encodeURIComponent(pluginId) + '/config', {
+    const res = await controlFetch('/api/plugins/' + encodeURIComponent(pluginId) + '/config', {
       method: 'PUT',
-      headers: controlHeadersFn(),
       body: JSON.stringify({ merged: merged })
     });
     if (!res.ok) {
@@ -457,22 +495,16 @@
       merged: result.merged
     });
     render();
-    setStatus(panel.querySelector('#config-plugin-status'), 'Gespeichert. Wirkt beim nächsten Plugin-Start.', false);
+    if (window.SRCore && typeof window.SRCore.setPluginTargetConfig === 'function' && result.merged) {
+      window.SRCore.setPluginTargetConfig(result.merged);
+    }
+    setStatus(panel.querySelector('#config-plugin-status'), 'Gespeichert.', false);
   }
 
   function applyOptions(options) {
     options = options || {};
     if (options.getRanges) getRangesFn = options.getRanges;
-    if (options.controlHeaders) {
-      controlHeadersFn = options.controlHeaders;
-    } else if (options.controlToken != null) {
-      const token = options.controlToken;
-      controlHeadersFn = function () {
-        const h = { 'Content-Type': 'application/json' };
-        if (token) h['X-SR-Control-Token'] = token;
-        return h;
-      };
-    }
+    if (options.controlFetch) controlFetch = options.controlFetch;
   }
 
   function ensurePanel(container) {
@@ -491,25 +523,30 @@
       if (!panel) return;
       applyOptions(options);
     },
-    open: function (options) {
-      ensurePanel();
+    mountPage: function (container, options) {
+      ensurePanel(container);
       if (!panel) return;
+      panel.classList.add('config-page-panel');
+      panel.hidden = false;
       applyOptions(options);
-      const opening = !!panel.hidden;
-      panel.hidden = !opening;
-      syncSettingsButton(opening);
-      if (!opening) return;
-      panel.style.display = '';
-      loadGlobal();
-      if (options && options.pluginId) loadPlugin(options.pluginId);
+      // Site config only used for range count helpers; UI is plugin-only
+      loadGlobal().then(function () {
+        if (options && options.pluginId) loadPlugin(options.pluginId);
+        else render();
+      });
     },
-    show: function () {
-      if (panel) { panel.hidden = false; panel.style.display = ''; }
-      syncSettingsButton(true);
+    open: function (options) {
+      const q = (options && options.pluginId)
+        ? '/config?plugin=' + encodeURIComponent(options.pluginId)
+        : '/config';
+      location.href = q;
     },
+    show: function () { location.href = '/config'; },
     hide: function () {
-      if (panel) { panel.hidden = true; panel.style.display = 'none'; }
-      syncSettingsButton(false);
+      if (panel && !panel.classList.contains('config-page-panel')) {
+        panel.hidden = true;
+        panel.style.display = 'none';
+      }
     },
     loadGlobal: loadGlobal,
     loadPlugin: loadPlugin

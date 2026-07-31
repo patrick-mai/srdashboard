@@ -1,13 +1,17 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"srdashboard/config"
+	"srdashboard/host/loader"
 )
 
 func saveActivePlugin(path string, cfg *config.Config) error {
@@ -18,12 +22,16 @@ type activateRequest struct {
 	ID string `json:"id"`
 }
 
+// checkControlToken authorises a state-changing request. An empty configured
+// token leaves the endpoints open, which is the documented default for isolated
+// range networks; main.go warns about it at startup.
 func (h *Handlers) checkControlToken(r *http.Request) bool {
-	token := h.Cfg.Display.ControlToken
+	token := h.cfgSnapshot().Display.ControlToken
 	if token == "" {
 		return true
 	}
-	return r.Header.Get("X-SR-Control-Token") == token
+	got := r.Header.Get("X-SR-Control-Token")
+	return subtle.ConstantTimeCompare([]byte(got), []byte(token)) == 1
 }
 
 func (h *Handlers) PluginsActiveList(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +39,7 @@ func (h *Handlers) PluginsActiveList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	activeID := h.Cfg.Plugins.Active
+	activeID := h.cfgSnapshot().Plugins.Active
 	if h.PluginState != nil {
 		if id := h.PluginState.ActivePluginID(); id != "" {
 			activeID = id
@@ -178,7 +186,13 @@ func (h *Handlers) PluginInstall(w http.ResponseWriter, r *http.Request) {
 	if filename == "" {
 		filename = "upload.srplugin.zip"
 	}
-	if _, err := h.Plugins.SaveToInbox(filename, r.Body); err != nil {
+	body := http.MaxBytesReader(w, r.Body, loader.MaxPluginUploadBytes)
+	if _, err := h.Plugins.SaveToInbox(filename, body); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, "plugin package too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -193,6 +207,7 @@ func (h *Handlers) PluginInstall(w http.ResponseWriter, r *http.Request) {
 	}
 	// Re-bind active plugin after reload
 	if h.PluginState != nil {
+		h.syncRangeCount(h.cfgSnapshot().Ranges)
 		_ = h.PluginState.EnsureActive()
 	}
 	if h.Hub != nil {
@@ -212,8 +227,7 @@ func (h *Handlers) PluginActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req activateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.ID == "" {
@@ -224,13 +238,17 @@ func (h *Handlers) PluginActivate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	h.syncRangeCount(h.cfgSnapshot().Ranges)
 	if err := h.PluginState.Activate(req.ID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	h.Cfg.Plugins.Active = req.ID
+	h.mutateCfg(func(c *config.Config) { c.Plugins.Active = req.ID })
 	if h.ConfigPath != "" {
-		_ = saveActivePlugin(h.ConfigPath, h.Cfg)
+		snap := h.cfgSnapshot()
+		if err := saveActivePlugin(h.ConfigPath, &snap); err != nil {
+			log.Printf("persist active plugin %q: %v", req.ID, err)
+		}
 	}
 	if h.Hub != nil {
 		h.Hub.BroadcastAll(map[string]any{"type": "plugins_changed"})
@@ -253,6 +271,7 @@ func (h *Handlers) PluginReload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.syncRangeCount(h.cfgSnapshot().Ranges)
 	if err := h.PluginState.EnsureActive(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -283,6 +302,7 @@ func (h *Handlers) PluginScanInbox(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.syncRangeCount(h.cfgSnapshot().Ranges)
 	_ = h.PluginState.EnsureActive()
 	if h.Hub != nil {
 		h.Hub.BroadcastAll(map[string]any{"type": "plugins_changed"})
@@ -312,7 +332,26 @@ func (h *Handlers) ServePlugin(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Block serving wasm as a casual download path is optional; allow for debugging but not config
-	filePath := filepath.Join(h.Plugins.RootDir(), id, filepath.FromSlash(rest))
+	// ServeMux and ServeFile already reject "..", but the containment check is
+	// what actually guarantees we never read outside the plugin directory.
+	root, err := filepath.Abs(h.Plugins.RootDir())
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	filePath, err := filepath.Abs(filepath.Join(root, id, filepath.FromSlash(rest)))
+	if err != nil || !isWithin(root, filePath) {
+		http.NotFound(w, r)
+		return
+	}
 	http.ServeFile(w, r, filePath)
+}
+
+// isWithin reports whether abs path child lives under abs path root.
+func isWithin(root, child string) bool {
+	rel, err := filepath.Rel(root, child)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

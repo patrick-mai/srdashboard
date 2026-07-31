@@ -2,6 +2,7 @@ package logicapi
 
 import (
 	"encoding/json"
+	"time"
 
 	"srdashboard/state"
 )
@@ -17,8 +18,25 @@ type PluginEvent struct {
 	Data map[string]any `json:"data,omitempty"`
 }
 
+// LiveRangeInfo carries live UDP-derived fields into game logic.
+type LiveRangeInfo struct {
+	IsWarmup         bool
+	TotalShotsToFire int
+	Discipline       string
+	ShooterName      string
+}
+
+// ShotContext enriches OnShot for shared/builtin games.
+type ShotContext struct {
+	RangeNum  int
+	Shot      state.Shot
+	ShotIndex int
+	Live      LiveRangeInfo
+	NumRanges int
+	Now       time.Time
+}
+
 // Logic is the host-side contract for WASM (or in-process) plugin scoring logic.
-// Display plugins have no Logic; the host synthesizes view models from live range state.
 type Logic interface {
 	ID() string
 	Label() string
@@ -28,4 +46,12 @@ type Logic interface {
 	Init(cfg map[string]any) (SessionState, error)
 	OnShot(sess SessionState, rangeNum int, shot state.Shot, shotIndex int) (SessionState, []PluginEvent, error)
 	ViewModel(sess SessionState, rangeNum int) (map[string]any, error)
+}
+
+// ExtendedLogic is optional for builtin shared games (tick + control + live-aware shots).
+type ExtendedLogic interface {
+	Logic
+	OnShotCtx(sess SessionState, ctx ShotContext) (SessionState, []PluginEvent, error)
+	Tick(sess SessionState, now time.Time) (SessionState, []PluginEvent, bool, error)
+	Control(sess SessionState, action string, params map[string]any) (SessionState, []PluginEvent, error)
 }

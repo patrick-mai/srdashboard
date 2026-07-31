@@ -1,6 +1,10 @@
 {
   "type": "object",
   "properties": {
+    "hideIdleRanges": {
+      "type": "boolean",
+      "description": "Hide stands with no shooter and no shots so active lanes get more space"
+    },
     "defaultTargetProfile": {
       "type": "string",
       "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"],

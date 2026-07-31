@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "circuitId": {
+      "type": "string",
+      "enum": ["spa", "nuerburgring", "melbourne"],
+      "title": "Circuit"
+    },
+    "motionMode": {
+      "type": "string",
+      "enum": ["push", "cruise"],
+      "title": "Motion mode"
+    },
+    "stintSize": { "type": "integer", "title": "Stint size (pit every N)" },
+    "roundDurationSec": { "type": "integer", "title": "Round duration (sec)" },
+    "skippedRoundsToCrash": { "type": "integer" },
+    "overtakeRatio": { "type": "number", "title": "Overtake ratio" },
+    "paceCompress": { "type": "number", "title": "Pace compression" },
+    "pacePivot": { "type": "number", "title": "Pace pivot" },
+    "drsStackPerPlace": { "type": "number", "title": "DRS stack per place" },
+    "drsSections": { "type": "string", "title": "DRS sections (comma-separated)" },
+    "autoStartWhenAllReady": { "type": "boolean" },
+    "fieldEventsEnabled": { "type": "boolean" },
+    "holeInHoleMinOverlap": { "type": "number" }
+  }
+}

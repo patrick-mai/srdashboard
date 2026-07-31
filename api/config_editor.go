@@ -2,25 +2,34 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"srdashboard/config"
 )
 
-// ConfigResponse is the JSON response for GET /api/config
+// ConfigResponse is the JSON body for GET and PUT /api/config.
+//
+// ControlToken is write-only: GET never returns it (it is the credential for
+// every state-changing endpoint), and a PUT that omits it leaves the stored
+// token untouched. Clients read ControlTokenSet to know whether one is
+// configured. Sending an explicit empty string clears the token.
 type ConfigResponse struct {
-	UDPPort       int                `json:"udpPort"`
-	ODBCName      string             `json:"odbcName"`
-	Ranges        int                `json:"ranges"`
-	LayoutColumns int           `json:"layoutColumns"`
-	Footer        config.Footer `json:"footer"`
-	PluginsDir    string             `json:"pluginsDir"`
-	ActivePlugin  string             `json:"activePlugin"`
-	PluginPins    []config.PluginRef `json:"pluginPins"`
-	ControlToken  string             `json:"controlToken,omitempty"`
-	DefaultMode   string             `json:"defaultDisplayMode"`
-	ShotStrokeWidth float64          `json:"shotStrokeWidth"`
+	UDPPort         int                `json:"udpPort"`
+	ODBCName        string             `json:"odbcName"`
+	Ranges          int                `json:"ranges"`
+	LayoutColumns   int                `json:"layoutColumns"`
+	Footer          config.Footer      `json:"footer"`
+	PluginsDir      string             `json:"pluginsDir"`
+	ActivePlugin    string             `json:"activePlugin"`
+	PluginPins      []config.PluginRef `json:"pluginPins"`
+	ControlToken    *string            `json:"controlToken,omitempty"`
+	ControlTokenSet bool               `json:"controlTokenSet"`
+	DefaultMode     string             `json:"defaultDisplayMode"`
+	ShotStrokeWidth float64            `json:"shotStrokeWidth"`
 }
 
 type configSaveResponse struct {
@@ -31,32 +40,35 @@ type configSaveResponse struct {
 }
 
 func (h *Handlers) configResponse() ConfigResponse {
-	active := h.Cfg.Plugins.Active
+	cfg := h.cfgSnapshot()
+	active := cfg.Plugins.Active
 	if h.PluginState != nil {
 		if id := h.PluginState.ActivePluginID(); id != "" {
 			active = id
 		}
 	}
-	stroke := h.Cfg.Display.ShotStrokeWidth
+	stroke := cfg.Display.ShotStrokeWidth
 	if stroke <= 0 {
 		stroke = 0.1
 	}
 	return ConfigResponse{
-		UDPPort:         h.Cfg.UDPPort,
-		ODBCName:        h.Cfg.ODBCName,
-		Ranges:          h.Cfg.Ranges,
-		LayoutColumns: h.Cfg.LayoutColumns,
-		Footer:        h.Cfg.Footer,
-		PluginsDir:      h.Cfg.Plugins.Dir,
+		UDPPort:         cfg.UDPPort,
+		ODBCName:        cfg.ODBCName,
+		Ranges:          cfg.Ranges,
+		LayoutColumns:   cfg.LayoutColumns,
+		Footer:          cfg.Footer,
+		PluginsDir:      cfg.Plugins.Dir,
 		ActivePlugin:    active,
-		PluginPins:      h.Cfg.Plugins.Plugin,
-		ControlToken:    h.Cfg.Display.ControlToken,
-		DefaultMode:     h.Cfg.Display.DefaultMode,
+		PluginPins:      cfg.Plugins.Plugin,
+		ControlTokenSet: cfg.Display.ControlToken != "",
+		DefaultMode:     cfg.Display.DefaultMode,
 		ShotStrokeWidth: stroke,
 	}
 }
 
-func (h *Handlers) responseToConfig(resp ConfigResponse) *config.Config {
+// responseToConfig builds the config to persist. Fields the client cannot see
+// (the control token) are carried over from old unless explicitly supplied.
+func (h *Handlers) responseToConfig(resp ConfigResponse, old *config.Config) *config.Config {
 	pins := make([]config.PluginRef, 0, len(resp.PluginPins))
 	for _, p := range resp.PluginPins {
 		if p.ID != "" {
@@ -66,6 +78,10 @@ func (h *Handlers) responseToConfig(resp ConfigResponse) *config.Config {
 	active := resp.ActivePlugin
 	if active == "" {
 		active = "classic-range"
+	}
+	token := old.Display.ControlToken
+	if resp.ControlToken != nil {
+		token = *resp.ControlToken
 	}
 	return &config.Config{
 		UDPPort:       resp.UDPPort,
@@ -80,11 +96,31 @@ func (h *Handlers) responseToConfig(resp ConfigResponse) *config.Config {
 		},
 		Display: config.Display{
 			DefaultMode:     resp.DefaultMode,
-			ControlToken:    resp.ControlToken,
+			ControlToken:    token,
 			ShotStrokeWidth: resp.ShotStrokeWidth,
 		},
 	}
 }
+
+// validateConfig rejects values that would leave the server in a broken state.
+func validateConfig(c *config.Config) error {
+	switch {
+	case c.UDPPort < 1 || c.UDPPort > 65535:
+		return fmt.Errorf("udpPort must be between 1 and 65535, got %d", c.UDPPort)
+	case c.Ranges < 1 || c.Ranges > maxRanges:
+		return fmt.Errorf("ranges must be between 1 and %d, got %d", maxRanges, c.Ranges)
+	case c.LayoutColumns < 1 || c.LayoutColumns > maxRanges:
+		return fmt.Errorf("layoutColumns must be between 1 and %d, got %d", maxRanges, c.LayoutColumns)
+	case c.Display.ShotStrokeWidth < 0 || c.Display.ShotStrokeWidth > 5:
+		return fmt.Errorf("shotStrokeWidth must be between 0 and 5, got %g", c.Display.ShotStrokeWidth)
+	case strings.TrimSpace(c.Plugins.Dir) == "":
+		return fmt.Errorf("pluginsDir must not be empty")
+	}
+	return nil
+}
+
+// maxRanges is a sanity ceiling; real ranges have far fewer lanes.
+const maxRanges = 256
 
 func restartFieldsForConfig(old, new *config.Config) []string {
 	var fields []string
@@ -93,9 +129,6 @@ func restartFieldsForConfig(old, new *config.Config) []string {
 	}
 	if old.ODBCName != new.ODBCName {
 		fields = append(fields, "odbcName")
-	}
-	if old.Ranges != new.Ranges {
-		fields = append(fields, "ranges")
 	}
 	if old.Plugins.Dir != new.Plugins.Dir {
 		fields = append(fields, "pluginsDir")
@@ -107,16 +140,37 @@ func restartFieldsForConfig(old, new *config.Config) []string {
 }
 
 func (h *Handlers) applyConfigHotReload(newCfg *config.Config) {
-	h.Cfg.UDPPort = newCfg.UDPPort
-	h.Cfg.ODBCName = newCfg.ODBCName
-	h.Cfg.Ranges = newCfg.Ranges
-	h.Cfg.LayoutColumns = newCfg.LayoutColumns
-	h.Cfg.Footer = newCfg.Footer
-	h.Cfg.Plugins = newCfg.Plugins
-	h.Cfg.Display = newCfg.Display
+	h.mutateCfg(func(c *config.Config) {
+		c.UDPPort = newCfg.UDPPort
+		c.ODBCName = newCfg.ODBCName
+		c.Ranges = newCfg.Ranges
+		c.LayoutColumns = newCfg.LayoutColumns
+		c.Footer = newCfg.Footer
+		c.Plugins = newCfg.Plugins
+		c.Display = newCfg.Display
+	})
+	h.syncRangeCount(newCfg.Ranges)
 	if h.PluginState != nil && newCfg.Plugins.Active != "" &&
 		h.PluginState.ActivePluginID() != newCfg.Plugins.Active {
-		_ = h.PluginState.Activate(newCfg.Plugins.Active)
+		if err := h.PluginState.Activate(newCfg.Plugins.Active); err != nil {
+			log.Printf("activate plugin %q after config save: %v", newCfg.Plugins.Active, err)
+		}
+	}
+}
+
+// syncRangeCount resizes live + plugin state to the configured lane count.
+// Safe to call repeatedly; no-ops when already matching.
+func (h *Handlers) syncRangeCount(n int) {
+	if n < 1 {
+		return
+	}
+	if h.State != nil {
+		h.State.SetNumRanges(n)
+	}
+	if h.PluginState != nil && h.PluginState.NumRanges() != n {
+		if err := h.PluginState.SetNumRanges(n); err != nil {
+			log.Printf("resize plugin state to %d ranges: %v", n, err)
+		}
 	}
 }
 
@@ -136,12 +190,20 @@ func (h *Handlers) Config(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var req ConfigResponse
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
-		newCfg := h.responseToConfig(req)
-		oldSnapshot := *h.Cfg
+		// Serialise the read-modify-write so two concurrent saves cannot
+		// interleave and leave config.xml and h.Cfg disagreeing.
+		h.saveMu.Lock()
+		defer h.saveMu.Unlock()
+
+		oldSnapshot := h.cfgSnapshot()
+		newCfg := h.responseToConfig(req, &oldSnapshot)
+		if err := validateConfig(newCfg); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		restartFields := restartFieldsForConfig(&oldSnapshot, newCfg)
 
 		if err := config.Save(h.ConfigPath, newCfg); err != nil {
@@ -221,8 +283,7 @@ func (h *Handlers) PluginConfig(w http.ResponseWriter, r *http.Request, pluginID
 			return
 		}
 		var req pluginConfigSaveRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if !decodeJSONBody(w, r, &req) {
 			return
 		}
 		toSave := req.Overrides

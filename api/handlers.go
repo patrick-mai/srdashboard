@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"srdashboard/config"
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
 	"srdashboard/state"
 )
+
+// maxJSONBody caps request bodies for the JSON endpoints. Live state and config
+// payloads are a few kilobytes at most; anything larger is a client bug or an
+// attempt to exhaust memory.
+const maxJSONBody = 1 << 20 // 1 MiB
 
 // Handlers provides HTTP handlers for the API
 type Handlers struct {
@@ -19,6 +25,42 @@ type Handlers struct {
 	Plugins     *loader.Manager
 	PluginState *rangestate.Manager
 	Hub         *Hub
+
+	// cfgMu guards Cfg, which is mutated by the config editor and the plugin
+	// activate endpoint while other handlers read it concurrently.
+	cfgMu sync.RWMutex
+	// saveMu serialises read-modify-write cycles against config.xml.
+	saveMu sync.Mutex
+}
+
+// cfgSnapshot returns a copy of the current config so callers can read fields
+// without holding the lock.
+func (h *Handlers) cfgSnapshot() config.Config {
+	h.cfgMu.RLock()
+	defer h.cfgMu.RUnlock()
+	if h.Cfg == nil {
+		return config.Config{}
+	}
+	return *h.Cfg
+}
+
+// mutateCfg applies fn to the live config under the write lock.
+func (h *Handlers) mutateCfg(fn func(*config.Config)) {
+	h.cfgMu.Lock()
+	defer h.cfgMu.Unlock()
+	if h.Cfg != nil {
+		fn(h.Cfg)
+	}
+}
+
+// decodeJSONBody reads a size-limited JSON body into dst.
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
 // LiveResponse is the JSON response for GET /api/live
@@ -69,6 +111,10 @@ func (h *Handlers) LiveReset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !h.checkControlToken(r) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
 	n, err := strconv.Atoi(r.URL.Query().Get("range"))
 	if err != nil || n < 1 {
 		http.Error(w, "invalid range", http.StatusBadRequest)
@@ -116,9 +162,12 @@ func (h *Handlers) liveGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) liveReplace(w http.ResponseWriter, r *http.Request) {
+	if !h.checkControlToken(r) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
 	var req LiveResponse
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	for _, rr := range req.Ranges {
