@@ -74,6 +74,7 @@ type RangeResponse struct {
 	ShooterName      string       `json:"shooterName"`
 	ClubName         string       `json:"clubName"`
 	Discipline       string       `json:"discipline"`
+	DiscType         string       `json:"discType"`
 	IsWarmup         bool         `json:"isWarmup"`
 	Shots            []state.Shot `json:"shots"`
 	ShotNumber       int          `json:"shotNumber"`
@@ -202,6 +203,7 @@ func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 		ShooterName:      s.ShooterName,
 		ClubName:         s.ClubName,
 		Discipline:       s.Discipline,
+		DiscType:         s.DiscType,
 		IsWarmup:         s.IsWarmup,
 		Shots:            s.Shots,
 		ShotNumber:       s.ShotNumber,
@@ -226,6 +228,7 @@ func responseToSnapshot(r RangeResponse) state.RangeSnapshot {
 		ShooterName:      r.ShooterName,
 		ClubName:         r.ClubName,
 		Discipline:       r.Discipline,
+		DiscType:         r.DiscType,
 		IsWarmup:         r.IsWarmup,
 		Shots:            r.Shots,
 		ShotNumber:       r.ShotNumber,

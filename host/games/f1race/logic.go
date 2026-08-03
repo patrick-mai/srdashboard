@@ -71,26 +71,33 @@ func (l *Logic) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"circuitId":             map[string]any{"type": "string", "enum": []string{"spa", "nuerburgring", "melbourne"}},
-			"motionMode":            map[string]any{"type": "string", "enum": []string{"push", "cruise"}},
-			"stintSize":             map[string]any{"type": "integer"},
-			"roundDurationSec":      map[string]any{"type": "integer"},
-			"skippedRoundsToCrash":  map[string]any{"type": "integer"},
-			"overtakeRatio":         map[string]any{"type": "number"},
-			"paceCompress":          map[string]any{"type": "number"},
-			"pacePivot":             map[string]any{"type": "number"},
-			"drsStackPerPlace":      map[string]any{"type": "number"},
-			"drsSections":           map[string]any{"type": "string"},
-			"gridGap":               map[string]any{"type": "number"},
-			"trackLength":           map[string]any{"type": "number"},
-			"highShotThreshold":     map[string]any{"type": "number"},
-			"streakBonus":           map[string]any{"type": "number"},
-			"pitCueWindowMs":        map[string]any{"type": "integer"},
-			"autoStartWhenAllReady": map[string]any{"type": "boolean"},
-			"requireEqualShotTotals": map[string]any{"type": "boolean"},
-			"fieldEventsEnabled":    map[string]any{"type": "boolean"},
-			"holeInHoleMinOverlap":  map[string]any{"type": "number"},
-			"shotDiameterMm":        map[string]any{"type": "number"},
+			"circuitId":                map[string]any{"type": "string", "enum": []string{"spa", "nuerburgring", "melbourne", "nordschleife"}},
+			"motionMode":               map[string]any{"type": "string", "enum": []string{"push", "cruise"}},
+			"stintSize":                map[string]any{"type": "integer"},
+			"roundDurationSec":         map[string]any{"type": "integer"},
+			"skippedRoundsToCrash":     map[string]any{"type": "integer"},
+			"overtakeRatio":            map[string]any{"type": "number"},
+			"paceCompress":             map[string]any{"type": "number"},
+			"pacePivot":                map[string]any{"type": "number"},
+			"drsStackPerPlace":         map[string]any{"type": "number"},
+			"drsSections":              map[string]any{"type": "string"},
+			"gridGap":                  map[string]any{"type": "number"},
+			"trackLength":              map[string]any{"type": "number"},
+			"highShotThreshold":        map[string]any{"type": "number"},
+			"streakBonus":              map[string]any{"type": "number"},
+			"pitCueWindowMs":           map[string]any{"type": "integer"},
+			"pitScoreWeight":           map[string]any{"type": "number"},
+			"pitReactionWeight":        map[string]any{"type": "number"},
+			"autoStartWhenAllReady":    map[string]any{"type": "boolean"},
+			"requireEqualShotTotals":   map[string]any{"type": "boolean"},
+			"fieldEventsEnabled":       map[string]any{"type": "boolean"},
+			"fieldEventMinGapSec":      map[string]any{"type": "integer"},
+			"fieldEventChancePerRound": map[string]any{"type": "number"},
+			"holeInHoleMinOverlap":     map[string]any{"type": "number"},
+			"holeInHoleBonus":          map[string]any{"type": "number"},
+			"shotDiameterMm":           map[string]any{"type": "number"},
+			"dsgPerMm":                 map[string]any{"type": "number"},
+			"handicaps":                map[string]any{"type": "object"},
 		},
 	}
 }
@@ -114,8 +121,8 @@ func defaultConfig() map[string]any {
 		"highShotThreshold":      9.0,
 		"streakBonus":            1.15,
 		"pitCueWindowMs":         5000,
-		"pitScoreWeight":         2.0,
-		"pitReactionWeight":      0.002,
+		"pitScoreWeight":         1.0,
+		"pitReactionWeight":      0.0004,
 		"autoStartWhenAllReady":  true,
 		"requireEqualShotTotals": true,
 		"fieldEventsEnabled":     true,
@@ -124,6 +131,7 @@ func defaultConfig() map[string]any {
 		"holeInHoleMinOverlap":   0.5,
 		"holeInHoleBonus":        0.05,
 		"shotDiameterMm":         4.5,
+		"dsgPerMm":               90.0,
 		"handicaps":              map[string]any{},
 	}
 }
@@ -134,36 +142,44 @@ type DRSZone struct {
 }
 
 type FieldEvent struct {
-	Type      string    `json:"type"`
-	CueAt     time.Time `json:"cueAt"`
-	WindowMs  int       `json:"windowMs"`
-	Cleared   map[int]bool `json:"cleared"`
+	Type     string       `json:"type"`
+	CueAt    time.Time    `json:"cueAt"`
+	WindowMs int          `json:"windowMs"`
+	Targets  map[int]bool `json:"targets"` // cars that must take this pit
+	Cleared  map[int]bool `json:"cleared"`
 }
 
 type CarState struct {
-	RangeNum           int       `json:"rangeNum"`
-	Status             string    `json:"status"`
-	Ready              bool      `json:"ready"`
-	Progress           float64   `json:"progress"`
-	LastSpeed          float64   `json:"lastSpeed"`
-	ShotsFired         int       `json:"shotsFired"`
-	SkippedConsecutive int       `json:"skippedConsecutive"`
-	ShotThisRound      bool      `json:"shotThisRound"`
-	HighStreak         int       `json:"highStreak"`
-	StreakBoostUntil   int       `json:"streakBoostUntil"`
-	Handicap           float64   `json:"handicap"`
-	Position           int       `json:"position"`
-	ShooterName        string    `json:"shooterName"`
-	TotalShots         int       `json:"totalShots"`
-	Discipline         string    `json:"discipline"`
-	WasWarmup          bool      `json:"wasWarmup"`
-	LastShotX          int       `json:"lastShotX"`
-	LastShotY          int       `json:"lastShotY"`
-	LastShotValue      float64   `json:"lastShotValue"`
-	HasLastShot        bool      `json:"hasLastShot"`
-	Color              string    `json:"color"`
-	PendingPit         bool      `json:"pendingPit"`
-	PitKind            string    `json:"pitKind"` // stint | field
+	RangeNum           int     `json:"rangeNum"`
+	Status             string  `json:"status"`
+	Ready              bool    `json:"ready"`
+	Progress           float64 `json:"progress"`
+	LastSpeed          float64 `json:"lastSpeed"`
+	ShotsFired         int     `json:"shotsFired"`
+	SkippedConsecutive int     `json:"skippedConsecutive"`
+	ShotThisRound      bool    `json:"shotThisRound"`
+	HighStreak         int     `json:"highStreak"`
+	StreakBoostUntil   int     `json:"streakBoostUntil"`
+	Handicap           float64 `json:"handicap"`
+	Position           int     `json:"position"`
+	ShooterName        string  `json:"shooterName"`
+	TotalShots         int     `json:"totalShots"`
+	Discipline         string  `json:"discipline"`
+	WasWarmup          bool    `json:"wasWarmup"`
+	LastShotX          int     `json:"lastShotX"`
+	LastShotY          int     `json:"lastShotY"`
+	LastShotValue      float64 `json:"lastShotValue"`
+	HasLastShot        bool    `json:"hasLastShot"`
+	Color              string  `json:"color"`
+	PendingPit         bool    `json:"pendingPit"`
+	PitKind            string  `json:"pitKind"` // stint | field
+	LastNote           string  `json:"lastNote"`
+	LastNoteKind       string  `json:"lastNoteKind"`
+	PlaceReason        string  `json:"placeReason"`
+	PlaceReasonKind    string  `json:"placeReasonKind"`
+	LastBoostKind      string  `json:"lastBoostKind"` // miss|streak|hole_in_hole|drs|pit|""
+	NextHint           string  `json:"nextHint"`
+	NextHintKind       string  `json:"nextHintKind"`
 }
 
 type RaceState struct {
@@ -193,9 +209,10 @@ var defaultColors = []string{
 }
 
 var circuitDRS = map[string][]DRSZone{
-	"spa":          {{Start: 0.72, End: 0.88}, {Start: 0.18, End: 0.28}},
-	"nuerburgring": {{Start: 0.65, End: 0.82}, {Start: 0.30, End: 0.40}},
-	"melbourne":    {{Start: 0.70, End: 0.85}, {Start: 0.10, End: 0.22}},
+	"spa":           {{Start: 0.72, End: 0.88}, {Start: 0.18, End: 0.28}},
+	"nuerburgring":  {{Start: 0.65, End: 0.82}, {Start: 0.30, End: 0.40}},
+	"melbourne":     {{Start: 0.70, End: 0.85}, {Start: 0.10, End: 0.22}},
+	"nordschleife":  {{Start: 0.82, End: 0.96}, {Start: 0.08, End: 0.18}}, // Döttinger Höhe + Flugplatz
 }
 
 func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
@@ -301,21 +318,14 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		return marshalWithEvents(rs, events)
 	}
 
-	// Field event pit takes priority
-	if rs.ActiveFieldEvent != nil && !rs.ActiveFieldEvent.Cleared[ctx.RangeNum] {
-		evs := rs.applyPitShot(car, ctx, true)
-		events = append(events, evs...)
-		rs.ActiveFieldEvent.Cleared[ctx.RangeNum] = true
-		if rs.allFieldCleared() {
-			rs.ActiveFieldEvent = nil
-		}
-		return marshalWithEvents(rs, events)
-	}
-
-	// Stint pit (every 10th)
+	// Stint pit (every 10th). Field events convert the next budgeted shot into
+	// a pit — never an extra shot, because the range hard-stops at TotalShots.
 	stintSize := cfgInt(rs.Config, "stintSize", 10)
 	nextShotNum := car.ShotsFired + 1
-	isPit := stintSize > 0 && nextShotNum%stintSize == 0
+	isStintPit := stintSize > 0 && nextShotNum%stintSize == 0
+	fieldPit := rs.ActiveFieldEvent != nil &&
+		rs.ActiveFieldEvent.Targets[ctx.RangeNum] &&
+		!rs.ActiveFieldEvent.Cleared[ctx.RangeNum]
 
 	if !rs.GridSet {
 		evs := rs.applyGridShot(car, ctx)
@@ -323,13 +333,13 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		return marshalWithEvents(rs, events)
 	}
 
-	// Round membership: car must shoot for CurrentRound
+	// Round membership: lagging cars may catch up, but must not yank the
+	// whole field back to an earlier section marker.
 	expected := car.ShotsFired + 1
-	if expected != rs.CurrentRound && rs.ActiveFieldEvent == nil {
-		// Allow catching up only to current round
-		if expected < rs.CurrentRound {
-			// late shot for a past round — ignore progress, still mark? treat as current attempt
-		}
+	snapTo := expected
+	if rs.GridSet && expected < rs.CurrentRound {
+		// Late catch-up shot — park the field at the current shared round.
+		snapTo = rs.CurrentRound
 	}
 
 	if rs.RoundOpenedAt == nil {
@@ -337,12 +347,29 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		rs.RoundOpenedAt = &t
 		// Prefer the shared pit cue armed when the round opened for everyone.
 		// Only fall back to cue-on-first-shot if arming was missed.
-		if isPit && rs.PitCueAt == nil {
+		if isStintPit && !fieldPit && rs.PitCueAt == nil {
 			events = append(events, rs.armPitRound(t)...)
 		}
 	}
 
-	if isPit {
+	// Mark before applying pace so trySectionPass / resolveRoundPasses see this
+	// round's result instead of comparing against a stale LastSpeed.
+	car.ShotThisRound = true
+	car.SkippedConsecutive = 0
+
+	if fieldPit {
+		// puncture → one car; oil_leak → all racing cars. Counts as this round's shot.
+		evs := rs.applyPitShot(car, ctx, true)
+		events = append(events, evs...)
+		rs.ActiveFieldEvent.Cleared[ctx.RangeNum] = true
+		car.PendingPit = false
+		if rs.allFieldCleared() {
+			rs.ActiveFieldEvent = nil
+			if !rs.isPitRound(rs.CurrentRound) {
+				rs.PitCueAt = nil
+			}
+		}
+	} else if isStintPit {
 		evs := rs.applyPitShot(car, ctx, false)
 		events = append(events, evs...)
 	} else {
@@ -350,15 +377,19 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		events = append(events, evs...)
 	}
 
-	car.ShotThisRound = true
-	car.SkippedConsecutive = 0
 	car.ShotsFired++
+	// Re-resolve section passes now that this car's pace is known, so a
+	// trailing car that already shot can still overtake once the car ahead fires.
+	section := rs.sectionOfShot(snapTo)
+	rs.resolveRoundPasses(section)
+	rs.snapFieldToSection(snapTo)
 	if car.TotalShots > 0 && car.ShotsFired >= car.TotalShots {
 		car.Status = StatusFinished
 		events = append(events, logicapi.PluginEvent{Type: "finished", Data: map[string]any{"rangeNum": car.RangeNum}})
 	}
 
 	rs.recomputePositions()
+	rs.refreshPlaceReasons()
 	events = append(events, rs.maybeAdvanceRound(ctx.Now)...)
 	rs.maybeFinish()
 	rs.maybeRandomFieldEvent(ctx.Now, &events)
@@ -377,18 +408,19 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 	var events []logicapi.PluginEvent
 	changed := false
 
-	// Field event timeout
+	// Field event timeout — only targeted cars are penalized.
 	if rs.ActiveFieldEvent != nil {
 		win := time.Duration(rs.ActiveFieldEvent.WindowMs) * time.Millisecond
 		if now.After(rs.ActiveFieldEvent.CueAt.Add(win)) {
-			for _, car := range rs.Cars {
-				if car.Status == StatusCrashed || car.Status == StatusFinished {
+			for rangeNum := range rs.ActiveFieldEvent.Targets {
+				car := rs.Cars[strconv.Itoa(rangeNum)]
+				if car == nil || car.Status == StatusCrashed || car.Status == StatusFinished {
 					continue
 				}
-				if !rs.ActiveFieldEvent.Cleared[car.RangeNum] {
-					// penalty for missing field pit
+				if !rs.ActiveFieldEvent.Cleared[rangeNum] {
 					car.Progress = math.Max(0, car.Progress-0.03)
 					car.SkippedConsecutive++
+					setCarNote(car, "pit_fail", fmt.Sprintf("Feld-Event verpasst (%s)", fieldTypeLabel(rs.ActiveFieldEvent.Type)))
 					if car.SkippedConsecutive >= cfgInt(rs.Config, "skippedRoundsToCrash", 2) {
 						car.Status = StatusCrashed
 						events = append(events, logicapi.PluginEvent{Type: "crash", Data: map[string]any{"rangeNum": car.RangeNum, "reason": "field_event"}})
@@ -397,6 +429,12 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 				}
 			}
 			rs.ActiveFieldEvent = nil
+			// Keep stint pit cue if this is still a pit round; only clear the
+			// field-event overlay. Clearing PitCueAt here made late pit shots
+			// look like instant reactions (cue = now).
+			if !rs.isPitRound(rs.CurrentRound) {
+				rs.PitCueAt = nil
+			}
 			changed = true
 		}
 	}
@@ -405,11 +443,6 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 		deadline := rs.RoundOpenedAt.Add(time.Duration(rs.RoundDurationSec) * time.Second)
 		if now.After(deadline) || now.Equal(deadline) {
 			for _, car := range rs.Cars {
-				if car.Status != StatusRacing && car.Status != StatusReady && car.Status != StatusActive {
-					if car.Status != StatusRacing {
-						// finished/crashed skip
-					}
-				}
 				if car.Status == StatusCrashed || car.Status == StatusFinished {
 					continue
 				}
@@ -446,6 +479,7 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 		return sess, nil, false, nil
 	}
 	rs.recomputePositions()
+	rs.refreshPlaceReasons()
 	out, err := marshalState(rs)
 	return out, events, true, err
 }
@@ -497,7 +531,11 @@ func (l *Logic) Control(sess logicapi.SessionState, action string, params map[st
 		if t, ok := params["type"].(string); ok && t != "" {
 			typ = t
 		}
-		events = append(events, rs.openFieldEvent(typ, now)...)
+		target := 0
+		if v, ok := params["rangeNum"]; ok {
+			target = int(toFloat(v, 0))
+		}
+		events = append(events, rs.openFieldEvent(typ, now, target)...)
 	default:
 		return sess, nil, fmt.Errorf("unknown action %q", action)
 	}
@@ -510,6 +548,7 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 		return nil, err
 	}
 	rs.syncCarsToNumRanges()
+	rs.refreshPlaceReasons()
 	cars := make([]map[string]any, 0, rs.NumRanges)
 	for i := 1; i <= rs.NumRanges; i++ {
 		c := rs.Cars[strconv.Itoa(i)]
@@ -532,11 +571,20 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 	}
 	var field any
 	if rs.ActiveFieldEvent != nil {
+		targets := make([]int, 0, len(rs.ActiveFieldEvent.Targets))
+		for rn := range rs.ActiveFieldEvent.Targets {
+			targets = append(targets, rn)
+		}
+		sort.Ints(targets)
+		affectsMe := rs.ActiveFieldEvent.Targets[rangeNum]
 		field = map[string]any{
-			"type":     rs.ActiveFieldEvent.Type,
-			"cueAt":    rs.ActiveFieldEvent.CueAt.UTC().Format(time.RFC3339Nano),
-			"windowMs": rs.ActiveFieldEvent.WindowMs,
-			"cleared":  rs.ActiveFieldEvent.Cleared[rangeNum],
+			"type":      rs.ActiveFieldEvent.Type,
+			"cueAt":     rs.ActiveFieldEvent.CueAt.UTC().Format(time.RFC3339Nano),
+			"windowMs":  rs.ActiveFieldEvent.WindowMs,
+			"cleared":   rs.ActiveFieldEvent.Cleared[rangeNum],
+			"affectsMe": affectsMe,
+			"targets":   targets,
+			"pending":   affectsMe && !rs.ActiveFieldEvent.Cleared[rangeNum],
 		}
 	}
 	var pitCue any
@@ -599,6 +647,13 @@ func carVM(c *CarState) map[string]any {
 		"handicap":           c.Handicap,
 		"pendingPit":         c.PendingPit,
 		"pitKind":            c.PitKind,
+		"lastNote":           c.LastNote,
+		"lastNoteKind":       c.LastNoteKind,
+		"placeReason":        c.PlaceReason,
+		"placeReasonKind":    c.PlaceReasonKind,
+		"lastBoostKind":      c.LastBoostKind,
+		"nextHint":           c.NextHint,
+		"nextHintKind":       c.NextHintKind,
 	}
 }
 
@@ -770,12 +825,22 @@ func (rs *RaceState) forceStart(now time.Time) []logicapi.PluginEvent {
 		car.HighStreak = 0
 	}
 	rs.formStartingGrid()
+	rs.refreshPlaceReasons()
 	return []logicapi.PluginEvent{{Type: "race_start", Data: map[string]any{"at": now.UTC().Format(time.RFC3339Nano), "shotTotal": rs.ShotTotal}}}
 }
 
 func (rs *RaceState) applyGridShot(car *CarState, ctx logicapi.ShotContext) []logicapi.PluginEvent {
-	score := rs.compressPace(effectiveScore(ctx.Shot, car.Handicap))
-	car.LastSpeed = score
+	var events []logicapi.PluginEvent
+	if isZeroShot(ctx.Shot) {
+		car.LastSpeed = 0
+		car.LastBoostKind = "miss"
+		setCarNote(car, "miss", "Nullschuss — kein Tempo")
+		events = append(events, logicapi.PluginEvent{Type: "miss", Data: map[string]any{"rangeNum": car.RangeNum, "grid": true}})
+	} else {
+		score := rs.compressPace(effectiveScore(ctx.Shot, car.Handicap))
+		car.LastSpeed = score
+		car.LastBoostKind = ""
+	}
 	car.ShotThisRound = true
 	car.ShotsFired = 1
 	car.SkippedConsecutive = 0
@@ -801,7 +866,6 @@ func (rs *RaceState) applyGridShot(car *CarState, ctx logicapi.ShotContext) []lo
 			list = append(list, scored{c, c.LastSpeed})
 		}
 	}
-	var events []logicapi.PluginEvent
 	if all && len(list) > 0 {
 		sort.Slice(list, func(i, j int) bool { return list[i].score > list[j].score })
 		for i, s := range list {
@@ -814,27 +878,46 @@ func (rs *RaceState) applyGridShot(car *CarState, ctx logicapi.ShotContext) []lo
 		for _, c := range rs.Cars {
 			c.ShotThisRound = false
 		}
+		rs.refreshPlaceReasons()
 		events = append(events, logicapi.PluginEvent{Type: "grid_set"})
 	}
 	return events
 }
 
 type overtakeResult struct {
-	inDRS   bool
-	passed  bool
-	usedDRS bool
+	inDRS      bool
+	passed     bool
+	usedDRS    bool
+	otherRange int
+	otherPace  float64
 }
 
 func (rs *RaceState) applyPowerShot(car *CarState, ctx logicapi.ShotContext) []logicapi.PluginEvent {
 	var events []logicapi.PluginEvent
-	score := rs.compressPace(effectiveScore(ctx.Shot, car.Handicap))
-	boost := 1.0
-	if car.StreakBoostUntil >= car.ShotsFired {
-		boost = cfgFloat(rs.Config, "streakBonus", 1.15)
-	}
-	speed := score * boost
 	shotNum := car.ShotsFired + 1
 	section := rs.sectionOfShot(shotNum)
+
+	// Zero: pace 0 for this shot only — still counts as the shared round.
+	if isZeroShot(ctx.Shot) {
+		car.LastSpeed = 0
+		car.HighStreak = 0
+		car.LastBoostKind = "miss"
+		setCarNote(car, "miss", "Nullschuss — kein Tempo")
+		storeShotCoords(car, ctx.Shot)
+		events = append(events, logicapi.PluginEvent{Type: "miss", Data: map[string]any{
+			"rangeNum": car.RangeNum, "section": section,
+		}})
+		return events
+	}
+
+	score := rs.compressPace(effectiveScore(ctx.Shot, car.Handicap))
+	boost := 1.0
+	car.LastBoostKind = ""
+	if car.StreakBoostUntil >= car.ShotsFired {
+		boost = cfgFloat(rs.Config, "streakBonus", 1.15)
+		car.LastBoostKind = "streak"
+	}
+	speed := score * boost
 	inDRS := rs.sectionInDRS(section)
 
 	// streak
@@ -852,14 +935,17 @@ func (rs *RaceState) applyPowerShot(car *CarState, ctx logicapi.ShotContext) []l
 
 	// hole-in-hole: temporary pace boost for this section's pass check
 	if (ctx.Shot.FullValue == 9 || ctx.Shot.FullValue == 10) && car.HasLastShot {
+		dsgPerMm := cfgFloat(rs.Config, "dsgPerMm", 90)
+		pelletR := cfgFloat(rs.Config, "shotDiameterMm", 4.5) / 2 * dsgPerMm
 		overlap := circleOverlapRatio(
 			float64(car.LastShotX), float64(car.LastShotY),
 			float64(ctx.Shot.X), float64(ctx.Shot.Y),
-			cfgFloat(rs.Config, "shotDiameterMm", 4.5)/2*45,
+			pelletR,
 		)
 		minO := cfgFloat(rs.Config, "holeInHoleMinOverlap", 0.5)
 		if overlap > minO {
 			speed *= 1.0 + cfgFloat(rs.Config, "holeInHoleBonus", 0.05)
+			car.LastBoostKind = "hole_in_hole"
 			events = append(events, logicapi.PluginEvent{Type: "hole_in_hole", Data: map[string]any{
 				"rangeNum": car.RangeNum, "overlap": overlap,
 			}})
@@ -869,9 +955,11 @@ func (rs *RaceState) applyPowerShot(car *CarState, ctx logicapi.ShotContext) []l
 	car.LastSpeed = speed
 
 	ot := rs.trySectionPass(car, speed, section)
-	rs.snapFieldToSection(shotNum)
 
 	if inDRS {
+		if ot.usedDRS {
+			car.LastBoostKind = "drs"
+		}
 		events = append(events, logicapi.PluginEvent{Type: "drs_active", Data: map[string]any{
 			"rangeNum": car.RangeNum,
 			"section":  section,
@@ -880,9 +968,12 @@ func (rs *RaceState) applyPowerShot(car *CarState, ctx logicapi.ShotContext) []l
 	}
 	if ot.passed {
 		events = append(events, logicapi.PluginEvent{Type: "overtake", Data: map[string]any{
-			"rangeNum": car.RangeNum,
-			"section":  section,
-			"viaDRS":   ot.usedDRS,
+			"rangeNum":   car.RangeNum,
+			"section":    section,
+			"viaDRS":     ot.usedDRS,
+			"otherRange": ot.otherRange,
+			"myPace":     speed,
+			"otherPace":  ot.otherPace,
 		}})
 	}
 	return events
@@ -936,7 +1027,9 @@ func (rs *RaceState) carByPosition(pos int) *CarState {
 
 // trySectionPass compares this section's pace to the car ahead in race order.
 // On success the positions swap; geographic progress is applied by snapFieldToSection.
-// In DRS, chase pace is boosted by 1+(position-1)*drsStackPerPlace (Sweet spot A).
+// Only compares against cars that have already shot this round — otherwise LastSpeed
+// is from the previous round and shot order would decide places.
+// In DRS, chase pace is boosted by 1+min(placesBehind,3)*drsStackPerPlace.
 func (rs *RaceState) trySectionPass(car *CarState, speed float64, section int) overtakeResult {
 	res := overtakeResult{inDRS: rs.sectionInDRS(section)}
 	if car.Position <= 1 {
@@ -946,11 +1039,21 @@ func (rs *RaceState) trySectionPass(car *CarState, speed float64, section int) o
 	if ahead == nil || ahead.Status == StatusCrashed {
 		return res
 	}
+	// Wait until the car ahead has posted this round's pace.
+	if !ahead.ShotThisRound && ahead.Status == StatusRacing {
+		return res
+	}
+	res.otherRange = ahead.RangeNum
+	res.otherPace = ahead.LastSpeed
 	ratio := cfgFloat(rs.Config, "overtakeRatio", 1.12)
 	canPass := false
 	viaDRS := false
 	if res.inDRS {
-		boost := 1.0 + float64(car.Position-1)*cfgFloat(rs.Config, "drsStackPerPlace", 0.12)
+		placesBehind := car.Position - 1
+		if placesBehind > 3 {
+			placesBehind = 3
+		}
+		boost := 1.0 + float64(placesBehind)*cfgFloat(rs.Config, "drsStackPerPlace", 0.12)
 		if speed*boost >= ahead.LastSpeed {
 			canPass = true
 			viaDRS = true
@@ -960,12 +1063,52 @@ func (rs *RaceState) trySectionPass(car *CarState, speed float64, section int) o
 		canPass = true
 	}
 	if !canPass {
+		reason := fmt.Sprintf("Kein Überholen — Bahn %d zu stark (%.1f vs %.1f)", ahead.RangeNum, ahead.LastSpeed, speed)
+		if res.inDRS {
+			reason = fmt.Sprintf("Bahn %d mit DRS nicht eingeholt (%.1f vs %.1f)", ahead.RangeNum, ahead.LastSpeed, speed)
+		}
+		setCarNote(car, "blocked", reason)
 		return res
 	}
 	car.Position, ahead.Position = ahead.Position, car.Position
 	res.passed = true
 	res.usedDRS = viaDRS
+	drsTag := ""
+	if viaDRS {
+		drsTag = " — DRS"
+	}
+	setCarNote(car, "overtake", fmt.Sprintf("Überholt Bahn %d%s", ahead.RangeNum, drsTag))
+	loseTag := ""
+	if viaDRS {
+		loseTag = " — DRS aktiv"
+	}
+	setCarNote(ahead, "overtaken", fmt.Sprintf("Platz verloren an Bahn %d%s", car.RangeNum, loseTag))
 	return res
+}
+
+// resolveRoundPasses repeatedly applies section passes among cars that have
+// already shot this round, so order matches this round's paces regardless of
+// who fired first.
+func (rs *RaceState) resolveRoundPasses(section int) {
+	for pass := 0; pass < rs.NumRanges; pass++ {
+		moved := false
+		for i := 1; i <= rs.NumRanges; i++ {
+			car := rs.Cars[strconv.Itoa(i)]
+			if car == nil || car.Status != StatusRacing || !car.ShotThisRound {
+				continue
+			}
+			if car.Position <= 1 {
+				continue
+			}
+			ot := rs.trySectionPass(car, car.LastSpeed, section)
+			if ot.passed {
+				moved = true
+			}
+		}
+		if !moved {
+			return
+		}
+	}
 }
 
 // snapFieldToSection parks the whole field at the given shot's section marker,
@@ -1062,13 +1205,10 @@ func (rs *RaceState) enforceMinGap() {
 	}
 }
 
-// formStartingGrid parks every active car in single file with a clear gap,
-// Bahn 1 at the front. Used in warmup and at race start so cars are never stacked.
+// formStartingGrid parks every active car in a tight single-file pack just
+// behind the start/finish, Bahn 1 at the front. Gaps match snapFieldToSection
+// so the first scoring shot does not teleport the field backwards.
 func (rs *RaceState) formStartingGrid() {
-	gap := cfgFloat(rs.Config, "gridGap", 0.08)
-	if gap < 0.06 {
-		gap = 0.06
-	}
 	order := make([]*CarState, 0, rs.NumRanges)
 	for i := 1; i <= rs.NumRanges; i++ {
 		c := rs.Cars[strconv.Itoa(i)]
@@ -1078,17 +1218,49 @@ func (rs *RaceState) formStartingGrid() {
 		order = append(order, c)
 	}
 	n := len(order)
+	if n == 0 {
+		return
+	}
+	stint := rs.stintSize()
+	sectionSpan := 1.0 / float64(stint)
+	gap := (sectionSpan * 0.65) / float64(n)
+	if gap < 0.006 {
+		gap = 0.006
+	}
+	if gap > 0.02 {
+		gap = 0.02
+	}
 	for i, car := range order {
-		// Front of the train = highest progress (near start/finish going forward).
 		car.Progress = gap * float64(n-1-i)
 		car.Position = i + 1
 	}
-	rs.enforceMinGap()
 	rs.recomputePositions()
 }
 
 func (rs *RaceState) applyPitShot(car *CarState, ctx logicapi.ShotContext, field bool) []logicapi.PluginEvent {
 	var events []logicapi.PluginEvent
+	// Both stint and field pits consume the upcoming budgeted shot index.
+	shotNum := car.ShotsFired + 1
+	section := rs.sectionOfShot(shotNum)
+
+	// Pit zero: hard fail — lose one place, no reaction bonus. Still clears the pit.
+	if isZeroShot(ctx.Shot) {
+		car.LastSpeed = 0
+		car.LastBoostKind = "miss"
+		dropped := rs.dropOnePlace(car)
+		note := "Pit-Null — einen Platz verloren"
+		if !dropped {
+			note = "Pit-Null — letzter Platz"
+		}
+		setCarNote(car, "pit_fail", note)
+		events = append(events, logicapi.PluginEvent{Type: "pit_fail", Data: map[string]any{
+			"rangeNum": car.RangeNum, "reason": "zero", "dropped": dropped, "field": field,
+		}})
+		storeShotCoords(car, ctx.Shot)
+		car.PendingPit = false
+		return events
+	}
+
 	cue := time.Time{}
 	if field && rs.ActiveFieldEvent != nil {
 		cue = rs.ActiveFieldEvent.CueAt
@@ -1102,24 +1274,33 @@ func (rs *RaceState) applyPitShot(car *CarState, ctx logicapi.ShotContext, field
 		reaction = 0
 	}
 	window := cfgInt(rs.Config, "pitCueWindowMs", 5000)
-	scoreW := cfgFloat(rs.Config, "pitScoreWeight", 2.0)
-	reactW := cfgFloat(rs.Config, "pitReactionWeight", 0.002)
+	scoreW := cfgFloat(rs.Config, "pitScoreWeight", 1.0)
+	reactW := cfgFloat(rs.Config, "pitReactionWeight", 0.0004)
 	pace := rs.compressPace(effectiveScore(ctx.Shot, car.Handicap))
+	// Keep pit bonus on the same scale as normal section pace so LastSpeed
+	// comparisons stay meaningful for the next round.
 	bonus := scoreW*pace + reactW*math.Max(0, float64(window)-float64(reaction))
+	car.LastBoostKind = "pit"
 	if reaction > int64(window) {
 		bonus = pace * 0.5
+		car.LastBoostKind = ""
 		events = append(events, logicapi.PluginEvent{Type: "pit_slow", Data: map[string]any{"rangeNum": car.RangeNum, "reactionMs": reaction}})
+		setCarNote(car, "pit_ok", fmt.Sprintf("Pit langsam (%dms)", reaction))
 	} else {
 		events = append(events, logicapi.PluginEvent{Type: "pit_ok", Data: map[string]any{"rangeNum": car.RangeNum, "reactionMs": reaction, "bonus": bonus}})
+		setCarNote(car, "pit_ok", fmt.Sprintf("Pit OK — Bonus (%.0fms)", float64(reaction)))
 	}
-	shotNum := car.ShotsFired + 1
-	section := rs.sectionOfShot(shotNum)
 	car.LastSpeed = bonus
 	ot := rs.trySectionPass(car, bonus, section)
-	rs.snapFieldToSection(shotNum)
 	if ot.passed {
 		events = append(events, logicapi.PluginEvent{Type: "overtake", Data: map[string]any{
-			"rangeNum": car.RangeNum, "section": section, "viaDRS": false, "pit": true,
+			"rangeNum":   car.RangeNum,
+			"section":    section,
+			"viaDRS":     false,
+			"pit":        true,
+			"otherRange": ot.otherRange,
+			"myPace":     bonus,
+			"otherPace":  ot.otherPace,
 		}})
 	}
 	storeShotCoords(car, ctx.Shot)
@@ -1213,47 +1394,101 @@ func (rs *RaceState) maybeRandomFieldEvent(now time.Time, events *[]logicapi.Plu
 		return
 	}
 	chance := cfgFloat(rs.Config, "fieldEventChancePerRound", 0.08)
-	// deterministic-ish from round number
-	if math.Mod(float64(rs.CurrentRound)*0.618, 1.0) > chance {
+	// Mix wall-clock entropy so the same round numbers do not always trigger.
+	seed := float64(now.UnixNano()%1000000)/1000000.0 + float64(rs.CurrentRound)*0.137
+	if math.Mod(seed, 1.0) > chance {
 		return
 	}
 	typ := "puncture"
-	if rs.CurrentRound%2 == 0 {
+	if (now.UnixNano() & 1) == 0 {
 		typ = "oil_leak"
 	}
-	*events = append(*events, rs.openFieldEvent(typ, now)...)
+	*events = append(*events, rs.openFieldEvent(typ, now, 0)...)
 }
 
-func (rs *RaceState) openFieldEvent(typ string, now time.Time) []logicapi.PluginEvent {
+// openFieldEvent starts a field pit on the next budgeted shot.
+// puncture → single car (forceRange if >0, else pick one racing car).
+// oil_leak (and unknown types) → all racing cars.
+func (rs *RaceState) openFieldEvent(typ string, now time.Time, forceRange int) []logicapi.PluginEvent {
 	win := cfgInt(rs.Config, "pitCueWindowMs", 5000)
+	targets := rs.pickFieldTargets(typ, forceRange, now)
 	rs.ActiveFieldEvent = &FieldEvent{
 		Type:     typ,
 		CueAt:    now,
 		WindowMs: win,
+		Targets:  targets,
 		Cleared:  map[int]bool{},
 	}
 	rs.LastFieldEventAt = &now
 	rs.PitCueAt = &now
-	for _, car := range rs.Cars {
-		if car.Status == StatusRacing {
-			car.PendingPit = true
-			car.PitKind = "field"
+	for rangeNum := range targets {
+		car := rs.Cars[strconv.Itoa(rangeNum)]
+		if car == nil || car.Status != StatusRacing {
+			continue
+		}
+		car.PendingPit = true
+		car.PitKind = "field"
+		if typ == "puncture" {
+			setCarNote(car, "pit_fail", "Reifenplatzer — PIT NOW")
+		} else {
+			setCarNote(car, "pit_fail", "Ölverlust — PIT NOW")
 		}
 	}
+	targetList := make([]int, 0, len(targets))
+	for rn := range targets {
+		targetList = append(targetList, rn)
+	}
+	sort.Ints(targetList)
 	return []logicapi.PluginEvent{{Type: "field_event", Data: map[string]any{
-		"type": typ, "cueAt": now.UTC().Format(time.RFC3339Nano), "windowMs": win,
+		"type": typ, "cueAt": now.UTC().Format(time.RFC3339Nano), "windowMs": win, "targets": targetList,
 	}}}
+}
+
+func (rs *RaceState) pickFieldTargets(typ string, forceRange int, now time.Time) map[int]bool {
+	targets := map[int]bool{}
+	var racing []*CarState
+	for i := 1; i <= rs.NumRanges; i++ {
+		c := rs.Cars[strconv.Itoa(i)]
+		if c != nil && c.Status == StatusRacing {
+			racing = append(racing, c)
+		}
+	}
+	if len(racing) == 0 {
+		return targets
+	}
+	if typ == "puncture" {
+		if forceRange > 0 {
+			for _, c := range racing {
+				if c.RangeNum == forceRange {
+					targets[forceRange] = true
+					return targets
+				}
+			}
+		}
+		idx := int(now.UnixNano()) % len(racing)
+		if idx < 0 {
+			idx = -idx
+		}
+		targets[racing[idx].RangeNum] = true
+		return targets
+	}
+	// oil_leak: everyone
+	for _, c := range racing {
+		targets[c.RangeNum] = true
+	}
+	return targets
 }
 
 func (rs *RaceState) allFieldCleared() bool {
 	if rs.ActiveFieldEvent == nil {
 		return true
 	}
-	for _, car := range rs.Cars {
-		if car.Status != StatusRacing {
+	for rangeNum := range rs.ActiveFieldEvent.Targets {
+		car := rs.Cars[strconv.Itoa(rangeNum)]
+		if car == nil || car.Status != StatusRacing {
 			continue
 		}
-		if !rs.ActiveFieldEvent.Cleared[car.RangeNum] {
+		if !rs.ActiveFieldEvent.Cleared[rangeNum] {
 			return false
 		}
 	}
@@ -1266,13 +1501,269 @@ func (rs *RaceState) recomputePositions() {
 		p float64
 	}
 	var list []pair
+	var crashed []*CarState
 	for _, c := range rs.Cars {
+		if c == nil {
+			continue
+		}
+		if c.Status == StatusCrashed {
+			crashed = append(crashed, c)
+			continue
+		}
+		if c.Status != StatusRacing && c.Status != StatusFinished &&
+			c.Status != StatusReady && c.Status != StatusActive {
+			continue
+		}
 		list = append(list, pair{c, c.Progress})
 	}
-	sort.Slice(list, func(i, j int) bool { return list[i].p > list[j].p })
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].p != list[j].p {
+			return list[i].p > list[j].p
+		}
+		return list[i].c.RangeNum < list[j].c.RangeNum
+	})
 	for i, p := range list {
 		p.c.Position = i + 1
 	}
+	// Crashed cars keep trailing positions so carByPosition never lands on them mid-pack.
+	base := len(list)
+	sort.Slice(crashed, func(i, j int) bool { return crashed[i].RangeNum < crashed[j].RangeNum })
+	for i, c := range crashed {
+		c.Position = base + i + 1
+	}
+}
+
+func isZeroShot(shot state.Shot) bool {
+	return shot.FullValue == 0 && shot.DecValue <= 0
+}
+
+func setCarNote(car *CarState, kind, note string) {
+	if car == nil {
+		return
+	}
+	car.LastNoteKind = kind
+	car.LastNote = note
+}
+
+func fieldTypeLabel(typ string) string {
+	switch typ {
+	case "puncture":
+		return "Reifenplatzer"
+	case "oil_leak":
+		return "Ölverlust"
+	default:
+		return typ
+	}
+}
+
+func boostLabelDE(kind string) string {
+	switch kind {
+	case "streak":
+		return "Streak-Bonus"
+	case "hole_in_hole":
+		return "Hole-in-Hole"
+	case "pit":
+		return "Pit-Bonus"
+	case "drs":
+		return "DRS"
+	case "miss":
+		return "Nullschuss"
+	default:
+		return ""
+	}
+}
+
+// dropOnePlace swaps the car with the one immediately behind. Returns false if already last.
+func (rs *RaceState) dropOnePlace(car *CarState) bool {
+	if car == nil {
+		return false
+	}
+	behind := rs.carByPosition(car.Position + 1)
+	if behind == nil {
+		return false
+	}
+	car.Position, behind.Position = behind.Position, car.Position
+	setCarNote(behind, "overtake", fmt.Sprintf("Bahn %d Pit-Null — Platz gewonnen", car.RangeNum))
+	return true
+}
+
+func (rs *RaceState) refreshPlaceReasons() {
+	for _, car := range rs.Cars {
+		if car == nil {
+			continue
+		}
+		if car.Status != StatusRacing && car.Status != StatusFinished {
+			if car.Status == StatusCrashed {
+				car.PlaceReason = "DNF — ausgefallen"
+				car.PlaceReasonKind = "crash"
+				car.NextHint = ""
+				car.NextHintKind = ""
+			}
+			continue
+		}
+		if car.Position <= 1 {
+			car.PlaceReason = fmt.Sprintf("P1 — führend (Tempo %.1f)", car.LastSpeed)
+			car.PlaceReasonKind = "lead"
+		} else {
+			ahead := rs.carByPosition(car.Position - 1)
+			if ahead == nil {
+				car.PlaceReason = fmt.Sprintf("P%d", car.Position)
+				car.PlaceReasonKind = "place"
+			} else if car.LastBoostKind == "miss" {
+				car.PlaceReason = fmt.Sprintf("P%d — Nullschuss; Feld zieht vorbei", car.Position)
+				car.PlaceReasonKind = "miss"
+			} else if label := boostLabelDE(ahead.LastBoostKind); label != "" && ahead.LastBoostKind != "miss" {
+				car.PlaceReason = fmt.Sprintf("P%d — Bahn %d hat %s", car.Position, ahead.RangeNum, label)
+				car.PlaceReasonKind = "bonus"
+			} else {
+				car.PlaceReason = fmt.Sprintf("P%d — Bahn %d war besser (%.1f vs %.1f)",
+					car.Position, ahead.RangeNum, ahead.LastSpeed, car.LastSpeed)
+				car.PlaceReasonKind = "pace"
+			}
+		}
+		rs.refreshNextHint(car)
+	}
+}
+
+// refreshNextHint writes a concrete prep line for the shooter's next action
+// (overtake target, DRS, pit cue, defend lead).
+func (rs *RaceState) refreshNextHint(car *CarState) {
+	if car == nil || car.Status != StatusRacing {
+		if car != nil && car.Status == StatusFinished {
+			car.NextHint = "Im Ziel"
+			car.NextHintKind = "done"
+		}
+		return
+	}
+
+	// Field event: next budgeted shot is a pit for targeted cars only.
+	// Others keep racing — field pits are not extra shots.
+	if rs.ActiveFieldEvent != nil && rs.ActiveFieldEvent.Targets[car.RangeNum] && !rs.ActiveFieldEvent.Cleared[car.RangeNum] {
+		if rs.ActiveFieldEvent.Type == "puncture" {
+			car.NextHint = "Reifenplatzer — nächster Schuss ist PIT, schnell und treffsicher"
+		} else {
+			car.NextHint = "Ölverlust — nächster Schuss ist PIT, schnell und treffsicher"
+		}
+		car.NextHintKind = "pit_now"
+		return
+	}
+
+	if !rs.GridSet {
+		car.NextHint = "Startschuss — bester Schuss sichert die Pole"
+		car.NextHintKind = "grid"
+		return
+	}
+
+	nextRound := rs.CurrentRound
+	if car.ShotThisRound {
+		nextRound = rs.CurrentRound + 1
+	}
+	if nextRound < 1 {
+		nextRound = 1
+	}
+
+	if rs.isPitRound(nextRound) {
+		if car.ShotThisRound {
+			car.NextHint = "Nächste Runde ist PIT — auf Signal reagieren"
+		} else {
+			car.NextHint = "PIT-Runde — auf Signal reagieren, Treffer + Tempo"
+		}
+		car.NextHintKind = "pit_prep"
+		return
+	}
+
+	section := rs.sectionOfShot(nextRound)
+	inDRS := rs.sectionInDRS(section)
+	stint := rs.stintSize()
+	shotsToPit := stint - ((nextRound-1) % stint) - 1
+	if shotsToPit < 0 {
+		shotsToPit = 0
+	}
+
+	if car.ShotThisRound {
+		if shotsToPit == 0 {
+			car.NextHint = "Warten — nächste Runde PIT"
+		} else if inDRS {
+			car.NextHint = fmt.Sprintf("Warten — nächste Sektion %d mit DRS", section)
+		} else {
+			car.NextHint = fmt.Sprintf("Warten auf Feld — noch %d bis PIT", shotsToPit)
+		}
+		car.NextHintKind = "wait"
+		return
+	}
+
+	ahead := rs.carByPosition(car.Position - 1)
+	behind := rs.carByPosition(car.Position + 1)
+
+	if car.Position <= 1 {
+		if behind != nil {
+			need := rs.defendPace(car, behind, inDRS)
+			car.NextHint = fmt.Sprintf("Führung halten — stärker als Bahn %d (Ziel Tempo ≥ %.1f)", behind.RangeNum, need)
+			if inDRS {
+				car.NextHint = fmt.Sprintf("P1 · DRS — Bahn %d lauert, Tempo ≥ %.1f halten", behind.RangeNum, behind.LastSpeed)
+			}
+			car.NextHintKind = "defend"
+			return
+		}
+		car.NextHint = "Führung halten — stark und sicher schießen"
+		car.NextHintKind = "defend"
+		return
+	}
+
+	if ahead == nil {
+		car.NextHint = "Bereit — nächster Schuss"
+		car.NextHintKind = "ready"
+		return
+	}
+
+	need := rs.overtakeTargetPace(ahead, car.Position, inDRS)
+	if inDRS {
+		car.NextHint = fmt.Sprintf("DRS aktiv — schieß mind. Tempo %.1f (Bahn %d hat %.1f) zum Überholen",
+			need, ahead.RangeNum, ahead.LastSpeed)
+		car.NextHintKind = "overtake_drs"
+		return
+	}
+	car.NextHint = fmt.Sprintf("Schieß besser als Bahn %d — Ziel Tempo ≥ %.1f (aktuell %.1f) zum Überholen",
+		ahead.RangeNum, need, ahead.LastSpeed)
+	car.NextHintKind = "overtake"
+}
+
+func (rs *RaceState) overtakeTargetPace(ahead *CarState, chasePos int, inDRS bool) float64 {
+	if ahead == nil {
+		return 0
+	}
+	if inDRS {
+		placesBehind := chasePos - 1
+		if placesBehind > 3 {
+			placesBehind = 3
+		}
+		boost := 1.0 + float64(placesBehind)*cfgFloat(rs.Config, "drsStackPerPlace", 0.12)
+		if boost < 0.01 {
+			boost = 1
+		}
+		return ahead.LastSpeed / boost
+	}
+	return ahead.LastSpeed * cfgFloat(rs.Config, "overtakeRatio", 1.12)
+}
+
+// defendPace: pace the leader needs so the car behind cannot pass this section.
+func (rs *RaceState) defendPace(leader, behind *CarState, inDRS bool) float64 {
+	if behind == nil {
+		return leader.LastSpeed
+	}
+	if inDRS {
+		placesBehind := behind.Position - 1
+		if placesBehind > 3 {
+			placesBehind = 3
+		}
+		boost := 1.0 + float64(placesBehind)*cfgFloat(rs.Config, "drsStackPerPlace", 0.12)
+		return behind.LastSpeed*boost + 0.05
+	}
+	ratio := cfgFloat(rs.Config, "overtakeRatio", 1.12)
+	if ratio < 0.01 {
+		ratio = 1.12
+	}
+	return behind.LastSpeed/ratio + 0.05
 }
 
 func effectiveScore(shot state.Shot, handicap float64) float64 {

@@ -96,3 +96,29 @@ func TestBestTeiler_ResetsOnShooterChange(t *testing.T) {
 		t.Fatalf("after shooter change: best=%v shot=%d, want 99.0 / 1", rs.BestTeiler, rs.BestTeilerShot)
 	}
 }
+
+func TestBestTeiler_IgnoresZeroMiss(t *testing.T) {
+	ls := NewLiveState(1)
+	ls.ApplyShot(1, &ShotPayload{Distance: 40, DecValue: 9.0, FullValue: 9})
+	ls.ApplyShot(1, &ShotPayload{Distance: 0, DecValue: 0, FullValue: 0}) // miss at centre coords
+	rs := ls.Snapshot()[0]
+	if rs.BestTeiler != 40 || rs.BestTeilerShot != 1 {
+		t.Fatalf("miss stole BestTeiler: best=%v shot=%d, want 40 / 1", rs.BestTeiler, rs.BestTeilerShot)
+	}
+}
+
+func TestWarmupCompetitionRoundTripResetsFooter(t *testing.T) {
+	ls := NewLiveState(1)
+	ls.ApplyShot(1, &ShotPayload{Distance: 20, DecValue: 10.0, FullValue: 10, IsWarmup: true})
+	ls.ApplyShot(1, &ShotPayload{Distance: 15, DecValue: 10.2, FullValue: 10, IsWarmup: false})
+	if got := ls.Snapshot()[0]; got.ShotNumber != 1 || got.OverallSumInt != 10 {
+		t.Fatalf("after warmup→comp: shots=%d sum=%d, want 1 / 10", got.ShotNumber, got.OverallSumInt)
+	}
+	ls.ApplyShot(1, &ShotPayload{Distance: 12, DecValue: 10.5, FullValue: 10, IsWarmup: false})
+	ls.ApplyShot(1, &ShotPayload{Distance: 50, DecValue: 8.0, FullValue: 8, IsWarmup: true})
+	got := ls.Snapshot()[0]
+	if got.ShotNumber != 1 || got.OverallSumInt != 8 || !got.IsWarmup {
+		t.Fatalf("after comp→warmup: shots=%d sum=%d warmup=%v, want 1 / 8 / true",
+			got.ShotNumber, got.OverallSumInt, got.IsWarmup)
+	}
+}

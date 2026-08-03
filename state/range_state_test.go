@@ -80,8 +80,17 @@ func TestPrediction(t *testing.T) {
 			overallSumInt:    209,
 			overallSumDec:    209.4,
 			totalShotsToFire: 30,
-			wantInt:          313,   // (209/20)*30
+			wantInt:          314,   // Round((209/20)*30) = Round(313.5)
 			wantDec:          314.1, // (209.4/20)*30
+		},
+		{
+			name:             "already past planned total returns current sum",
+			shotNumber:       35,
+			overallSumInt:    340,
+			overallSumDec:    342.5,
+			totalShotsToFire: 30,
+			wantInt:          340,
+			wantDec:          342.5,
 		},
 	}
 	for _, tt := range tests {

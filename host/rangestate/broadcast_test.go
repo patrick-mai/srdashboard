@@ -96,8 +96,8 @@ func startRace(t *testing.T, m *Manager, ranges int) {
 }
 
 // A shared-mode update reaches range-filtered clients through BroadcastAll
-// already, so sending it twice would duplicate every message.
-func TestSharedModeBroadcastsSessionOnce(t *testing.T) {
+	// already, so sending it once (not once per range) is enough.
+	func TestSharedModeBroadcastsSessionOnce(t *testing.T) {
 	m, b := newSharedManager(t, 2)
 	startRace(t, m, 2)
 	b.reset()
@@ -111,8 +111,8 @@ func TestSharedModeBroadcastsSessionOnce(t *testing.T) {
 			t.Fatal("shared mode sent plugin_session via BroadcastRange as well as BroadcastAll")
 		}
 	}
-	if len(b.sessions) != 2 {
-		t.Fatalf("got %d plugin_session messages for 2 ranges, want 2", len(b.sessions))
+	if len(b.sessions) != 1 {
+		t.Fatalf("got %d plugin_session messages for shared race, want 1", len(b.sessions))
 	}
 }
 

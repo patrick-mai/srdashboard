@@ -251,22 +251,7 @@
       const stage = document.getElementById('stage');
       if (stage) stage.style.position = 'relative';
       const session = pluginSessions[1] || Object.values(pluginSessions)[0] || {};
-      // Merge live last shots into race cars for side panel when available
-      const viewModel = Object.assign({}, session.viewModel || {}, {
-        rangeNum: 1,
-        events: session.events || []
-      });
-      if (viewModel.race && viewModel.race.cars && core.lastLiveData) {
-        const lives = core.lastLiveData.ranges || [];
-        viewModel.race.cars = viewModel.race.cars.map(function (c) {
-          const live = lives.find(function (r) { return r.rangeNum === c.rangeNum; });
-          if (!live) return c;
-          const copy = Object.assign({}, c);
-          if (live.shooterName) copy.shooterName = live.shooterName;
-          if (live.currentValue != null && live.currentValue > 0) copy.lastShotValue = live.currentValue;
-          return copy;
-        });
-      }
+      const viewModel = buildSharedViewModel(session);
       await window.SRPluginShell.renderPluginView(
         host,
         activePlugin.id,
@@ -286,6 +271,44 @@
     const tasks = [];
     for (let i = 1; i <= n; i++) tasks.push(mountRangePlugin(i, gen));
     await Promise.all(tasks);
+  }
+
+  function buildSharedViewModel(session) {
+    const viewModel = Object.assign({}, (session && session.viewModel) || {}, {
+      rangeNum: 1,
+      events: (session && session.events) || []
+    });
+    if (viewModel.race && viewModel.race.cars && core.lastLiveData) {
+      const lives = core.lastLiveData.ranges || [];
+      viewModel.race.cars = viewModel.race.cars.map(function (c) {
+        const live = lives.find(function (r) { return r.rangeNum === c.rangeNum; });
+        if (!live) return c;
+        const copy = Object.assign({}, c);
+        if (live.shooterName) copy.shooterName = live.shooterName;
+        if (live.currentValue != null && live.currentValue > 0) copy.lastShotValue = live.currentValue;
+        return copy;
+      });
+    }
+    return viewModel;
+  }
+
+  /** In-place shared update — never tear down the track SVG. */
+  function updateSharedPluginView(session) {
+    if (!activePlugin || !window.SRPluginShell) return;
+    const host = document.getElementById('f1-race-master-host');
+    if (!host || host.hidden) {
+      mountAllPluginViews();
+      return;
+    }
+    const viewModel = buildSharedViewModel(session || {});
+    window.SRPluginShell.renderPluginView(
+      host,
+      activePlugin.id,
+      activePlugin.viewUrl,
+      activePlugin.assetsBase,
+      viewModel,
+      activePlugin.themeUrl || ''
+    );
   }
 
   function scheduleReconnect() {
@@ -326,7 +349,7 @@
         if (msg.type === 'plugin_session' && msg.session) {
           pluginSessions[msg.session.rangeNum] = msg.session;
           if (isSharedPlugin()) {
-            mountAllPluginViews();
+            updateSharedPluginView(msg.session);
           } else if (currentPluginId() !== 'classic-range') {
             mountRangePlugin(msg.session.rangeNum, mountGen);
           }
@@ -359,7 +382,13 @@
           core.lastLiveData = { ranges: ranges };
           core.bumpLiveGen();
           if (isSharedPlugin()) {
-            mountAllPluginViews();
+            // Live scores update the side panel; do not remount the track.
+            const host = document.getElementById('f1-race-master-host');
+            if (host && host._f1LastVM) {
+              updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
+            } else {
+              mountAllPluginViews();
+            }
           } else {
             queueLiveRange(msg.range);
           }

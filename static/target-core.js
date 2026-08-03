@@ -17,7 +17,8 @@ const TEN_RING_DIAMETER_MM = 0.5;        // 10 ring (ISSF)
 const DEFAULT_SVG_CENTER = 100;          // viewBox center (100, 100)
 const DEFAULT_SVG_VIEW_SIZE = 200;       // default viewBox size for targets
 // DISAG OpticScore → SVG (defaults): x_svg = SVG_CENTER + x_dsg/90, y_svg = SVG_CENTER - y_dsg/90
-const SHOT_RADIUS_SVG = (SHOT_DIAMETER_MM / 2) / (RANGE_DIAMETER_MM / 2) * DEFAULT_SVG_CENTER;  // 4.5mm in 200mm range ≈ 2.25 SVG
+// 1 SVG unit = 1 mm in the 200 mm DISAG frame, so pellet radius is simply half diameter.
+const SHOT_RADIUS_SVG = SHOT_DIAMETER_MM / 2; // 2.25 mm
 /** Default pellet outline width (mm); overridden by config.shotStrokeWidth. */
 const DEFAULT_SHOT_STROKE_SVG = 0.1;
 
@@ -87,6 +88,10 @@ let activeScaleRangeNum = null;
 function setPluginTargetConfig(cfg) {
   pluginTargetConfig = cfg || null;
   targetContextByRange = {};
+  // Drop zoom windows so a new profile does not keep the previous face's viewBox.
+  zoomStateByRange = {};
+  userZoomedByRange = {};
+  pinFullUntilNewShotByRange = {};
   document.querySelectorAll('svg.target-svg-root').forEach(function (el) {
     el.remove();
   });
@@ -162,6 +167,7 @@ function profileFromDisciplineMap(map, rangeData) {
 
 function updateTargetContext(rangeNum, rangeData) {
   const profileId = resolveTargetProfileId(rangeNum, rangeData);
+  const prev = targetContextByRange[rangeNum];
   const registry = window.SRTargetRegistry;
   let scale;
   if (registry && typeof registry.buildScale === 'function') {
@@ -181,6 +187,16 @@ function updateTargetContext(rangeNum, rangeData) {
       shotRadiusSvg: SHOT_RADIUS_SVG,
       last10Max: 10.9
     };
+  }
+  if (prev && prev.profileId && prev.profileId !== scale.profileId) {
+    resetRangeZoom(rangeNum);
+  }
+  if (scale.coordRadiusNeedsRefinement) {
+    console.warn(
+      'SRDashboard: target profile "' + scale.profileId +
+      '" uses an unverified OpticScore coord scale (coordRadiusMm=' +
+      scale.coordRadiusMm + '); shot placement may be off until log-verified.'
+    );
   }
   targetContextByRange[rangeNum] = scale;
   activeScaleRangeNum = rangeNum;
@@ -273,7 +289,7 @@ function resolveTargetUrl(rangeNum) {
   const file = (ts.file || '10_m_Air_Rifle_target.svg').replace(/^.*[\\/]/, '');
   const base = targetAssetBase || '/assets/';
   // Bump when face SVGs change so browsers do not keep a stale image href.
-  const v = (ts.profileId || 'default') + '-' + (targetAssetBase ? 'plugin' : 'static') + '-face2';
+  const v = (ts.profileId || 'default') + '-' + (targetAssetBase ? 'plugin' : 'static') + '-face3';
   return base + encodeURIComponent(file) + '?v=' + encodeURIComponent(v);
 }
 
@@ -309,9 +325,15 @@ function syncRangeVisibility(data) {
     const panel = panels[i];
     const num = parseInt(panel.dataset.range, 10);
     const hide = hideIdle && !rangeHasActivity(byNum[num]);
+    const wasHidden = panel.hidden;
     if (panel.hidden !== hide) {
       panel.hidden = hide;
       changed = true;
+    }
+    // Chart may have been measured while hidden (0×0) — redraw when shown again.
+    if (wasHidden && !hide && byNum[num]) {
+      const chartWrap = panel.querySelector('.last10-chart-wrap');
+      if (chartWrap) renderLast10Chart(chartWrap, byNum[num].last10Values, num);
     }
   }
   applyLayout();
@@ -340,11 +362,10 @@ async function fetchLive() {
 
 /**
  * DISAG OpticScore → SVG mm (viewBox centre 100,100; Y flipped to screen/SVG).
- * x_svg = 100 + X/90
- * y_svg = 100 − Y/90
+ * Pass rangeNum so multi-lane renders never pick up another lane's scale.
  */
-function dsgToSvg(xDsg, yDsg) {
-  const ts = getTargetScale();
+function dsgToSvg(xDsg, yDsg, rangeNum) {
+  const ts = getTargetScale(rangeNum);
   return {
     x: ts.centerX + xDsg / ts.dsgPerSvgUnit,
     y: ts.centerY - yDsg / ts.dsgPerSvgUnit
@@ -407,7 +428,7 @@ function computeAutoFit(shots, rangeNum) {
   }
   let maxDist = 0;
   for (let i = 0; i < shots.length; i++) {
-    const pt = dsgToSvg(Number(shots[i].x), Number(shots[i].y));
+    const pt = dsgToSvg(Number(shots[i].x), Number(shots[i].y), rangeNum);
     const shotR = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
     const dist = Math.hypot(pt.x - ts.centerX, pt.y - ts.centerY) + shotR;
     if (dist > maxDist) maxDist = dist;
@@ -587,7 +608,7 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
   });
 
   shots.forEach((s, i) => {
-    const pt = dsgToSvg(Number(s.x), Number(s.y));
+    const pt = dsgToSvg(Number(s.x), Number(s.y), rangeNum);
     let fill = fills[i];
     if (!fill) {
       fill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -653,10 +674,10 @@ function renderTarget(container, rangeData, isWarmup) {
   const currentLen = shots.length;
   const warmupFlag = !!(isWarmup != null ? isWarmup : rangeData.isWarmup);
   const wasWarmup = prevIsWarmupByRange[rangeNum];
-  const shotsCleared = currentLen < prevLen;
-  const warmupToCompetition = wasWarmup === true && warmupFlag === false;
+	const shotsCleared = currentLen < prevLen;
+  const warmupChanged = wasWarmup !== undefined && wasWarmup !== warmupFlag;
 
-  if (shotsCleared || warmupToCompetition) {
+  if (shotsCleared || warmupChanged) {
     resetRangeZoom(rangeNum);
   }
   if (currentLen > prevLen) {
@@ -673,7 +694,7 @@ function renderTarget(container, rangeData, isWarmup) {
     const state = zoomStateByRange[rangeNum];
     const latest = shots[shots.length - 1];
     if (latest) {
-      const pt = dsgToSvg(Number(latest.x), Number(latest.y));
+      const pt = dsgToSvg(Number(latest.x), Number(latest.y), rangeNum);
       if (shotOutsideView(pt, state, rangeNum)) {
         const fitted = computeAutoFit(shots, rangeNum);
         if (viewSpan(fitted, rangeNum) > viewSpan(state, rangeNum)) {
@@ -973,7 +994,22 @@ function repaintAllShotVals() {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('srdashboard:themechange', repaintAllShotVals);
-  window.addEventListener('resize', repaintAllShotVals);
+  window.addEventListener('resize', function () {
+    repaintAllShotVals();
+    // Re-measure last-10 charts so preserveAspectRatio=none does not stretch a stale viewBox.
+    document.querySelectorAll('.last10-chart-wrap').forEach(function (wrap) {
+      const panel = wrap.closest('[data-range]');
+      const rangeNum = panel ? parseInt(panel.dataset.range, 10) : NaN;
+      let values = null;
+      if (lastLiveData && lastLiveData.ranges) {
+        const r = lastLiveData.ranges.find(function (x) {
+          return x.rangeNum === rangeNum;
+        });
+        if (r) values = r.last10Values;
+      }
+      renderLast10Chart(wrap, values, rangeNum);
+    });
+  });
 }
 
 function fillRangeHeader(header, rangeData) {

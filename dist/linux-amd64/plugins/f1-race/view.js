@@ -5,16 +5,26 @@ window.SRPluginViews = window.SRPluginViews || {};
   const CIRCUIT_FILES = {
     spa: 'circuits/spa.svg',
     nuerburgring: 'circuits/nuerburgring.svg',
-    melbourne: 'circuits/melbourne.svg'
+    melbourne: 'circuits/melbourne.svg',
+    nordschleife: 'circuits/nordschleife.svg'
   };
 
-  // Last displayed progress (lap fraction, may be negative behind S/F).
-  // Smoothing in progress-space + gap clamp after lerp keeps sprites from overlapping.
-  const carProgCache = {};
+  // Last displayed progress keyed by container+range so master and shooter
+  // do not fight over the same lerp state.
+  const carProgCacheByHost = new WeakMap();
   let audioCtx = null;
   let lastEventSig = '';
   let lastPitCueAt = '';
   let lastCountdownSec = null;
+
+  function progCacheFor(host) {
+    let cache = carProgCacheByHost.get(host);
+    if (!cache) {
+      cache = {};
+      carProgCacheByHost.set(host, cache);
+    }
+    return cache;
+  }
 
   function ensureAudio() {
     if (!audioCtx) {
@@ -55,13 +65,19 @@ window.SRPluginViews = window.SRPluginViews || {};
       if (focusRange && rn && rn !== focusRange) return;
 
       if (ev.type === 'pit_cue' || ev.type === 'field_event') {
+        if (ev.type === 'field_event' && focusRange) {
+          const targets = (ev.data && ev.data.targets) || [];
+          const hit = targets.some(function (t) { return Number(t) === focusRange; });
+          // oil_leak targets everyone; puncture only the victim hears the urgent cue
+          if (targets.length && !hit) return;
+        }
         beepSeq([
           { f: 880, d: 0.18, type: 'sawtooth' },
           { f: 660, d: 0.18, type: 'sawtooth' },
           { f: 990, d: 0.28, type: 'sawtooth' }
         ]);
       } else if (ev.type === 'pit_ok') beep(1200, 0.15, 'sine');
-      else if (ev.type === 'pit_slow') beep(220, 0.35, 'triangle');
+      else if (ev.type === 'pit_slow' || ev.type === 'pit_fail' || ev.type === 'miss') beep(220, 0.35, 'triangle');
       else if (ev.type === 'crash') beep(120, 0.5, 'triangle');
       else if (ev.type === 'hole_in_hole' || ev.type === 'streak_bonus') beep(1400, 0.2, 'sine');
       else if (ev.type === 'drs_active') {
@@ -88,8 +104,11 @@ window.SRPluginViews = window.SRPluginViews || {};
 
   function pitCountdownSec(race) {
     if (!race || !race.pitCueAt) return null;
-    if (race.fieldEvent && !race.fieldEvent.cleared) {
+    if (race.fieldEvent && race.fieldEvent.pending) {
       // Field events reuse pitCueAt; show their own banner instead.
+      return null;
+    }
+    if (race.fieldEvent && !race.fieldEvent.cleared && race.fieldEvent.affectsMe) {
       return null;
     }
     if (!race.isPitRound && race.stintPitRound !== race.currentRound) return null;
@@ -128,7 +147,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     if (!overlayEl) return;
     const field = race && race.fieldEvent;
     if (field && !field.cleared) {
-      overlayEl.innerHTML = '<div class="f1-event-banner">' + esc(fieldLabel(field.type)) + '</div>';
+      overlayEl.innerHTML = fieldBannerHtml(race, null);
       return;
     }
     overlayEl.innerHTML = pitBannerHtml(race);
@@ -151,8 +170,48 @@ window.SRPluginViews = window.SRPluginViews || {};
     })[p] || p || '—';
   }
 
-  function fieldLabel(t) {
-    return ({ puncture: 'Reifenplatzer — PIT NOW', oil_leak: 'Ölverlust — PIT NOW' })[t] || (t || '');
+  function fieldLabel(t, field) {
+    if (t === 'puncture') {
+      const targets = (field && field.targets) || [];
+      if (targets.length === 1) {
+        return 'Reifenplatzer Bahn ' + targets[0] + ' — nächster Schuss PIT';
+      }
+      return 'Reifenplatzer — nächster Schuss PIT';
+    }
+    if (t === 'oil_leak') return 'Ölverlust — nächster Schuss PIT';
+    return t || '';
+  }
+
+  function fieldBannerHtml(race, focusRange) {
+    const field = race && race.fieldEvent;
+    if (!field) return '';
+    const pending = field.pending || (field.affectsMe && !field.cleared);
+    if (focusRange != null && focusRange > 0) {
+      if (pending) {
+        const label = field.type === 'puncture'
+          ? 'Reifenplatzer — nächster Schuss PIT'
+          : (field.type === 'oil_leak' ? 'Ölverlust — nächster Schuss PIT' : fieldLabel(field.type, field));
+        return '<div class="f1-event-banner">' + esc(label) + '</div>';
+      }
+      // Non-targets keep racing; no wait banner for puncture on another lane.
+      return '';
+    }
+    return '<div class="f1-event-banner">' + esc(fieldLabel(field.type, field)) + '</div>';
+  }
+
+  function outcomeHtml(me) {
+    if (!me) return '';
+    const hint = me.nextHint;
+    const note = me.lastNote;
+    const place = me.placeReason;
+    if (!hint && !note && !place) return '';
+    const hintKind = me.nextHintKind || '';
+    const kind = me.lastNoteKind || '';
+    return '<div class="f1-explain">' +
+      (hint ? '<div class="f1-next-hint kind-' + esc(hintKind) + '">' + esc(hint) + '</div>' : '') +
+      (note ? '<div class="f1-outcome kind-' + esc(kind) + '">' + esc(note) + '</div>' : '') +
+      (place ? '<div class="f1-place-reason">' + esc(place) + '</div>' : '') +
+      '</div>';
   }
 
   // Circuit SVGs are static assets but were refetched on every render, which on
@@ -261,6 +320,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       layer.setAttribute('id', 'f1-cars-layer');
       svgRoot.appendChild(layer);
     }
+    const carProgCache = progCacheFor(svgRoot);
 
     // Dedupe by rangeNum — a duplicated cars[] entry would draw two sprites with
     // the same number and look like a stacked pile.
@@ -279,8 +339,8 @@ window.SRPluginViews = window.SRPluginViews || {};
     // Nose-to-tail of the sprite at this scale (~62 local units). Hairpins fold the
     // track so lap-fraction gaps alone are not enough — we also separate in pixels.
     const carLen = 62 * scale;
-    const minFrac = Math.max(0.07, (carLen * 1.35) / len);
-    const minPx = carLen * 1.25;
+    const minFrac = Math.min(0.035, Math.max(0.01, (carLen * 1.2) / len));
+    const minPx = carLen * 1.15;
 
     const placed = [];
     const slots = []; // {car, g, display, crashed}
@@ -405,7 +465,11 @@ window.SRPluginViews = window.SRPluginViews || {};
       host.innerHTML = svgText;
       host.__f1TrackSvg = svgText;
       // Drop eased positions so cars don't animate across circuit changes.
-      Object.keys(carProgCache).forEach(function (k) { delete carProgCache[k]; });
+      const svg = host.querySelector('svg');
+      if (svg) {
+        const cache = progCacheFor(svg);
+        Object.keys(cache).forEach(function (k) { delete cache[k]; });
+      }
     }
     const svg = host.querySelector('svg');
     if (svg) {
@@ -440,18 +504,23 @@ window.SRPluginViews = window.SRPluginViews || {};
       const name = c.shooterName || ('Bahn ' + c.rangeNum);
       const shot = c.lastShotValue != null && c.lastShotValue > 0
         ? (Math.round(c.lastShotValue * 10) / 10).toFixed(1)
-        : '—';
+        : (c.lastBoostKind === 'miss' ? '0' : '—');
+      const reason = (c.rangeNum === focusRange && c.placeReason)
+        ? '<div class="f1-standings-reason">' + esc(c.placeReason) + '</div>'
+        : '';
       return '<li class="' + cls + '">' +
         '<span class="swatch" style="background:' + esc(c.color) + '"></span>' +
         '<span class="name">' + esc(name) + '</span>' +
-        '<span class="shot">' + esc(shot) + '</span></li>';
+        '<span class="shot">' + esc(shot) + '</span>' +
+        reason +
+        '</li>';
     }).join('') + '</ol>';
   }
 
-  function hudHtml(race, blocked) {
+  function hudHtml(race, blocked, focusRange) {
     const rem = race && race.roundRemainingSec != null ? Math.ceil(race.roundRemainingSec) : null;
-    const field = race && race.fieldEvent;
     const pit = pitBannerHtml(race);
+    const fieldHtml = fieldBannerHtml(race, focusRange != null ? focusRange : null);
     return '<div class="f1-hud f1-hud-compact">' +
       '<div class="f1-hud-row">' +
       '<span class="f1-badge">' + esc(phaseLabel(race && race.phase)) + '</span>' +
@@ -463,7 +532,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         : (race && race.isPitRound ? ' · PIT' : '')) + '</span>' +
       (rem != null ? '<span class="f1-timer">' + rem + 's</span>' : '') +
       '</div>' +
-      (field && !field.cleared ? '<div class="f1-event-banner">' + esc(fieldLabel(field.type)) + '</div>' : pit) +
+      (fieldHtml || pit) +
       (blocked ? '<div class="f1-block">' + esc(blocked) + '</div>' : '') +
       '</div>';
   }
@@ -530,7 +599,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       container._f1Anim = false;
     }
 
-    hudEl.innerHTML = hudHtml(race, race.startBlockedReason);
+    hudEl.innerHTML = hudHtml(race, race.startBlockedReason, null);
     stEl.innerHTML = standingsHtml(race, null);
     updatePitOverlay(overlayEl, race);
 
@@ -584,6 +653,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         '<div class="f1-shooter-target range-plugin-view classic-range-view" data-target></div>' +
         '<div class="f1-shooter-race">' +
         '<div data-hud></div>' +
+        '<div data-hint></div>' +
         '<div class="f1-track-mini-wrap" data-track></div>' +
         '<div data-standings></div>' +
         '</div></div>' +
@@ -596,17 +666,18 @@ window.SRPluginViews = window.SRPluginViews || {};
     const target = container.querySelector('[data-target]');
     const trackEl = container.querySelector('[data-track]');
     const hudEl = container.querySelector('[data-hud]');
+    const hintEl = container.querySelector('[data-hint]');
     const stEl = container.querySelector('[data-standings]');
 
     const field = race.fieldEvent;
-    const pitHtml = (!field || field.cleared) ? pitBannerHtml(race) : '';
+    const pitHtml = (!field || field.cleared || !field.pending) ? pitBannerHtml(race) : '';
     header.innerHTML =
       '<div class="f1-sh-top">' +
       '<strong>Bahn ' + esc(rangeNum) + '</strong>' +
       '<span>' + esc((rangeData && rangeData.shooterName) || (me && me.shooterName) || '') + '</span>' +
       '<span class="f1-badge">' + esc(phaseLabel(race.phase)) + '</span>' +
       '</div>' +
-      (field && !field.cleared ? '<div class="f1-event-banner">' + esc(fieldLabel(field.type)) + '</div>' : pitHtml) +
+      (fieldBannerHtml(race, rangeNum) || pitHtml) +
       '<div class="f1-sh-meta">Runde ' + esc(race.currentRound) +
       (race.isPitRound ? ' · PIT' : '') +
       (me && me.totalShots ? ' · Schuss ' + esc(me.shotsFired) + '/' + esc(me.totalShots) : '') +
@@ -620,7 +691,14 @@ window.SRPluginViews = window.SRPluginViews || {};
       target.innerHTML = '<div class="classic-range-loading">Warte auf Scheibe…</div>';
     }
 
-    hudEl.innerHTML = hudHtml(race, null);
+    hudEl.innerHTML = hudHtml(race, null, rangeNum);
+    if (hintEl) {
+      const hint = me && me.nextHint;
+      const kind = (me && me.nextHintKind) || '';
+      hintEl.innerHTML = hint
+        ? '<div class="f1-next-hint kind-' + esc(kind) + '">' + esc(hint) + '</div>'
+        : '';
+    }
     stEl.innerHTML = standingsHtml(race, rangeNum);
     syncPitCountdownAudio(race);
     container._f1LastRace = race;
@@ -672,7 +750,8 @@ window.SRPluginViews = window.SRPluginViews || {};
       '<div><span class="lbl">Tempo</span><span class="val">' + esc(me && me.lastSpeed != null ? me.lastSpeed.toFixed(1) : '—') + '</span></div>' +
       '<div><span class="lbl">Streak</span><span class="val">' + esc(me && me.highStreak) + '</span></div>' +
       '<div><span class="lbl">Status</span><span class="val">' + esc(me && me.status) + '</span></div>' +
-      '</div>';
+      '</div>' +
+      outcomeHtml(me);
   }
 
   window.SRPluginViews['f1-race'] = function render(container, viewModel, assetsBase) {

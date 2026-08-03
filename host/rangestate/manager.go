@@ -1,6 +1,7 @@
 ﻿package rangestate
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -122,7 +123,10 @@ func (m *Manager) Activate(pluginID string) error {
 	if cfg == nil {
 		cfg = map[string]any{}
 	}
-	cfg["numRanges"] = m.numRanges
+	m.mu.RLock()
+	numRanges := m.numRanges
+	m.mu.RUnlock()
+	cfg["numRanges"] = numRanges
 	now := time.Now()
 	shared := ap.Manifest.Mode == loader.ModeShared
 
@@ -140,8 +144,8 @@ func (m *Manager) Activate(pluginID string) error {
 		}
 	}
 
-	staged := make(map[int]*RangePluginSession, m.numRanges)
-	for i := 1; i <= m.numRanges; i++ {
+	staged := make(map[int]*RangePluginSession, numRanges)
+	for i := 1; i <= numRanges; i++ {
 		var sess logicapi.SessionState
 		var vm map[string]any
 		if ap.Manifest.HasLogic() {
@@ -333,11 +337,23 @@ func (m *Manager) refreshAllViewModelsLocked(ap *loader.ActivePlugin) {
 }
 
 func (m *Manager) notifyAllSessionsLocked() {
+	if m.sharedMode {
+		// One broadcast for the whole field — clients already share state.
+		// Prefer range 1's session payload (full race viewModel).
+		m.notifyRangeLocked(1)
+		if m.broadcast != nil {
+			m.broadcast.BroadcastAll(map[string]any{"type": "plugin_race", "pluginId": m.activeID})
+		}
+		// Drain events on the other range sessions so they do not replay later.
+		for i := 2; i <= m.numRanges; i++ {
+			if s := m.sessions[i]; s != nil {
+				s.clearEvents()
+			}
+		}
+		return
+	}
 	for i := 1; i <= m.numRanges; i++ {
 		m.notifyRangeLocked(i)
-	}
-	if m.broadcast != nil {
-		m.broadcast.BroadcastAll(map[string]any{"type": "plugin_race", "pluginId": m.activeID})
 	}
 }
 
@@ -411,7 +427,11 @@ func (m *Manager) Control(action string, params map[string]any) error {
 		params["now"] = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 
-	newState, events, err := ext.Control(m.sessionStateLocked(m.sessions[1]), action, params)
+	sess := m.sessions[1]
+	if sess == nil {
+		return fmt.Errorf("no session for range 1")
+	}
+	newState, events, err := ext.Control(m.sessionStateLocked(sess), action, params)
 	if err != nil {
 		return err
 	}
@@ -450,8 +470,11 @@ func (m *Manager) RefreshDisplayViewModels() {
 }
 
 func (m *Manager) SnapshotAll() ([]SessionSnapshot, ActiveSnapshot) {
-	out := make([]SessionSnapshot, 0, m.numRanges)
-	for i := 1; i <= m.numRanges; i++ {
+	m.mu.RLock()
+	n := m.numRanges
+	m.mu.RUnlock()
+	out := make([]SessionSnapshot, 0, n)
+	for i := 1; i <= n; i++ {
 		out = append(out, m.snapshotRangeInternal(i))
 	}
 	return out, m.activeSnapshot()
@@ -566,10 +589,27 @@ func (m *Manager) notifyRangeLocked(rangeNum int) {
 
 // SyncLiveReady marks ranges ready when leaving warmup (called optionally from live path).
 func (m *Manager) SyncLiveReady() {
+	m.syncLiveReady(false)
+}
+
+// SyncLiveReadyIfArming only runs the sync when the shared game is still
+// collecting ready signals, so competition shots do not rebuild every view model.
+func (m *Manager) SyncLiveReadyIfArming() {
+	m.syncLiveReady(true)
+}
+
+func (m *Manager) syncLiveReady(onlyIfArming bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.sharedMode || m.activeID == "" || m.live == nil {
 		return
+	}
+	if onlyIfArming {
+		// Peek shared phase without a full unmarshal when possible.
+		phase := sharedPhase(m.sharedState)
+		if phase != "" && phase != "warmup_collect" && phase != "arming" {
+			return
+		}
 	}
 	ap, err := m.plugins.Get(m.activeID)
 	if err != nil {
@@ -605,4 +645,17 @@ func (m *Manager) SyncLiveReady() {
 	}
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
+}
+
+func sharedPhase(sess logicapi.SessionState) string {
+	if len(sess) == 0 {
+		return ""
+	}
+	var peek struct {
+		Phase string `json:"phase"`
+	}
+	if err := json.Unmarshal(sess, &peek); err != nil {
+		return ""
+	}
+	return peek.Phase
 }

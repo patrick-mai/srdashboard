@@ -1,10 +1,10 @@
 /**
- * Hardcoded target geometry profiles.
+ * Hardcoded target geometry profiles. This is the canonical copy.
  * Scoring values come from OpticScore; profiles control face SVG and zoom/scale only.
  *
- * Verbatim copy of plugins/classic-range/target-registry.js. Plugins ship as
- * self-contained zips, so each carries its own copy; keep the two identical or
- * the same shot plots differently on master and tablet.
+ * Plugins ship as self-contained zips, so plugins/f1-race/target-registry.js is
+ * a verbatim copy. Keep the two identical or the same shot plots differently on
+ * master and tablet.
  */
 (function () {
   const DSG_COORD_RANGE = 9000;
@@ -60,10 +60,13 @@
       ring8RadiusMm: 21.2, // ISSF 8-ring Ø 42.4 mm
       shotDiameterMm: 5.6,
       decMax: 10.9,
-      /** Same 200 mm DISAG frame as LG (±9000 → ±100 mm). */
-      coordRadiusMm: 100,
-      /** ~8 mm ring / 10 decimal steps × 90 DSG/mm. */
-      teilerBandDsg: 72,
+      /**
+       * KK OpticScore Teiler/X/Y use ~100 DSG per mm (log-verified vs ISSF rings + DecValue).
+       * ±9000 → ±90 mm (not the LG 200 mm / 90 DSG/mm frame).
+       */
+      coordRadiusMm: 90,
+      /** ~8 mm ring / 10 decimal steps × 100 DSG/mm. */
+      teilerBandDsg: 80,
       last10Max: 10.9,
       /** Tighter auto-zoom than LG; still shows all shots, floor = ring 8. */
       autoZoomPadFrac: 0.012
@@ -80,8 +83,8 @@
       ring8RadiusMm: 21.2,
       shotDiameterMm: 5.6,
       decMax: 10.9,
-      coordRadiusMm: 100,
-      teilerBandDsg: 72,
+      coordRadiusMm: 90,
+      teilerBandDsg: 80,
       last10Max: 10.9,
       autoZoomPadFrac: 0.012
     }
@@ -99,18 +102,19 @@
 
   function buildScale(profile) {
     const p = profile || PROFILES[DEFAULT_PROFILE_ID];
-    const RANGE_DIAMETER_MM = 200;
     const coordRadiusMm = p.coordRadiusMm != null ? p.coordRadiusMm : 100;
     const dsgPerMm = DSG_COORD_RANGE / coordRadiusMm;
     const DEFAULT_SVG_CENTER = 100;
     const DEFAULT_SVG_VIEW_SIZE = 200;
-    const shotRadiusSvg = (p.shotDiameterMm / 2) / (RANGE_DIAMETER_MM / 2) * DEFAULT_SVG_CENTER;
+    // 1 SVG unit = 1 mm in the DISAG frame.
+    const shotRadiusSvg = (p.shotDiameterMm != null ? p.shotDiameterMm : 4.5) / 2;
     return {
       profileId: p.id,
       file: p.file,
       label: p.label,
       dsgPerSvgUnit: dsgPerMm,
       coordRadiusMm: coordRadiusMm,
+      coordRadiusNeedsRefinement: !!p.coordRadiusNeedsRefinement,
       svgSize: DEFAULT_SVG_VIEW_SIZE,
       centerX: DEFAULT_SVG_CENTER,
       centerY: DEFAULT_SVG_CENTER,

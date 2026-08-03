@@ -1,63 +1,66 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <!--
-    Original face artwork (outer ring r=90 in local coords), uniformly scaled so
-    that ring maps to ISSF Ø 45.5 mm (r=22.75) in the 200 mm DISAG frame.
-    scale = 22.75/90 ≈ 0.252778 about centre (100,100).
+    ISSF 10m Air Rifle face in the 200 mm DISAG frame (1 SVG unit = 1 mm).
+    Outer diameters (ISSF 6.3.2.2):
+      1=45.5  2=40.5  3=35.5  4=30.5  5=25.5
+      6=20.5  7=15.5  8=10.5  9=5.5   10=0.5
+    Black aiming mark: rings 4–10. Numbers 1–8 only.
   -->
-  <desc>ISSF 10m air rifle (45.5 mm) — scaled original face with ring numbers</desc>
-  <g transform="translate(100,100) scale(0.2527777778) translate(-100,-100)">
-    <g stroke-width="0.5">
-      <g fill="white" stroke="black">
-        <circle r="90" cx="100" cy="100"/>
-        <circle r="80" cx="100" cy="100"/>
-        <circle r="70" cx="100" cy="100"/>
-      </g>
-      <g fill="black" stroke="white">
-        <circle r="60" cx="100" cy="100"/>
-        <circle r="50" cx="100" cy="100"/>
-        <circle r="40" cx="100" cy="100"/>
-        <circle r="30" cx="100" cy="100"/>
-        <circle r="20" cx="100" cy="100"/>
-        <circle r="10" cx="100" cy="100"/>
-      </g>
-      <circle r="1" cx="100" cy="100" fill="white" stroke="white"/>
+  <desc>ISSF 10m air rifle (45.5 mm) — face with ring numbers</desc>
+  <g stroke-width="0.12" shape-rendering="geometricPrecision">
+    <g fill="white" stroke="black">
+      <circle r="22.75" cx="100" cy="100"/>
+      <circle r="20.25" cx="100" cy="100"/>
+      <circle r="17.75" cx="100" cy="100"/>
     </g>
-    <g font-size="7" font-family="arial" text-anchor="middle" fill="black">
-      <text x="100" y="18">1</text>
-      <text x="100" y="28">2</text>
-      <text x="100" y="38">3</text>
-      <text x="100" y="167">3</text>
-      <text x="100" y="177">2</text>
-      <text x="100" y="187">1</text>
-      <text x="15" y="103">1</text>
-      <text x="25" y="103">2</text>
-      <text x="35" y="103">3</text>
-      <text x="165" y="103">3</text>
-      <text x="175" y="103">2</text>
-      <text x="185" y="103">1</text>
-      <g fill="white">
-        <text x="100" y="48">4</text>
-        <text x="100" y="58">5</text>
-        <text x="100" y="68">6</text>
-        <text x="100" y="78">7</text>
-        <text x="100" y="88">8</text>
-        <text x="100" y="117">8</text>
-        <text x="100" y="127">7</text>
-        <text x="100" y="137">6</text>
-        <text x="100" y="147">5</text>
-        <text x="100" y="157">4</text>
-        <text x="45" y="103">4</text>
-        <text x="55" y="103">5</text>
-        <text x="65" y="103">6</text>
-        <text x="75" y="103">7</text>
-        <text x="85" y="103">8</text>
-        <text x="115" y="103">8</text>
-        <text x="125" y="103">7</text>
-        <text x="135" y="103">6</text>
-        <text x="145" y="103">5</text>
-        <text x="155" y="103">4</text>
-      </g>
+    <g fill="black" stroke="white">
+      <circle r="15.25" cx="100" cy="100"/>
+      <circle r="12.75" cx="100" cy="100"/>
+      <circle r="10.25" cx="100" cy="100"/>
+      <circle r="7.75" cx="100" cy="100"/>
+      <circle r="5.25" cx="100" cy="100"/>
+      <circle r="2.75" cx="100" cy="100"/>
+    </g>
+    <circle r="0.25" cx="100" cy="100" fill="white" stroke="white"/>
+  </g>
+  <g font-size="1.7" font-family="arial" text-anchor="middle" dominant-baseline="central">
+    <!-- Labels at mid-band of each ring zone. -->
+    <g fill="black">
+      <text x="100" y="78.5">1</text>
+      <text x="100" y="81">2</text>
+      <text x="100" y="83.5">3</text>
+      <text x="100" y="121.5">1</text>
+      <text x="100" y="119">2</text>
+      <text x="100" y="116.5">3</text>
+      <text x="78.5" y="100">1</text>
+      <text x="81" y="100">2</text>
+      <text x="83.5" y="100">3</text>
+      <text x="121.5" y="100">1</text>
+      <text x="119" y="100">2</text>
+      <text x="116.5" y="100">3</text>
+    </g>
+    <g fill="white">
+      <text x="100" y="86">4</text>
+      <text x="100" y="88.5">5</text>
+      <text x="100" y="91">6</text>
+      <text x="100" y="93.5">7</text>
+      <text x="100" y="96">8</text>
+      <text x="100" y="114">4</text>
+      <text x="100" y="111.5">5</text>
+      <text x="100" y="109">6</text>
+      <text x="100" y="106.5">7</text>
+      <text x="100" y="104">8</text>
+      <text x="86" y="100">4</text>
+      <text x="88.5" y="100">5</text>
+      <text x="91" y="100">6</text>
+      <text x="93.5" y="100">7</text>
+      <text x="96" y="100">8</text>
+      <text x="114" y="100">4</text>
+      <text x="111.5" y="100">5</text>
+      <text x="109" y="100">6</text>
+      <text x="106.5" y="100">7</text>
+      <text x="104" y="100">8</text>
     </g>
   </g>
 </svg>
