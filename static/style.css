@@ -554,7 +554,7 @@ body::before {
 /* ——— Stage / layout ——— */
 .stage {
   padding: 0;
-  max-width: 1680px;
+  max-width: min(100%, 2400px);
   margin: 0 auto;
   width: 100%;
   flex: 1 1 auto;
@@ -753,10 +753,11 @@ body::before {
 /* Target disk owns remaining height; chart/footer may shrink in dense grids. */
 .range-plugin-view.classic-range-view .range-target {
   flex: 2 1 0;
-  min-height: 120px;
+  min-height: 48px;
 }
 .range-plugin-view.classic-range-view .last10-chart-wrap {
   flex: 0 1 auto;
+  height: auto;
   min-height: 28px;
   max-height: 48px;
 }
@@ -1096,10 +1097,19 @@ body::before {
 
 .shooter-shell {
   min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
-  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  gap: 0.4rem;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1600px) {
+  .shooter-shell {
+    padding: 0.4rem 0.5rem;
+    gap: 0.35rem;
+  }
 }
 
 .shooter-top {
@@ -1176,7 +1186,8 @@ body::before {
   align-items: stretch;
   justify-content: flex-start;
   flex: 1;
-  gap: 0.75rem;
+  min-height: 0;
+  gap: 0.4rem;
 }
 
 .shooter-waiting {
@@ -1197,15 +1208,51 @@ body::before {
 
 .shooter-waiting p { color: var(--muted); margin: 0; }
 
+/* Full-bleed plugin on range tablets (1920×1080 / 14"). Do not cap width. */
 #shooter-plugin-view {
   width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
   background: var(--panel-strong);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 0.75rem;
+  padding: 0;
   box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#shooter-plugin-view > .range-plugin-view,
+#shooter-plugin-view > .f1-race-view {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+#shooter-plugin-view > .range-plugin-view.classic-range-view {
+  padding: 0.45rem;
+}
+
+/* Classic range on full HD tablet: give the disk almost all vertical space */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .shooter-display .shooter-top {
+    padding: 0.45rem 0.75rem;
+  }
+  .shooter-display .shooter-range-label {
+    font-size: 1.55rem;
+  }
+  .shooter-display .shooter-stat .v {
+    font-size: 1.35rem;
+  }
+  .shooter-display .range-plugin-view.classic-range-view .last10-chart-wrap {
+    max-height: 40px;
+  }
+  .shooter-display .range-plugin-view.classic-range-view .range-footer {
+    max-height: 28%;
+  }
 }
 
 /* ——— Config editor ——— */
@@ -1501,7 +1548,7 @@ body.config-display {
   display: grid;
   gap: 0.85rem;
   padding: 0.85rem 1rem 1.25rem;
-  max-width: 1680px;
+  max-width: min(100%, 2400px);
   width: 100%;
   margin: 0 auto;
   flex: 1 1 auto;
@@ -1521,6 +1568,7 @@ body.config-display {
   flex-direction: column;
   box-shadow: var(--shadow);
   min-height: 0;
+  min-width: 0;
   height: 100%;
 }
 .range-panel[hidden] {
@@ -1683,9 +1731,9 @@ body.config-display {
 .last10-chart-wrap {
   width: 100%;
   height: 56px;
-  min-height: 56px;
+  min-height: 28px;
   border-top: 1px solid var(--line);
-  flex-shrink: 0;
+  flex-shrink: 1;
   background: var(--panel);
 }
 .last10-chart-wrap .last10-svg {
@@ -1755,6 +1803,8 @@ body.config-display {
   justify-content: center;
   gap: 10px;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 .range-footer .footer-serien-row > .footer-label {
   flex: 0 0 auto;
@@ -1775,7 +1825,7 @@ body.config-display {
 }
 .range-footer .serien-cell {
   display: inline-block;
-  min-width: 5ch;
+  min-width: 4ch;
   text-align: right;
   font-weight: 600;
 }
@@ -1803,7 +1853,7 @@ body.config-display {
   .range-header-meta-row { font-size: 12px; line-height: 14px; }
   .range-header-line3 { font-size: 12px; line-height: 14px; }
   .range-shot-chip .shot-val { height: 28px; }
-  .last10-chart-wrap { height: 44px; min-height: 44px; }
+  .last10-chart-wrap { height: 44px; min-height: 28px; }
   .range-footer { padding: 6px 10px; font-size: 15px; line-height: 18px; }
   .range-footer .footer-stack { gap: 4px; }
 }

@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -285,6 +286,8 @@ func TestOvertakeMaintainsGap(t *testing.T) {
 	chase.LastSpeed = 8
 	lead.ShotsFired = 5
 	chase.ShotsFired = 5
+	lead.ShotThisRound = true
+	chase.ShotThisRound = true
 	rs.snapFieldToSection(5) // section 5 mid=0.45 — outside Spa/Melbourne DRS
 	leadProg := lead.Progress
 	chaseProg := chase.Progress
@@ -357,7 +360,9 @@ func TestFieldEvent(t *testing.T) {
 			"2": map[string]any{"totalShotsToFire": 30},
 		},
 	})
-	sess, evs, err := l.Control(sess, "field_event", map[string]any{"type": "puncture", "now": now.Format(time.RFC3339Nano)})
+	sess, evs, err := l.Control(sess, "field_event", map[string]any{
+		"type": "puncture", "rangeNum": 1, "now": now.Format(time.RFC3339Nano),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,17 +370,234 @@ func TestFieldEvent(t *testing.T) {
 	for _, e := range evs {
 		if e.Type == "field_event" {
 			ok = true
+			targets, _ := e.Data["targets"].([]int)
+			if len(targets) != 1 || targets[0] != 1 {
+				t.Fatalf("puncture targets=%v want [1]", e.Data["targets"])
+			}
 		}
 	}
 	if !ok {
 		t.Fatalf("events %#v", evs)
 	}
-	vm, _ := l.ViewModel(sess, 1)
-	race := vm["race"].(map[string]any)
-	if race["fieldEvent"] == nil {
-		t.Fatal("expected fieldEvent in view model")
+	vm1, _ := l.ViewModel(sess, 1)
+	fe1 := vm1["race"].(map[string]any)["fieldEvent"].(map[string]any)
+	if fe1["affectsMe"] != true || fe1["pending"] != true {
+		t.Fatalf("range1 fieldEvent=%#v", fe1)
+	}
+	vm2, _ := l.ViewModel(sess, 2)
+	fe2 := vm2["race"].(map[string]any)["fieldEvent"].(map[string]any)
+	if fe2["affectsMe"] != false {
+		t.Fatalf("range2 should not be affected by puncture: %#v", fe2)
 	}
 }
+
+func TestOilLeakAffectsAll(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{"numRanges": 3, "fieldEventsEnabled": false})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"numRanges": 3,
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 30},
+			"2": map[string]any{"totalShotsToFire": 30},
+			"3": map[string]any{"totalShotsToFire": 30},
+		},
+	})
+	sess, evs, err := l.Control(sess, "field_event", map[string]any{
+		"type": "oil_leak", "now": now.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var targets []int
+	for _, e := range evs {
+		if e.Type == "field_event" {
+			targets, _ = e.Data["targets"].([]int)
+		}
+	}
+	if len(targets) != 3 {
+		t.Fatalf("oil_leak targets=%v want 3 cars", targets)
+	}
+	for _, rn := range []int{1, 2, 3} {
+		vm, _ := l.ViewModel(sess, rn)
+		fe := vm["race"].(map[string]any)["fieldEvent"].(map[string]any)
+		if fe["affectsMe"] != true {
+			t.Fatalf("range %d should be affected: %#v", rn, fe)
+		}
+	}
+}
+
+func TestFieldEventPitConsumesBudgetedShot(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{
+		"numRanges": 2, "fieldEventsEnabled": false, "stintSize": 10, "paceCompress": 1,
+	})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"numRanges": 2,
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 40},
+			"2": map[string]any{"totalShotsToFire": 40},
+		},
+	})
+	// Grid
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10, FullValue: 10}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2, Shot: state.Shot{DecValue: 9, FullValue: 9}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+
+	sess, _, err := l.Control(sess, "field_event", map[string]any{
+		"type": "puncture", "rangeNum": 1, "now": now.Add(time.Second).Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before, _ := l.ViewModel(sess, 1)
+	shotsBefore := before["me"].(map[string]any)["shotsFired"].(int)
+
+	tPit := now.Add(2 * time.Second)
+	sess, evs, _ := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10, FullValue: 10}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: tPit,
+	})
+	ok := false
+	for _, e := range evs {
+		if e.Type == "pit_ok" || e.Type == "pit_slow" {
+			ok = true
+		}
+	}
+	if !ok {
+		t.Fatalf("expected field pit result, got %#v", evs)
+	}
+
+	after, _ := l.ViewModel(sess, 1)
+	me := after["me"].(map[string]any)
+	shotsAfter := me["shotsFired"].(int)
+	if shotsAfter != shotsBefore+1 {
+		t.Fatalf("field pit must consume budgeted shot: before=%d after=%d", shotsBefore, shotsAfter)
+	}
+	if fe, _ := after["race"].(map[string]any)["fieldEvent"].(map[string]any); fe != nil && fe["pending"] == true {
+		t.Fatalf("field event should be cleared for range 1: %#v", fe)
+	}
+
+	// Untargeted car still advances with a normal power shot (no forced wait).
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2, Shot: state.Shot{DecValue: 9, FullValue: 9}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: tPit.Add(100 * time.Millisecond),
+	})
+	vm2, _ := l.ViewModel(sess, 2)
+	if vm2["me"].(map[string]any)["shotsFired"].(int) != 2 {
+		t.Fatalf("range 2 shotsFired=%v want 2", vm2["me"].(map[string]any)["shotsFired"])
+	}
+}
+
+func TestPowerZeroPaceAndRoundSync(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{
+		"numRanges": 2, "fieldEventsEnabled": false, "stintSize": 10, "paceCompress": 1,
+	})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"numRanges": 2,
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 40},
+			"2": map[string]any{"totalShotsToFire": 40},
+		},
+	})
+	// Grid
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10, FullValue: 10}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2, Shot: state.Shot{DecValue: 9, FullValue: 9}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	// Round 2: range 1 shoots zero
+	sess, evs, _ := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 0, FullValue: 0}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now.Add(time.Second),
+	})
+	hasMiss := false
+	for _, e := range evs {
+		if e.Type == "miss" {
+			hasMiss = true
+		}
+	}
+	if !hasMiss {
+		t.Fatalf("expected miss event, got %#v", evs)
+	}
+	vm, _ := l.ViewModel(sess, 1)
+	me := vm["me"].(map[string]any)
+	if me["lastSpeed"].(float64) != 0 {
+		t.Fatalf("zero pace want 0 got %v", me["lastSpeed"])
+	}
+	if me["shotsFired"].(int) != 2 {
+		t.Fatalf("shotsFired=%v want 2 (round still counts)", me["shotsFired"])
+	}
+	if me["lastNoteKind"] != "miss" {
+		t.Fatalf("lastNoteKind=%v", me["lastNoteKind"])
+	}
+	if me["placeReason"] == nil || me["placeReason"] == "" {
+		t.Fatal("expected placeReason after zero")
+	}
+}
+
+func TestPitZeroDropsPlace(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{
+		"numRanges": 2, "fieldEventsEnabled": false, "stintSize": 10, "paceCompress": 1,
+	})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"numRanges": 2,
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 40},
+			"2": map[string]any{"totalShotsToFire": 40},
+		},
+	})
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10, FullValue: 10}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2, Shot: state.Shot{DecValue: 9, FullValue: 9}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	// Advance both to round 10 (pit)
+	for round := 2; round <= 9; round++ {
+		tshot := now.Add(time.Duration(round) * time.Second)
+		sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+			RangeNum: 1, Shot: state.Shot{DecValue: 9, FullValue: 9}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: tshot,
+		})
+		sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+			RangeNum: 2, Shot: state.Shot{DecValue: 8, FullValue: 8}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: tshot,
+		})
+	}
+	vmBefore, _ := l.ViewModel(sess, 1)
+	posBefore := vmBefore["me"].(map[string]any)["position"].(int)
+	if posBefore != 1 {
+		t.Fatalf("expected P1 before pit zero, got P%d", posBefore)
+	}
+	tPit := now.Add(20 * time.Second)
+	sess, evs, _ := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 0, FullValue: 0}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: tPit,
+	})
+	hasFail := false
+	for _, e := range evs {
+		if e.Type == "pit_fail" {
+			hasFail = true
+		}
+	}
+	if !hasFail {
+		t.Fatalf("expected pit_fail, got %#v", evs)
+	}
+	vmAfter, _ := l.ViewModel(sess, 1)
+	posAfter := vmAfter["me"].(map[string]any)["position"].(int)
+	if posAfter != 2 {
+		t.Fatalf("pit zero should drop to P2, got P%d", posAfter)
+	}
+	if vmAfter["me"].(map[string]any)["lastNoteKind"] != "pit_fail" {
+		t.Fatalf("note=%v", vmAfter["me"].(map[string]any)["lastNoteKind"])
+	}
+}
+
 
 func TestDRSActiveEvent(t *testing.T) {
 	l := New(nil)
@@ -475,6 +697,8 @@ func TestSweetSpotAPaceAndDRSStack(t *testing.T) {
 	lead.Position = 1
 	chase.Position = 2
 	lead.LastSpeed = 8.5
+	lead.ShotThisRound = true
+	chase.ShotThisRound = true
 	// Without stack, 8.0 < 8.5 — no pass. With P2 stack 1.12: 8*1.12=8.96 >= 8.5.
 	ot := rs.trySectionPass(chase, 8.0, 3)
 	if !ot.passed || !ot.usedDRS {
@@ -553,6 +777,42 @@ func TestPitCueArmsOnRoundEntry(t *testing.T) {
 	}
 	if race["pitWindowMs"] == nil {
 		t.Fatal("expected pitWindowMs")
+	}
+}
+
+func TestNextHintOvertake(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{
+		"numRanges": 2, "fieldEventsEnabled": false, "stintSize": 10,
+		"paceCompress": 1, "overtakeRatio": 1.12, "drsSections": "",
+	})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"numRanges": 2,
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 40},
+			"2": map[string]any{"totalShotsToFire": 40},
+		},
+	})
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10, FullValue: 10}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2, Shot: state.Shot{DecValue: 8, FullValue: 8}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 40}, Now: now,
+	})
+	vm, _ := l.ViewModel(sess, 2)
+	me := vm["me"].(map[string]any)
+	hint, _ := me["nextHint"].(string)
+	if hint == "" || me["nextHintKind"] != "overtake" {
+		t.Fatalf("expected overtake hint for P2, got kind=%v hint=%q", me["nextHintKind"], hint)
+	}
+	if !strings.Contains(hint, "Bahn 1") || !strings.Contains(hint, "Überholen") {
+		t.Fatalf("hint should name Bahn 1 and overtake: %q", hint)
+	}
+	vm1, _ := l.ViewModel(sess, 1)
+	h1 := vm1["me"].(map[string]any)["nextHint"].(string)
+	if vm1["me"].(map[string]any)["nextHintKind"] != "defend" {
+		t.Fatalf("P1 should get defend hint, got %v %q", vm1["me"].(map[string]any)["nextHintKind"], h1)
 	}
 }
 

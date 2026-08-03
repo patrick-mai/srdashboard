@@ -61,16 +61,20 @@ func main() {
 	}
 	udpListener.SetShotNotifier(func(rng int, shot state.Shot, shotIndex int) {
 		ps.OnShot(rng, shot, shotIndex)
-		ps.SyncLiveReady()
-		snap := st.Snapshot()
-		for _, rs := range snap {
-			if rs.RangeNum == rng {
-				hub.BroadcastRange(rng, map[string]any{
-					"type":  "live",
-					"range": rs,
-				})
-				break
-			}
+		// Only re-sync ready flags on warmup transitions — every shot used to
+		// rebuild all shared view models twice.
+		if shot.IsWarmup {
+			ps.SyncLiveReady()
+		} else {
+			// Leaving warmup is detected inside game logic via Live.IsWarmup;
+			// still sync once when a competition shot arrives after warmup.
+			ps.SyncLiveReadyIfArming()
+		}
+		if rs, ok := st.RangeSnapshot(rng); ok {
+			hub.BroadcastRange(rng, map[string]any{
+				"type":  "live",
+				"range": rs,
+			})
 		}
 	})
 	udpListener.Start()

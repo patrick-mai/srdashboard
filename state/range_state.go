@@ -1,6 +1,7 @@
 package state
 
 import (
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -263,10 +264,10 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		ReceivedAt: receivedAt,
 	}
 
-	// Mode switch: Warmup -> Competition clears target and resets footer
+	// Mode switch: Warmup ↔ Competition clears target and resets footer
 	wasWarmup := rs.IsWarmup
 	rs.IsWarmup = sp.IsWarmup
-	if wasWarmup && !sp.IsWarmup {
+	if wasWarmup != sp.IsWarmup {
 		resetRangeFooter(rs)
 	}
 
@@ -306,7 +307,9 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	rs.CurrentValue = sp.DecValue
 	rs.CurrentTeiler = sp.Distance
 	// Best Teiler = lowest Distance (closest to centre) across the series.
-	if rs.BestTeilerShot == 0 || sp.Distance < rs.BestTeiler {
+	// Ignore zero/miss shots so a centre-zero Distance does not lock BestTeiler at 0.
+	isMiss := sp.FullValue == 0 && sp.DecValue <= 0
+	if !isMiss && (rs.BestTeilerShot == 0 || sp.Distance < rs.BestTeiler) {
 		rs.BestTeiler = sp.Distance
 		rs.BestTeilerShot = rs.ShotNumber
 	}
@@ -349,15 +352,20 @@ func appendCapped[T any](s []T, v T, max int) []T {
 // Prediction returns the extrapolated totals to match the sum display (integer sum / decimal sum).
 // Same format as Summe: first = predicted integer (ring) sum, second = predicted decimal sum.
 // Formula: predInt = (overallSumInt / shotsFired) * totalShotsToFire, predDec = (overallSumDecimal / shotsFired) * totalShotsToFire.
+// Integer prediction is rounded (not truncated). When more shots than planned have already
+// been fired, returns the current totals rather than extrapolating past 100%.
 func (rs *RangeState) Prediction() (int, float64) {
 	if rs.ShotNumber == 0 || rs.TotalShotsToFire == 0 {
 		return 0, 0
+	}
+	if rs.ShotNumber >= rs.TotalShotsToFire {
+		return rs.OverallSumInt, rs.OverallSumDec
 	}
 	n := float64(rs.ShotNumber)
 	t := float64(rs.TotalShotsToFire)
 	predInt := (float64(rs.OverallSumInt) / n) * t
 	predDec := (rs.OverallSumDec / n) * t
-	return int(predInt), predDec
+	return int(math.Round(predInt)), predDec
 }
 
 // RangeSnapshot is a copy of one range's state for safe use by HTTP handlers.
@@ -382,6 +390,49 @@ type RangeSnapshot struct {
 	SeriesSums       []float64 `json:"seriesSums"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
+}
+
+// ShotNumber returns the current shot count for a range without copying state.
+func (ls *LiveState) ShotNumber(rng int) int {
+	ls.mu.RLock()
+	defer ls.mu.RUnlock()
+	if rs, ok := ls.Ranges[rng]; ok {
+		return rs.ShotNumber
+	}
+	return 0
+}
+
+// RangeSnapshot returns a copy of one range, or false if the range does not exist.
+func (ls *LiveState) RangeSnapshot(rng int) (RangeSnapshot, bool) {
+	ls.mu.RLock()
+	defer ls.mu.RUnlock()
+	rs, ok := ls.Ranges[rng]
+	if !ok {
+		return RangeSnapshot{}, false
+	}
+	predInt, predDec := rs.Prediction()
+	return RangeSnapshot{
+		RangeNum:         rs.RangeNum,
+		ShooterName:      rs.ShooterName,
+		ClubName:         rs.ClubName,
+		Discipline:       rs.Discipline,
+		DiscType:         rs.DiscType,
+		IsWarmup:         rs.IsWarmup,
+		Shots:            append([]Shot(nil), rs.Shots...),
+		ShotNumber:       rs.ShotNumber,
+		CurrentValue:     rs.CurrentValue,
+		CurrentTeiler:    rs.CurrentTeiler,
+		BestTeiler:       rs.BestTeiler,
+		BestTeilerShot:   rs.BestTeilerShot,
+		OverallSumInt:    rs.OverallSumInt,
+		OverallSumDec:    rs.OverallSumDec,
+		PredictionInt:    predInt,
+		PredictionDec:    predDec,
+		SeriesSumsInt:    append([]int(nil), rs.SeriesSumsInt...),
+		SeriesSums:       append([]float64(nil), rs.SeriesSums...),
+		Last10Values:     append([]float64(nil), rs.Last10Values...),
+		TotalShotsToFire: rs.TotalShotsToFire,
+	}, true
 }
 
 // Snapshot returns a consistent copy of all ranges for API responses. Safe to call from HTTP handlers.

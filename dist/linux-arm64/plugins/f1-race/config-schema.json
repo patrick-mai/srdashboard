@@ -3,7 +3,7 @@
   "properties": {
     "circuitId": {
       "type": "string",
-      "enum": ["spa", "nuerburgring", "melbourne"],
+      "enum": ["spa", "nuerburgring", "melbourne", "nordschleife"],
       "title": "Circuit"
     },
     "motionMode": {
@@ -19,8 +19,21 @@
     "pacePivot": { "type": "number", "title": "Pace pivot" },
     "drsStackPerPlace": { "type": "number", "title": "DRS stack per place" },
     "drsSections": { "type": "string", "title": "DRS sections (comma-separated)" },
+    "gridGap": { "type": "number", "title": "Grid gap (legacy / enforceMinGap)" },
+    "highShotThreshold": { "type": "number" },
+    "streakBonus": { "type": "number" },
+    "pitCueWindowMs": { "type": "integer", "title": "Pit cue window (ms)" },
+    "pitScoreWeight": { "type": "number", "title": "Pit score weight" },
+    "pitReactionWeight": { "type": "number", "title": "Pit reaction weight" },
     "autoStartWhenAllReady": { "type": "boolean" },
+    "requireEqualShotTotals": { "type": "boolean" },
     "fieldEventsEnabled": { "type": "boolean" },
-    "holeInHoleMinOverlap": { "type": "number" }
+    "fieldEventMinGapSec": { "type": "integer" },
+    "fieldEventChancePerRound": { "type": "number" },
+    "holeInHoleMinOverlap": { "type": "number" },
+    "holeInHoleBonus": { "type": "number" },
+    "shotDiameterMm": { "type": "number" },
+    "dsgPerMm": { "type": "number", "title": "DISAG units per mm (hole-in-hole)" },
+    "handicaps": { "type": "object", "title": "Per-range handicaps" }
   }
 }

@@ -105,52 +105,44 @@ func (l *Listener) handlePacket(data []byte) {
 		log.Printf("UDP: Shot message has no Objects")
 		return
 	}
-	var shot state.ShotPayload
-	if err := json.Unmarshal(msg.Objects[0], &shot); err != nil {
-		log.Printf("UDP: failed to parse shot object: %v", err)
-		return
-	}
-	rng := msg.Ranges
-	if rng == 0 && shot.Range > 0 {
-		rng = shot.Range
-	}
-	if rng == 0 {
-		rng = 1
-	}
 	receivedAt := time.Now()
-	shotAt, hasShotAt := shot.EventTime()
-	if !hasShotAt {
-		shotAt, hasShotAt = msg.EventTime()
-	}
-	if !l.state.ApplyShotAt(rng, &shot, shotAt, receivedAt) {
-		// Silently dropping these makes a mis-set range count look like a dead
-		// lane, so say so explicitly.
-		log.Printf("UDP: dropped shot for unknown range=%d (check <ranges> in config.xml)", rng)
-		return
-	}
-	log.Printf("UDP: shot applied range=%d X=%d Y=%d DecValue=%.1f at=%v", rng, shot.X, shot.Y, shot.DecValue, shotAtOrDash(shotAt, hasShotAt))
-	if l.onShot != nil {
-		s := state.Shot{
-			X:          shot.X,
-			Y:          shot.Y,
-			Distance:   shot.Distance,
-			FullValue:  shot.FullValue,
-			DecValue:   shot.DecValue,
-			IsWarmup:   shot.IsWarmup,
-			ReceivedAt: receivedAt,
+	for oi, raw := range msg.Objects {
+		var shot state.ShotPayload
+		if err := json.Unmarshal(raw, &shot); err != nil {
+			log.Printf("UDP: failed to parse shot object[%d]: %v", oi, err)
+			continue
 		}
-		if hasShotAt {
-			s.At = shotAt
+		rng := shot.Range
+		if rng == 0 {
+			rng = msg.Ranges
 		}
-		snap := l.state.Snapshot()
-		shotIndex := 0
-		for _, rs := range snap {
-			if rs.RangeNum == rng {
-				shotIndex = rs.ShotNumber
-				break
+		if rng == 0 {
+			rng = 1
+		}
+		shotAt, hasShotAt := shot.EventTime()
+		if !hasShotAt {
+			shotAt, hasShotAt = msg.EventTime()
+		}
+		if !l.state.ApplyShotAt(rng, &shot, shotAt, receivedAt) {
+			log.Printf("UDP: dropped shot for unknown range=%d (check <ranges> in config.xml)", rng)
+			continue
+		}
+		log.Printf("UDP: shot applied range=%d X=%d Y=%d DecValue=%.1f at=%v", rng, shot.X, shot.Y, shot.DecValue, shotAtOrDash(shotAt, hasShotAt))
+		if l.onShot != nil {
+			s := state.Shot{
+				X:          shot.X,
+				Y:          shot.Y,
+				Distance:   shot.Distance,
+				FullValue:  shot.FullValue,
+				DecValue:   shot.DecValue,
+				IsWarmup:   shot.IsWarmup,
+				ReceivedAt: receivedAt,
 			}
+			if hasShotAt {
+				s.At = shotAt
+			}
+			l.onShot(rng, s, l.state.ShotNumber(rng))
 		}
-		l.onShot(rng, s, shotIndex)
 	}
 }
 
