@@ -24,22 +24,24 @@ type Shot struct {
 
 // RangeState holds the live state for one shooting range
 type RangeState struct {
-	RangeNum         int       `json:"rangeNum"`
-	ShooterName      string    `json:"shooterName"`
-	ClubName         string    `json:"clubName"`
-	Discipline       string    `json:"discipline"`
-	DiscType         string    `json:"discType"`
-	IsWarmup         bool      `json:"isWarmup"`
-	Shots            []Shot    `json:"shots"`
-	ShotNumber       int       `json:"shotNumber"`
-	CurrentValue     float64   `json:"currentValue"`
-	CurrentTeiler    float64   `json:"currentTeiler"`
-	BestTeiler       float64   `json:"bestTeiler"`
-	BestTeilerShot   int       `json:"bestTeilerShot"` // 0 = none yet; otherwise shot number of best Teiler
-	OverallSumInt    int       `json:"overallSumInt"`
-	OverallSumDec    float64   `json:"overallSumDecimal"`
-	SeriesSumsInt    []int     `json:"seriesSumsInt"`
-	SeriesSums       []float64 `json:"seriesSums"`
+	RangeNum       int       `json:"rangeNum"`
+	ShooterName    string    `json:"shooterName"`
+	ClubName       string    `json:"clubName"`
+	Discipline     string    `json:"discipline"`
+	DiscType       string    `json:"discType"`
+	IsWarmup       bool      `json:"isWarmup"`
+	Shots          []Shot    `json:"shots"`
+	ShotNumber     int       `json:"shotNumber"`
+	CurrentValue   float64   `json:"currentValue"`
+	CurrentTeiler  float64   `json:"currentTeiler"`
+	BestTeiler     float64   `json:"bestTeiler"`
+	BestTeilerShot int       `json:"bestTeilerShot"` // 0 = none yet; otherwise shot number of best Teiler
+	OverallSumInt  int       `json:"overallSumInt"`
+	OverallSumDec  float64   `json:"overallSumDecimal"`
+	SeriesSumsInt  []int     `json:"seriesSumsInt"`
+	SeriesSums     []float64 `json:"seriesSums"`
+	// SeriesShots holds the 10 shots of each completed series (same order/length as SeriesSums*).
+	SeriesShots      [][]Shot  `json:"seriesShots"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
 }
@@ -85,8 +87,30 @@ func emptyRangeState(rangeNum int) *RangeState {
 		Shots:         make([]Shot, 0, 10),
 		SeriesSumsInt: make([]int, 0),
 		SeriesSums:    make([]float64, 0),
+		SeriesShots:   make([][]Shot, 0),
 		Last10Values:  make([]float64, 0, 10),
 	}
+}
+
+// copySeriesShots deep-copies completed series shot lists.
+func copySeriesShots(in [][]Shot) [][]Shot {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([][]Shot, len(in))
+	for i := range in {
+		out[i] = append([]Shot(nil), in[i]...)
+	}
+	return out
+}
+
+// appendSeriesCapped appends a completed series, dropping the oldest past max.
+func appendSeriesCapped(s [][]Shot, series []Shot, max int) [][]Shot {
+	s = append(s, append([]Shot(nil), series...))
+	if len(s) > max {
+		s = append([][]Shot(nil), s[len(s)-max:]...)
+	}
+	return s
 }
 
 // ResetRange restores one range to the empty default (no shooter, shots, or sums).
@@ -124,6 +148,7 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		OverallSumDec:    snap.OverallSumDec,
 		SeriesSumsInt:    append([]int(nil), snap.SeriesSumsInt...),
 		SeriesSums:       append([]float64(nil), snap.SeriesSums...),
+		SeriesShots:      copySeriesShots(snap.SeriesShots),
 		Last10Values:     append([]float64(nil), snap.Last10Values...),
 		TotalShotsToFire: snap.TotalShotsToFire,
 	}
@@ -181,6 +206,7 @@ func resetRangeFooter(rs *RangeState) {
 	rs.ShotNumber = 0
 	rs.SeriesSumsInt = nil
 	rs.SeriesSums = nil
+	rs.SeriesShots = nil
 	rs.Last10Values = nil
 	rs.OverallSumInt = 0
 	rs.OverallSumDec = 0
@@ -323,7 +349,7 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	}
 	rs.Shots = append(rs.Shots, shot)
 
-	// After placing the shot, if we have exactly 10 shots on the target, record the series sums.
+	// After placing the shot, if we have exactly 10 shots on the target, record the series.
 	if len(rs.Shots) == 10 {
 		var sumInt int
 		var sumDec float64
@@ -333,6 +359,7 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		}
 		rs.SeriesSumsInt = appendCapped(rs.SeriesSumsInt, sumInt, maxSeriesSums)
 		rs.SeriesSums = appendCapped(rs.SeriesSums, sumDec, maxSeriesSums)
+		rs.SeriesShots = appendSeriesCapped(rs.SeriesShots, rs.Shots, maxSeriesSums)
 	}
 
 	// Last 10 values
@@ -388,6 +415,7 @@ type RangeSnapshot struct {
 	PredictionDec    float64   `json:"predictionDecimal"`
 	SeriesSumsInt    []int     `json:"seriesSumsInt"`
 	SeriesSums       []float64 `json:"seriesSums"`
+	SeriesShots      [][]Shot  `json:"seriesShots"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
 }
@@ -430,6 +458,7 @@ func (ls *LiveState) RangeSnapshot(rng int) (RangeSnapshot, bool) {
 		PredictionDec:    predDec,
 		SeriesSumsInt:    append([]int(nil), rs.SeriesSumsInt...),
 		SeriesSums:       append([]float64(nil), rs.SeriesSums...),
+		SeriesShots:      copySeriesShots(rs.SeriesShots),
 		Last10Values:     append([]float64(nil), rs.Last10Values...),
 		TotalShotsToFire: rs.TotalShotsToFire,
 	}, true
@@ -452,6 +481,7 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 		shots := append([]Shot(nil), rs.Shots...)
 		seriesSumsInt := append([]int(nil), rs.SeriesSumsInt...)
 		seriesSums := append([]float64(nil), rs.SeriesSums...)
+		seriesShots := copySeriesShots(rs.SeriesShots)
 		last10 := append([]float64(nil), rs.Last10Values...)
 		out = append(out, RangeSnapshot{
 			RangeNum:         rs.RangeNum,
@@ -472,6 +502,7 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 			PredictionDec:    predDec,
 			SeriesSumsInt:    seriesSumsInt,
 			SeriesSums:       seriesSums,
+			SeriesShots:      seriesShots,
 			Last10Values:     last10,
 			TotalShotsToFire: rs.TotalShotsToFire,
 		})

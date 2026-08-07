@@ -70,26 +70,27 @@ type LiveResponse struct {
 
 // RangeResponse is the per-range data for the API
 type RangeResponse struct {
-	RangeNum         int          `json:"rangeNum"`
-	ShooterName      string       `json:"shooterName"`
-	ClubName         string       `json:"clubName"`
-	Discipline       string       `json:"discipline"`
-	DiscType         string       `json:"discType"`
-	IsWarmup         bool         `json:"isWarmup"`
-	Shots            []state.Shot `json:"shots"`
-	ShotNumber       int          `json:"shotNumber"`
-	CurrentValue     float64      `json:"currentValue"`
-	CurrentTeiler    float64      `json:"currentTeiler"`
-	BestTeiler       float64      `json:"bestTeiler"`
-	BestTeilerShot   int          `json:"bestTeilerShot"`
-	OverallSumInt    int          `json:"overallSumInt"`
-	OverallSumDec    float64      `json:"overallSumDecimal"`
-	PredictionInt    int          `json:"predictionInt"`
-	PredictionDec    float64      `json:"predictionDecimal"`
-	SeriesSumsInt    []int        `json:"seriesSumsInt"`
-	SeriesSums       []float64    `json:"seriesSums"`
-	Last10Values     []float64    `json:"last10Values"`
-	TotalShotsToFire int          `json:"totalShotsToFire"`
+	RangeNum         int            `json:"rangeNum"`
+	ShooterName      string         `json:"shooterName"`
+	ClubName         string         `json:"clubName"`
+	Discipline       string         `json:"discipline"`
+	DiscType         string         `json:"discType"`
+	IsWarmup         bool           `json:"isWarmup"`
+	Shots            []state.Shot   `json:"shots"`
+	ShotNumber       int            `json:"shotNumber"`
+	CurrentValue     float64        `json:"currentValue"`
+	CurrentTeiler    float64        `json:"currentTeiler"`
+	BestTeiler       float64        `json:"bestTeiler"`
+	BestTeilerShot   int            `json:"bestTeilerShot"`
+	OverallSumInt    int            `json:"overallSumInt"`
+	OverallSumDec    float64        `json:"overallSumDecimal"`
+	PredictionInt    int            `json:"predictionInt"`
+	PredictionDec    float64        `json:"predictionDecimal"`
+	SeriesSumsInt    []int          `json:"seriesSumsInt"`
+	SeriesSums       []float64      `json:"seriesSums"`
+	SeriesShots      [][]state.Shot `json:"seriesShots"`
+	Last10Values     []float64      `json:"last10Values"`
+	TotalShotsToFire int            `json:"totalShotsToFire"`
 }
 
 // Live returns the current live state for all ranges. Uses a thread-safe snapshot to avoid data races with UDP.
@@ -217,6 +218,7 @@ func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 		PredictionDec:    s.PredictionDec,
 		SeriesSumsInt:    s.SeriesSumsInt,
 		SeriesSums:       s.SeriesSums,
+		SeriesShots:      s.SeriesShots,
 		Last10Values:     s.Last10Values,
 		TotalShotsToFire: s.TotalShotsToFire,
 	}
@@ -242,6 +244,7 @@ func responseToSnapshot(r RangeResponse) state.RangeSnapshot {
 		PredictionDec:    r.PredictionDec,
 		SeriesSumsInt:    r.SeriesSumsInt,
 		SeriesSums:       r.SeriesSums,
+		SeriesShots:      r.SeriesShots,
 		Last10Values:     r.Last10Values,
 		TotalShotsToFire: r.TotalShotsToFire,
 	}

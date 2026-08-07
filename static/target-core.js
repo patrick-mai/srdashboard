@@ -2,28 +2,28 @@ const POLL_INTERVAL_MS = 1000;
 /** Slow safety poll while WebSocket is connected (master/shooter gate their own timers). */
 const SAFETY_POLL_MS = 20000;
 
-// --- Target scale (DISAG OpticScore vs SVG) — see docs/target-scale-verification.md ---
+// --- Target scale (DISAG OpticScore vs SVG) ---
 // X, Y = shot coordinates (centre 0,0) in DISAG OpticScore units. Distance = Teiler = sqrt(X^2+Y^2).
 // DecValue/FullValue come pre-scored from OpticScore (discipline-aware). See target-registry teilerBandDsg.
-// ±9000 DSG units = 200 mm (confirmed). DSG_PER_MM = 90. SVG viewBox 0 0 200 200, centre 100.
+// LG scale from scoring: teilerBand 25 DSG / 0.25 mm = 100 DSG/mm (±9000 → ±90 mm). SVG viewBox 0 0 200 200, centre 100.
 const DSG_COORD_RANGE = 9000;           // max radius from DISAG OpticScore coordinate system
 const RANGE_DIAMETER_MM = 200;             // SVG viewBox spans 200 mm (target face centred in frame)
-const DSG_PER_MM = 90;                  // rifle default: 9000 / 100 mm radius (log-verified)
-// Default mapping for legacy targets: DSG_PER_SVG_UNIT = 90, SVG viewBox 0 0 200 200, centre 100.
-const DEFAULT_DSG_PER_SVG_UNIT = 90;
+const DSG_PER_MM = 100;                 // rifle default: scoring-verified (25 DSG per 0.1 / 0.25 mm)
+// Default mapping for legacy targets: DSG_PER_SVG_UNIT = 100, SVG viewBox 0 0 200 200, centre 100.
+const DEFAULT_DSG_PER_SVG_UNIT = 100;
 const TARGET_DIAMETER_MM = 45.5;          // ISSF scoring target (sits inside 200 mm range)
 const SHOT_DIAMETER_MM = 4.5;            // pellet diameter (mm)
 const TEN_RING_DIAMETER_MM = 0.5;        // 10 ring (ISSF)
 const DEFAULT_SVG_CENTER = 100;          // viewBox center (100, 100)
 const DEFAULT_SVG_VIEW_SIZE = 200;       // default viewBox size for targets
-// DISAG OpticScore → SVG (defaults): x_svg = SVG_CENTER + x_dsg/90, y_svg = SVG_CENTER - y_dsg/90
-// 1 SVG unit = 1 mm in the 200 mm DISAG frame, so pellet radius is simply half diameter.
+// DISAG OpticScore → SVG (defaults): x_svg = SVG_CENTER + x_dsg/100, y_svg = SVG_CENTER - y_dsg/100
+// 1 SVG unit = 1 mm, so pellet radius is simply half diameter.
 const SHOT_RADIUS_SVG = SHOT_DIAMETER_MM / 2; // 2.25 mm
 /** Default pellet outline width (mm); overridden by config.shotStrokeWidth. */
 const DEFAULT_SHOT_STROKE_SVG = 0.1;
 
 // Zoom via SVG viewBox only (target image + shot circles in ONE svg). Never CSS-transform.
-// viewBox units = mm = SVG units (1 SVG unit = 1 mm at DSG_PER_MM = 90).
+// viewBox units = mm = SVG units (1 SVG unit = 1 mm at DSG_PER_MM = 100).
 const ONE_RING_SVG = 2.5;           // ISSF ring width (mm)
 const RING_8_RADIUS_MM = 5.25;      // ISSF ring 8 outer radius — max zoom-in frames this as outer circle
 const AUTO_ZOOM_PAD_FRAC = 0.04;    // default breathing room beyond outermost shot edge
@@ -58,6 +58,8 @@ let prevShotsLengthByRange = {};  // rangeNum -> number
 let prevIsWarmupByRange = {};     // rangeNum -> last isWarmup (warmup→competition resets zoom)
 let userZoomedByRange = {};  // rangeNum -> true if user zoomed via wheel/drag; cleared on target reset
 let pinFullUntilNewShotByRange = {}; // dblclick: stay at full disk until another shot arrives
+/** Per-range series focus: { index, atShotNumber } while reviewing a completed series. */
+let seriesFocusByRange = {};
 
 let config = {
   ranges: 6,
@@ -256,6 +258,7 @@ async function fetchConfig() {
       delete p.dataset.chromeSig;
     });
     if (lastLiveData) {
+      // Legacy full-panel sync only — plugin-hosted stands own chart/footer inside the mount.
       (lastLiveData.ranges || []).forEach(function (r) {
         const panel = document.querySelector('.range-panel[data-range="' + r.rangeNum + '"]');
         if (panel) syncRangePanel(panel, r);
@@ -333,7 +336,7 @@ function syncRangeVisibility(data) {
     // Chart may have been measured while hidden (0×0) — redraw when shown again.
     if (wasHidden && !hide && byNum[num]) {
       const chartWrap = panel.querySelector('.last10-chart-wrap');
-      if (chartWrap) renderLast10Chart(chartWrap, byNum[num].last10Values, num);
+      if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(byNum[num]), num);
     }
   }
   applyLayout();
@@ -669,22 +672,23 @@ function renderTarget(container, rangeData, isWarmup) {
   const shotsGroup = svg.querySelector('.target-shots');
   if (!shotsGroup) return;
 
-  const shots = rangeData.shots || [];
+  const shots = shotsForDisplay(rangeData);
+  const focusingSeries = seriesFocusByRange[rangeNum] != null;
   const prevLen = prevShotsLengthByRange[rangeNum] ?? 0;
   const currentLen = shots.length;
   const warmupFlag = !!(isWarmup != null ? isWarmup : rangeData.isWarmup);
   const wasWarmup = prevIsWarmupByRange[rangeNum];
-	const shotsCleared = currentLen < prevLen;
+  const shotsCleared = currentLen < prevLen;
   const warmupChanged = wasWarmup !== undefined && wasWarmup !== warmupFlag;
 
   if (shotsCleared || warmupChanged) {
     resetRangeZoom(rangeNum);
   }
-  if (currentLen > prevLen) {
+  if (currentLen > prevLen && !focusingSeries) {
     pinFullUntilNewShotByRange[rangeNum] = false;
   }
 
-  if (currentLen === 0 || pinFullUntilNewShotByRange[rangeNum]) {
+  if (currentLen === 0 || (!focusingSeries && pinFullUntilNewShotByRange[rangeNum])) {
     if (!userZoomedByRange[rangeNum]) {
       zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     }
@@ -712,6 +716,7 @@ function renderTarget(container, rangeData, isWarmup) {
   applyViewBox(svg, zoomStateByRange[rangeNum]);
   setupZoomHandlers(container, rangeNum);
   upsertShotCircles(shotsGroup, shots, rangeNum);
+  container.classList.toggle('series-focus', focusingSeries);
 }
 
 const DEFAULT_CHART_COLORS = {
@@ -825,6 +830,103 @@ function footerItemTwoLines(label, line1, line2, visible) {
   return `<span class="footer-item footer-item-twolines"><span class="label">${label}:</span><span class="value"><span class="value-line">${line1}</span><span class="value-line">${line2}</span></span></span>`;
 }
 
+/** Shots currently drawn on the target (live or a reviewed completed series). */
+function shotsForDisplay(rangeData) {
+  const focus = seriesFocusByRange[rangeData.rangeNum];
+  if (focus != null) {
+    const series = (rangeData.seriesShots || [])[focus.index];
+    if (series && series.length) return series;
+  }
+  return rangeData.shots || [];
+}
+
+/** Bar-chart values for the shots currently shown (series focus or live last-10). */
+function last10ForDisplay(rangeData) {
+  const focus = seriesFocusByRange[rangeData.rangeNum];
+  if (focus != null) {
+    const series = (rangeData.seriesShots || [])[focus.index];
+    if (series && series.length) {
+      return series.map(function (s) { return Number(s.decValue); });
+    }
+  }
+  return rangeData.last10Values || [];
+}
+
+/** Drop series review when a newer shot arrives or the series list no longer has that index. */
+function syncSeriesFocus(rangeData) {
+  if (!rangeData) return;
+  const n = rangeData.rangeNum;
+  const focus = seriesFocusByRange[n];
+  if (!focus) return;
+  if ((rangeData.shotNumber || 0) > focus.atShotNumber) {
+    delete seriesFocusByRange[n];
+    userZoomedByRange[n] = false;
+    pinFullUntilNewShotByRange[n] = false;
+    resetRangeZoom(n);
+    return;
+  }
+  const series = rangeData.seriesShots || [];
+  if (focus.index < 0 || focus.index >= series.length || !(series[focus.index] || []).length) {
+    delete seriesFocusByRange[n];
+    userZoomedByRange[n] = false;
+    resetRangeZoom(n);
+  }
+}
+
+function setSeriesFocus(rangeNum, index, rangeData) {
+  const cur = seriesFocusByRange[rangeNum];
+  if (cur && cur.index === index) {
+    delete seriesFocusByRange[rangeNum];
+  } else {
+    seriesFocusByRange[rangeNum] = {
+      index: index,
+      atShotNumber: rangeData.shotNumber || 0
+    };
+  }
+  // Force autofit for the newly shown set.
+  userZoomedByRange[rangeNum] = false;
+  pinFullUntilNewShotByRange[rangeNum] = false;
+  resetRangeZoom(rangeNum);
+}
+
+function paintSeriesFocusActive(footerEl, rangeNum) {
+  if (!footerEl) return;
+  const focus = seriesFocusByRange[rangeNum];
+  footerEl.querySelectorAll('.serien-col').forEach(function (btn) {
+    const idx = parseInt(btn.dataset.seriesIdx, 10);
+    const on = focus != null && idx === focus.index;
+    btn.classList.toggle('is-active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+function wireSeriesClicks(footerEl, rangeData) {
+  if (!footerEl || !rangeData) return;
+  footerEl.onclick = function (ev) {
+    const btn = ev.target.closest('.serien-col');
+    if (!btn || !footerEl.contains(btn)) return;
+    const idx = parseInt(btn.dataset.seriesIdx, 10);
+    if (!Number.isFinite(idx)) return;
+    const series = (rangeData.seriesShots || [])[idx];
+    if (!series || !series.length) return;
+    setSeriesFocus(rangeData.rangeNum, idx, rangeData);
+    // Re-paint this stand from the latest live payload (keeps header/footer in sync).
+    const live = lastLiveData && (lastLiveData.ranges || []).find(function (r) {
+      return r.rangeNum === rangeData.rangeNum;
+    });
+    const data = live || rangeData;
+    const mount = footerEl.closest('.classic-range-view') || footerEl.closest('.range-plugin-view');
+    const panel = footerEl.closest('.range-panel');
+    if (mount && mount.classList.contains('classic-range-view')) {
+      renderClassicRangeView(mount, data);
+    } else if (panel) {
+      const targetEl = panel.querySelector('.range-target');
+      if (targetEl) renderTarget(targetEl, data, data.isWarmup);
+      paintSeriesFocusActive(footerEl, data.rangeNum);
+    }
+  };
+}
+
 function renderFooter(rangeData) {
   const f = config.footer || {};
   const w = rangeData.currentValue != null && f.currentShotValue ? rangeData.currentValue.toFixed(1) : '–';
@@ -851,41 +953,34 @@ function renderFooter(rangeData) {
   if (f.seriesSumsInt || f.seriesSumsDecimal) {
     const ints = rangeData.seriesSumsInt || [];
     const decs = rangeData.seriesSums || [];
-    const n = Math.max(ints.length, decs.length);
+    const seriesShots = rangeData.seriesShots || [];
+    const n = Math.max(ints.length, decs.length, seriesShots.length);
     const showInt = !!f.seriesSumsInt;
     const showDec = !!f.seriesSumsDecimal;
-    let rows = '';
+    let cols = '';
     if (n === 0) {
-      rows = '<span class="serien-row serien-idx"><span class="serien-cell">–</span></span>';
-      if (showInt) rows += '<span class="serien-row serien-ints"><span class="serien-cell">–</span></span>';
-      if (showDec) rows += '<span class="serien-row serien-decs"><span class="serien-cell">–</span></span>';
+      cols = '<span class="serien-col serien-empty"><span class="serien-cell">–</span></span>';
     } else {
-      const idxCells = [];
-      for (let i = 1; i <= n; i++) idxCells.push('<span class="serien-cell">' + i + '</span>');
-      rows += '<span class="serien-row serien-idx">' + idxCells.join('') + '</span>';
-      if (showInt) {
-        const cells = [];
-        for (let i = 0; i < n; i++) {
-          const v = ints[i] != null ? String(ints[i]) : '–';
-          // Invisible fractional slot so ints line up with floats at the decimal point.
-          const pad = showDec && v !== '–' ? '<span class="serien-frac-slot" aria-hidden="true">.0</span>' : '';
-          cells.push('<span class="serien-cell">' + v + pad + '</span>');
-        }
-        rows += '<span class="serien-row serien-ints">' + cells.join('') + '</span>';
-      }
-      if (showDec) {
-        const cells = [];
-        for (let i = 0; i < n; i++) {
-          const v = decs[i] != null ? Number(decs[i]).toFixed(1) : '–';
-          cells.push('<span class="serien-cell">' + v + '</span>');
-        }
-        rows += '<span class="serien-row serien-decs">' + cells.join('') + '</span>';
+      for (let i = 0; i < n; i++) {
+        const hasShots = !!(seriesShots[i] && seriesShots[i].length);
+        const intV = ints[i] != null ? String(ints[i]) : '–';
+        const decV = decs[i] != null ? Number(decs[i]).toFixed(1) : '–';
+        const pad = showDec && intV !== '–' ? '<span class="serien-frac-slot" aria-hidden="true">.0</span>' : '';
+        const tag = hasShots ? 'button' : 'span';
+        const attrs = hasShots
+          ? ' type="button" class="serien-col" data-series-idx="' + i + '" title="Serie ' + (i + 1) + ' auf Scheibe anzeigen"'
+          : ' class="serien-col serien-unavailable"';
+        cols += '<' + tag + attrs + '>' +
+          '<span class="serien-cell serien-idx">' + (i + 1) + '</span>';
+        if (showInt) cols += '<span class="serien-cell serien-ints">' + intV + pad + '</span>';
+        if (showDec) cols += '<span class="serien-cell serien-decs">' + decV + '</span>';
+        cols += '</' + tag + '>';
       }
     }
     serienHtml =
       '<div class="footer-serien-row' + (n > 4 ? ' serien-many' : '') + '">' +
       '<span class="footer-label">Serien:</span>' +
-      '<span class="serien-grid">' + rows + '</span>' +
+      '<span class="serien-grid serien-cols">' + cols + '</span>' +
       '</div>';
   }
 
@@ -927,7 +1022,8 @@ function rangeChromeSignature(r) {
   const last = shots.length ? shots[shots.length - 1] : null;
   const seriesN = Math.max(
     (r.seriesSumsInt || []).length,
-    (r.seriesSums || []).length
+    (r.seriesSums || []).length,
+    (r.seriesShots || []).length
   );
   return [
     r.rangeNum,
@@ -1005,7 +1101,7 @@ if (typeof document !== 'undefined') {
         const r = lastLiveData.ranges.find(function (x) {
           return x.rangeNum === rangeNum;
         });
-        if (r) values = r.last10Values;
+        if (r) values = last10ForDisplay(r);
       }
       renderLast10Chart(wrap, values, rangeNum);
     });
@@ -1098,18 +1194,39 @@ function renderRangePanel(rangeData) {
   footer.innerHTML = renderFooter(rangeData);
   footer.dataset.seriesN = String(Math.max(
     (rangeData.seriesSumsInt || []).length,
-    (rangeData.seriesSums || []).length
+    (rangeData.seriesSums || []).length,
+    (rangeData.seriesShots || []).length
   ));
   panel.appendChild(footer);
 
+  syncSeriesFocus(rangeData);
   renderTarget(targetContainer, rangeData, rangeData.isWarmup);
+  wireSeriesClicks(footer, rangeData);
+  paintSeriesFocusActive(footer, rangeData.rangeNum);
   if (showLast10) {
     const chartWrap = panel.querySelector('.last10-chart-wrap');
-    if (chartWrap) renderLast10Chart(chartWrap, rangeData.last10Values, rangeData.rangeNum);
+    if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum);
   }
   panel.dataset.chromeSig = rangeChromeSignature(rangeData);
 
   return panel;
+}
+
+/** Strip target/chart/footer that legacy syncRangePanel attached next to the plugin mount. */
+function stripLegacyPanelChrome(panel) {
+  if (!panel) return;
+  const kids = Array.prototype.slice.call(panel.children);
+  for (let i = 0; i < kids.length; i++) {
+    const child = kids[i];
+    if (child.classList.contains('range-plugin-view') || child.classList.contains('range-header')) continue;
+    if (
+      child.classList.contains('last10-chart-wrap') ||
+      child.classList.contains('range-footer') ||
+      child.classList.contains('range-target')
+    ) {
+      child.remove();
+    }
+  }
 }
 
 function renderClassicRangeView(container, rangeData) {
@@ -1124,6 +1241,12 @@ function renderClassicRangeView(container, rangeData) {
   }
   container.dataset.pluginId = 'classic-range';
 
+  syncSeriesFocus(rangeData);
+
+  // One chart lives inside the mount; drop duplicates left on the parent panel.
+  const hostPanel = container.closest('.range-panel');
+  if (hostPanel) stripLegacyPanelChrome(hostPanel);
+
   let targetEl = container.querySelector(':scope > .range-target');
   if (!targetEl) {
     targetEl = document.createElement('div');
@@ -1134,21 +1257,24 @@ function renderClassicRangeView(container, rangeData) {
 
   const f = config.footer || {};
   const showLast10 = f.last10Int || f.last10Decimal;
-  let chartWrap = container.querySelector('.last10-chart-wrap');
+  // Keep a single direct-child chart (racey remounts used to append extras).
+  const extraCharts = container.querySelectorAll(':scope > .last10-chart-wrap');
+  for (let i = 1; i < extraCharts.length; i++) extraCharts[i].remove();
+  let chartWrap = container.querySelector(':scope > .last10-chart-wrap');
   if (showLast10) {
     if (!chartWrap) {
       chartWrap = document.createElement('div');
       chartWrap.className = 'last10-chart-wrap';
-      const footerEl = container.querySelector('.range-footer');
+      const footerEl = container.querySelector(':scope > .range-footer');
       if (footerEl) container.insertBefore(chartWrap, footerEl);
       else container.appendChild(chartWrap);
     }
-    renderLast10Chart(chartWrap, rangeData.last10Values, rangeData.rangeNum);
+    renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum);
   } else if (chartWrap) {
     chartWrap.remove();
   }
 
-  let footerEl = container.querySelector('.range-footer');
+  let footerEl = container.querySelector(':scope > .range-footer');
   if (!footerEl) {
     footerEl = document.createElement('div');
     footerEl.className = 'range-footer';
@@ -1156,15 +1282,23 @@ function renderClassicRangeView(container, rangeData) {
   }
   const seriesN = Math.max(
     (rangeData.seriesSumsInt || []).length,
-    (rangeData.seriesSums || []).length
+    (rangeData.seriesSums || []).length,
+    (rangeData.seriesShots || []).length
   );
   footerEl.innerHTML = renderFooter(rangeData);
   footerEl.dataset.seriesN = String(seriesN);
+  wireSeriesClicks(footerEl, rangeData);
+  paintSeriesFocusActive(footerEl, rangeData.rangeNum);
   renderTarget(targetEl, rangeData, rangeData.isWarmup);
 }
 
 function syncRangePanel(panel, r) {
   if (!panel || !r) return;
+  // Plugin mounts own target/chart/footer — never paint a second copy on the panel.
+  if (panel.classList.contains('plugin-hosted') || panel.querySelector(':scope > .range-plugin-view')) {
+    stripLegacyPanelChrome(panel);
+    return;
+  }
   const sig = rangeChromeSignature(r);
   if (panel.dataset.chromeSig === sig) return;
   panel.dataset.chromeSig = sig;
@@ -1179,11 +1313,15 @@ function syncRangePanel(panel, r) {
 
   const seriesN = Math.max(
     (r.seriesSumsInt || []).length,
-    (r.seriesSums || []).length
+    (r.seriesSums || []).length,
+    (r.seriesShots || []).length
   );
+  syncSeriesFocus(r);
   if (footerEl) {
     footerEl.innerHTML = renderFooter(r);
     footerEl.dataset.seriesN = String(seriesN);
+    wireSeriesClicks(footerEl, r);
+    paintSeriesFocusActive(footerEl, r.rangeNum);
   }
   if (showLast10) {
     let chartWrap = panel.querySelector('.last10-chart-wrap');
@@ -1192,7 +1330,7 @@ function syncRangePanel(panel, r) {
       chartWrap.className = 'last10-chart-wrap';
       panel.insertBefore(chartWrap, footerEl);
     }
-    renderLast10Chart(chartWrap, r.last10Values, r.rangeNum);
+    renderLast10Chart(chartWrap, last10ForDisplay(r), r.rangeNum);
   } else {
     const chartWrap = panel.querySelector('.last10-chart-wrap');
     if (chartWrap) chartWrap.remove();
@@ -1226,6 +1364,8 @@ function ensurePluginPanels(numRanges) {
       mount.className = 'range-plugin-view';
       panel.appendChild(mount);
     }
+    panel.classList.add('plugin-hosted');
+    stripLegacyPanelChrome(panel);
   }
   grid.querySelectorAll('.range-panel').forEach((panel) => {
     const num = parseInt(panel.dataset.range, 10);
