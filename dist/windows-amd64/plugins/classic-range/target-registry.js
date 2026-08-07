@@ -22,8 +22,11 @@
       ring8RadiusMm: 5.25,
       shotDiameterMm: 4.5,
       decMax: 10.9,
-      /** DISAG coord radius this profile maps to ±9000 (mm). Rifle: 200 mm frame (log-verified). */
-      coordRadiusMm: 100,
+      /**
+       * Scoring-verified: teilerBandDsg 25 / 0.25 mm (ISSF 2.5 mm ring / 10) = 100 DSG/mm.
+       * ±9000 → ±90 mm (outer frame size is not the scale source).
+       */
+      coordRadiusMm: 90,
       teilerBandDsg: 25,
       last10Max: 10.9
     },
@@ -62,7 +65,7 @@
       decMax: 10.9,
       /**
        * KK OpticScore Teiler/X/Y use ~100 DSG per mm (log-verified vs ISSF rings + DecValue).
-       * ±9000 → ±90 mm (not the LG 200 mm / 90 DSG/mm frame).
+       * ±9000 → ±90 mm (same DSG/mm as LG; ring geometry differs).
        */
       coordRadiusMm: 90,
       /** ~8 mm ring / 10 decimal steps × 100 DSG/mm. */
@@ -102,7 +105,7 @@
 
   function buildScale(profile) {
     const p = profile || PROFILES[DEFAULT_PROFILE_ID];
-    const coordRadiusMm = p.coordRadiusMm != null ? p.coordRadiusMm : 100;
+    const coordRadiusMm = p.coordRadiusMm != null ? p.coordRadiusMm : 90;
     const dsgPerMm = DSG_COORD_RANGE / coordRadiusMm;
     const DEFAULT_SVG_CENTER = 100;
     const DEFAULT_SVG_VIEW_SIZE = 200;

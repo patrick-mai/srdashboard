@@ -131,7 +131,7 @@ func defaultConfig() map[string]any {
 		"holeInHoleMinOverlap":   0.5,
 		"holeInHoleBonus":        0.05,
 		"shotDiameterMm":         4.5,
-		"dsgPerMm":               90.0,
+		"dsgPerMm":               100.0,
 		"handicaps":              map[string]any{},
 	}
 }
@@ -935,7 +935,7 @@ func (rs *RaceState) applyPowerShot(car *CarState, ctx logicapi.ShotContext) []l
 
 	// hole-in-hole: temporary pace boost for this section's pass check
 	if (ctx.Shot.FullValue == 9 || ctx.Shot.FullValue == 10) && car.HasLastShot {
-		dsgPerMm := cfgFloat(rs.Config, "dsgPerMm", 90)
+		dsgPerMm := cfgFloat(rs.Config, "dsgPerMm", 100)
 		pelletR := cfgFloat(rs.Config, "shotDiameterMm", 4.5) / 2 * dsgPerMm
 		overlap := circleOverlapRatio(
 			float64(car.LastShotX), float64(car.LastShotY),

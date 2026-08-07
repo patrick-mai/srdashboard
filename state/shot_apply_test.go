@@ -106,8 +106,43 @@ func TestSeriesSumsAreBounded(t *testing.T) {
 	if len(snap.SeriesSums) != maxSeriesSums {
 		t.Errorf("SeriesSums = %d, want the cap %d to be reached", len(snap.SeriesSums), maxSeriesSums)
 	}
+	if len(snap.SeriesShots) != maxSeriesSums {
+		t.Errorf("SeriesShots = %d, want the cap %d", len(snap.SeriesShots), maxSeriesSums)
+	}
+	for i, series := range snap.SeriesShots {
+		if len(series) != 10 {
+			t.Errorf("SeriesShots[%d] len = %d, want 10", i, len(series))
+		}
+	}
 	if len(snap.Last10Values) > 10 {
 		t.Errorf("Last10Values = %d, want at most 10", len(snap.Last10Values))
+	}
+}
+
+func TestSeriesShotsStoredOnComplete(t *testing.T) {
+	ls := NewLiveState(1)
+	for i := 0; i < 10; i++ {
+		ls.ApplyShot(1, &ShotPayload{X: i, Y: -i, DecValue: 10.0 - float64(i)*0.1, FullValue: 10 - i/10})
+	}
+	snap := ls.Snapshot()[0]
+	if len(snap.SeriesShots) != 1 {
+		t.Fatalf("SeriesShots len = %d, want 1 after first completed series", len(snap.SeriesShots))
+	}
+	if len(snap.SeriesShots[0]) != 10 {
+		t.Fatalf("first series shot count = %d, want 10", len(snap.SeriesShots[0]))
+	}
+	if snap.SeriesShots[0][0].X != 0 || snap.SeriesShots[0][9].X != 9 {
+		t.Errorf("series shots not preserved in order: first X=%d last X=%d",
+			snap.SeriesShots[0][0].X, snap.SeriesShots[0][9].X)
+	}
+	// 11th shot starts a new series on the target; archived series remains.
+	ls.ApplyShot(1, &ShotPayload{X: 100, Y: 0, DecValue: 9.0, FullValue: 9})
+	snap = ls.Snapshot()[0]
+	if len(snap.SeriesShots) != 1 {
+		t.Fatalf("SeriesShots len = %d after 11th shot, want 1", len(snap.SeriesShots))
+	}
+	if len(snap.Shots) != 1 || snap.Shots[0].X != 100 {
+		t.Fatalf("live shots = %+v, want single shot X=100", snap.Shots)
 	}
 }
 
