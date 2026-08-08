@@ -443,6 +443,9 @@
       '<button type="button" class="btn" id="race-puncture-btn">Reifenplatzer</button>' +
       '<button type="button" class="btn" id="race-oil-btn">Ölverlust</button>' +
       '</span>' +
+      '<label class="plugin-active-label">Bahn zurücksetzen' +
+      '<select id="range-reset-select"></select></label>' +
+      '<button type="button" class="btn btn-danger" id="btn-range-reset">Bahn zurücksetzen</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-theme-toggle">Dunkelmodus</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
@@ -468,6 +471,25 @@
     document.getElementById('race-reset-btn').onclick = function () { raceControl('reset'); };
     document.getElementById('race-puncture-btn').onclick = function () { raceControl('field_event', 'puncture'); };
     document.getElementById('race-oil-btn').onclick = function () { raceControl('field_event', 'oil_leak'); };
+    const rangeResetBtn = document.getElementById('btn-range-reset');
+    if (rangeResetBtn) {
+      rangeResetBtn.onclick = async function () {
+        const rangeSel = document.getElementById('range-reset-select');
+        const n = rangeSel ? parseInt(rangeSel.value, 10) : NaN;
+        if (!n || n < 1) {
+          alert('Bitte eine Bahn wählen.');
+          return;
+        }
+        if (!confirm('Bahn ' + n + ' wirklich zurücksetzen? Schütze, Schüsse und Summen werden gelöscht.')) {
+          return;
+        }
+        const res = await controlFetch('/api/live/reset?range=' + encodeURIComponent(n), {
+          method: 'POST',
+          body: '{}'
+        });
+        if (!res.ok) alert('Zurücksetzen fehlgeschlagen: ' + (await res.text()));
+      };
+    }
     const tokenBtn = document.getElementById('btn-control-token');
     if (tokenBtn) {
       function syncTokenButton() {
@@ -529,6 +551,19 @@
     const race = document.getElementById('race-controls');
     if (race) {
       race.hidden = !isSharedPlugin();
+    }
+    const rangeSel = document.getElementById('range-reset-select');
+    if (rangeSel) {
+      const prev = rangeSel.value;
+      const n = Math.max(1, (core.config && core.config.ranges) || 1);
+      let opts = '';
+      for (let i = 1; i <= n; i++) {
+        opts += '<option value="' + i + '">Bahn ' + i + '</option>';
+      }
+      rangeSel.innerHTML = opts;
+      if (prev && parseInt(prev, 10) >= 1 && parseInt(prev, 10) <= n) {
+        rangeSel.value = prev;
+      }
     }
   }
 
