@@ -91,6 +91,9 @@ func main() {
 
 	http.HandleFunc("/api/live", handlers.Live)
 	http.HandleFunc("/api/live/reset", handlers.LiveReset)
+	http.HandleFunc("/api/qr", handlers.QR)
+	http.HandleFunc("/api/qr.png", handlers.QR)
+	http.HandleFunc("/api/qr/formats", handlers.QRFormats)
 	http.HandleFunc("/api/config", handlers.Config)
 	http.HandleFunc("/api/historic", handlers.Historic)
 	http.HandleFunc("/api/plugins/active", handlers.PluginsActiveList)

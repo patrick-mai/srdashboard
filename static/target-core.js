@@ -1123,7 +1123,10 @@ function fillRangeHeader(header, rangeData) {
     top.className = 'range-header-top';
     top.innerHTML =
       '<div class="range-header-text"><div class="range-header-line1"></div></div>' +
-      '<div class="range-shot-chip"><canvas class="shot-val" role="img"></canvas></div>';
+      '<div class="range-header-actions">' +
+      '<button type="button" class="range-qr-btn" title="Ergebnis-QR (Ring Reader)" aria-label="Ergebnis-QR">QR</button>' +
+      '<div class="range-shot-chip"><canvas class="shot-val" role="img"></canvas></div>' +
+      '</div>';
     header.appendChild(top);
 
     metaRow = document.createElement('div');
@@ -1135,6 +1138,33 @@ function fillRangeHeader(header, rangeData) {
     line3.className = 'range-header-line3';
     line3.innerHTML = '<span class="range-discipline"></span><span class="range-stand"></span>';
     header.appendChild(line3);
+  } else if (!header.querySelector('.range-qr-btn')) {
+    const chip = header.querySelector('.range-shot-chip');
+    if (chip && !chip.parentElement.classList.contains('range-header-actions')) {
+      const actions = document.createElement('div');
+      actions.className = 'range-header-actions';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'range-qr-btn';
+      btn.title = 'Ergebnis-QR (Ring Reader)';
+      btn.setAttribute('aria-label', 'Ergebnis-QR');
+      btn.textContent = 'QR';
+      chip.parentElement.insertBefore(actions, chip);
+      actions.appendChild(btn);
+      actions.appendChild(chip);
+    }
+  }
+
+  const qrBtn = header.querySelector('.range-qr-btn');
+  if (qrBtn) {
+    qrBtn.dataset.range = String(rangeData.rangeNum || '');
+    const canExport = !!(
+      (rangeData.warmupShots && rangeData.warmupShots.length) ||
+      (rangeData.seriesShots && rangeData.seriesShots.length) ||
+      (rangeData.shots && rangeData.shots.length)
+    );
+    qrBtn.disabled = !canExport;
+    qrBtn.hidden = !rangeData.shooterName && !canExport;
   }
 
   header.querySelector('.range-sum-row')?.remove();
@@ -1434,5 +1464,109 @@ window.SRCore = {
   getTargetScale,
   setTargetAssetBase,
   setPluginTargetConfig,
-  dsgToSvg
+  dsgToSvg,
+  openResultQR: openResultQRModal
 };
+
+let qrFormatsCache = null;
+
+async function loadQRFormats() {
+  if (qrFormatsCache) return qrFormatsCache;
+  try {
+    const res = await fetch('/api/qr/formats');
+    if (!res.ok) return [{ id: 'rr', label: 'Ring Reader' }];
+    qrFormatsCache = await res.json();
+    return qrFormatsCache;
+  } catch (e) {
+    return [{ id: 'rr', label: 'Ring Reader' }];
+  }
+}
+
+function ensureQRModal() {
+  let modal = document.getElementById('qr-result-modal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'qr-result-modal';
+  modal.className = 'qr-result-modal';
+  modal.hidden = true;
+  modal.innerHTML =
+    '<div class="qr-result-backdrop" data-qr-close="1"></div>' +
+    '<div class="qr-result-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-result-title">' +
+    '<div class="qr-result-head">' +
+    '<h2 id="qr-result-title">Ergebnis-QR</h2>' +
+    '<button type="button" class="qr-result-close btn btn-ghost" data-qr-close="1" aria-label="Schließen">×</button>' +
+    '</div>' +
+    '<div class="qr-result-formats" id="qr-result-formats"></div>' +
+    '<div class="qr-result-body">' +
+    '<img class="qr-result-img" id="qr-result-img" alt="QR-Code" width="512" height="512">' +
+    '<p class="qr-result-hint" id="qr-result-hint"></p>' +
+    '<p class="qr-result-error" id="qr-result-error" hidden></p>' +
+    '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function (ev) {
+    if (ev.target && ev.target.getAttribute('data-qr-close')) {
+      modal.hidden = true;
+    }
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !modal.hidden) modal.hidden = true;
+  });
+  return modal;
+}
+
+async function openResultQRModal(rangeNum, fmtId) {
+  const modal = ensureQRModal();
+  const img = modal.querySelector('#qr-result-img');
+  const hint = modal.querySelector('#qr-result-hint');
+  const errEl = modal.querySelector('#qr-result-error');
+  const formatsEl = modal.querySelector('#qr-result-formats');
+  errEl.hidden = true;
+  errEl.textContent = '';
+  img.removeAttribute('src');
+  hint.textContent = 'Lade…';
+
+  const formats = await loadQRFormats();
+  const activeFmt = fmtId || (formats[0] && formats[0].id) || 'rr';
+  formatsEl.innerHTML = '';
+  formats.forEach(function (f) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'qr-format-btn' + (f.id === activeFmt ? ' is-active' : '');
+    btn.textContent = f.label || f.id;
+    btn.addEventListener('click', function () {
+      openResultQRModal(rangeNum, f.id);
+    });
+    formatsEl.appendChild(btn);
+  });
+
+  modal.hidden = false;
+  modal.dataset.range = String(rangeNum);
+  modal.dataset.fmt = activeFmt;
+
+  try {
+    const metaRes = await fetch('/api/qr?range=' + encodeURIComponent(rangeNum) + '&fmt=' + encodeURIComponent(activeFmt));
+    if (!metaRes.ok) {
+      const text = await metaRes.text();
+      throw new Error(text || ('HTTP ' + metaRes.status));
+    }
+    const meta = await metaRes.json();
+    document.getElementById('qr-result-title').textContent = (meta.label || 'QR') + ' · Bahn ' + rangeNum;
+    hint.textContent = 'Mit dem Handy scannen → ' + (meta.label || activeFmt);
+    img.src = '/api/qr.png?range=' + encodeURIComponent(rangeNum) +
+      '&fmt=' + encodeURIComponent(activeFmt) + '&t=' + Date.now();
+  } catch (e) {
+    errEl.hidden = false;
+    errEl.textContent = e.message || String(e);
+    hint.textContent = '';
+  }
+}
+
+document.addEventListener('click', function (ev) {
+  const btn = ev.target && ev.target.closest && ev.target.closest('.range-qr-btn');
+  if (!btn || btn.disabled) return;
+  const rangeNum = parseInt(btn.dataset.range || btn.closest('[data-range]')?.dataset?.range || '', 10);
+  if (!rangeNum) return;
+  ev.preventDefault();
+  openResultQRModal(rangeNum);
+});
