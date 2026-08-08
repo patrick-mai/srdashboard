@@ -89,6 +89,7 @@ type RangeResponse struct {
 	SeriesSumsInt    []int          `json:"seriesSumsInt"`
 	SeriesSums       []float64      `json:"seriesSums"`
 	SeriesShots      [][]state.Shot `json:"seriesShots"`
+	WarmupShots      []state.Shot   `json:"warmupShots"`
 	Last10Values     []float64      `json:"last10Values"`
 	TotalShotsToFire int            `json:"totalShotsToFire"`
 }
@@ -219,6 +220,7 @@ func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 		SeriesSumsInt:    s.SeriesSumsInt,
 		SeriesSums:       s.SeriesSums,
 		SeriesShots:      s.SeriesShots,
+		WarmupShots:      s.WarmupShots,
 		Last10Values:     s.Last10Values,
 		TotalShotsToFire: s.TotalShotsToFire,
 	}
@@ -245,6 +247,7 @@ func responseToSnapshot(r RangeResponse) state.RangeSnapshot {
 		SeriesSumsInt:    r.SeriesSumsInt,
 		SeriesSums:       r.SeriesSums,
 		SeriesShots:      r.SeriesShots,
+		WarmupShots:      r.WarmupShots,
 		Last10Values:     r.Last10Values,
 		TotalShotsToFire: r.TotalShotsToFire,
 	}

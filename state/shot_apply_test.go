@@ -77,6 +77,22 @@ func TestApplyShotDisciplinePrefersMenuPointName(t *testing.T) {
 	}
 }
 
+func TestApplyShotDisciplinePrefersConcreteMenuItemOverSportordnung(t *testing.T) {
+	ls := NewLiveState(1)
+	ls.ApplyShot(1, &ShotPayload{
+		DecValue: 10.3, FullValue: 10, DiscType: "LG",
+		MenuItem: &struct {
+			MenuPointName string `json:"MenuPointName"`
+			MenuItemName  string `json:"MenuItemName"`
+		}{MenuPointName: "Sportordnung", MenuItemName: "LG 30 Schuss Auflage"},
+	})
+	snap := ls.Snapshot()[0]
+	if snap.Discipline != "LG 30 Schuss Auflage" {
+		t.Fatalf("Discipline = %q, want LG 30 Schuss Auflage", snap.Discipline)
+	}
+}
+
+
 func TestApplyShotReportsUnknownRange(t *testing.T) {
 	ls := NewLiveState(2)
 	if ls.ApplyShot(7, &ShotPayload{DecValue: 10.0, FullValue: 10}) {

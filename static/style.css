@@ -1593,6 +1593,136 @@ body.config-display {
   gap: 8px;
 }
 
+.range-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.range-qr-btn {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.range-qr-btn:hover:not(:disabled),
+.range-qr-btn:focus-visible {
+  border-color: var(--accent, #3d7ea6);
+  outline: none;
+}
+
+.range-qr-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.qr-result-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.qr-result-modal[hidden] { display: none !important; }
+
+.qr-result-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.qr-result-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 420px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: 16px 18px 20px;
+}
+
+.qr-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.qr-result-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.qr-result-close {
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0 6px;
+}
+
+.qr-result-formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.qr-format-btn {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.qr-format-btn.is-active {
+  color: var(--text);
+  border-color: var(--accent, #3d7ea6);
+  background: var(--panel-strong);
+}
+
+.qr-result-body {
+  text-align: center;
+}
+
+.qr-result-img {
+  display: block;
+  width: min(78vw, 320px);
+  height: auto;
+  margin: 0 auto 12px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.qr-result-hint {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.qr-result-error {
+  margin: 8px 0 0;
+  color: #c44;
+  font-size: 0.9rem;
+}
+
 .range-header-text { min-width: 0; flex: 1; }
 
 .range-header-line1 {

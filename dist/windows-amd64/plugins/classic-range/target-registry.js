@@ -43,12 +43,11 @@
       shotDiameterMm: 4.5,
       decMax: 10.9,
       /**
-       * TODO(refine): LP X/Y scale vs rifle not log-verified yet. coordRadiusMm is provisional;
-       * adjust when a real OpticScore pistol shot (DecValue + X/Y/Distance) is available.
+       * Same OpticScore scale as LG/KK: 100 DSG/mm (±9000 → ±90 mm).
+       * Face is ~KK-sized; ring geometry differs, unit scale does not.
        */
-      coordRadiusMm: 130,
-      coordRadiusNeedsRefinement: true,
-      teilerBandDsg: 72,
+      coordRadiusMm: 90,
+      teilerBandDsg: 80,
       last10Max: 10.9
     },
     smallbore_50m_prone: {

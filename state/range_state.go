@@ -41,7 +41,9 @@ type RangeState struct {
 	SeriesSumsInt  []int     `json:"seriesSumsInt"`
 	SeriesSums     []float64 `json:"seriesSums"`
 	// SeriesShots holds the 10 shots of each completed series (same order/length as SeriesSums*).
-	SeriesShots      [][]Shot  `json:"seriesShots"`
+	SeriesShots [][]Shot `json:"seriesShots"`
+	// WarmupShots retains Probe shots for result export (QR) after switching to competition.
+	WarmupShots      []Shot    `json:"warmupShots"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
 }
@@ -88,6 +90,7 @@ func emptyRangeState(rangeNum int) *RangeState {
 		SeriesSumsInt: make([]int, 0),
 		SeriesSums:    make([]float64, 0),
 		SeriesShots:   make([][]Shot, 0),
+		WarmupShots:   make([]Shot, 0),
 		Last10Values:  make([]float64, 0, 10),
 	}
 }
@@ -149,6 +152,7 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		SeriesSumsInt:    append([]int(nil), snap.SeriesSumsInt...),
 		SeriesSums:       append([]float64(nil), snap.SeriesSums...),
 		SeriesShots:      copySeriesShots(snap.SeriesShots),
+		WarmupShots:      append([]Shot(nil), snap.WarmupShots...),
 		Last10Values:     append([]float64(nil), snap.Last10Values...),
 		TotalShotsToFire: snap.TotalShotsToFire,
 	}
@@ -200,7 +204,9 @@ func (sp *ShotPayload) EventTime() (time.Time, bool) {
 
 var menuItemShotCountRe = regexp.MustCompile(`(\d+)\s*Schuss`)
 
-// resetRangeFooter clears target and all footer stats for a range (e.g. new shooter or warmup->competition).
+// resetRangeFooter clears target and competition footer stats for a range
+// (e.g. new shooter or warmup↔competition). WarmupShots are left untouched;
+// callers clear them when starting a new Probe phase or changing shooter.
 func resetRangeFooter(rs *RangeState) {
 	rs.Shots = nil
 	rs.ShotNumber = 0
@@ -234,27 +240,57 @@ func ParseTotalShotsFromMenuItem(name string) int {
 	return 0
 }
 
-// disciplineLabelFromShot prefers MenuPointName (e.g. "KK-Gewehr", "Luftgewehr").
-// MenuItemName is ignored when it is only a shot-count label ("10 Schuss").
-// Falls back to DiscType / DiscTypeRaw (LG, LP, KK).
+// disciplineLabelFromShot prefers a concrete program label (e.g. "LG 30 Schuss Auflage")
+// over generic menu folders like "Sportordnung". Falls back to MenuPointName, then DiscType.
 func disciplineLabelFromShot(sp *ShotPayload) string {
 	if sp == nil {
 		return ""
 	}
 	if sp.MenuItem != nil {
-		if sp.MenuItem.MenuPointName != "" {
-			return sp.MenuItem.MenuPointName
+		item := strings.TrimSpace(sp.MenuItem.MenuItemName)
+		point := strings.TrimSpace(sp.MenuItem.MenuPointName)
+		if isConcreteProgramLabel(item) {
+			return item
 		}
-		if name := strings.TrimSpace(sp.MenuItem.MenuItemName); name != "" {
-			if ParseTotalShotsFromMenuItem(name) == 0 && !strings.Contains(strings.ToLower(name), "schuss") {
-				return name
-			}
+		if point != "" && !isGenericMenuFolder(point) {
+			return point
+		}
+		if item != "" && ParseTotalShotsFromMenuItem(item) == 0 && !strings.Contains(strings.ToLower(item), "schuss") {
+			return item
+		}
+		if point != "" {
+			return point
 		}
 	}
 	if sp.DiscType != "" {
 		return sp.DiscType
 	}
 	return sp.DiscTypeRaw
+}
+
+func isGenericMenuFolder(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "sportordnung", "training", "trainingen", "menü", "menu", "default":
+		return true
+	default:
+		return false
+	}
+}
+
+// isConcreteProgramLabel reports OpticScore MenuItemName values that identify the program
+// (discipline + shot count / Auflage), not bare "10 Schuss" shortcuts.
+func isConcreteProgramLabel(s string) bool {
+	l := strings.ToLower(strings.TrimSpace(s))
+	if l == "" {
+		return false
+	}
+	if strings.Contains(l, "auflage") || strings.Contains(l, "aufgelegt") || strings.Contains(l, "freistehend") {
+		return true
+	}
+	hasWeapon := strings.Contains(l, "lg") || strings.Contains(l, "lp") || strings.Contains(l, "kk") ||
+		strings.Contains(l, "luftgewehr") || strings.Contains(l, "luftpistole") || strings.Contains(l, "kleinkaliber")
+	hasSchuss := strings.Contains(l, "schuss") || ParseTotalShotsFromMenuItem(s) > 0
+	return hasWeapon && hasSchuss
 }
 
 // maxSeriesSums bounds the per-range series history. A 100-series range day is
@@ -290,19 +326,24 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		ReceivedAt: receivedAt,
 	}
 
-	// Mode switch: Warmup ↔ Competition clears target and resets footer
+	// Mode switch: Warmup ↔ Competition clears target and resets footer.
+	// Leaving warmup keeps WarmupShots for QR export; entering warmup starts a new Probe list.
 	wasWarmup := rs.IsWarmup
 	rs.IsWarmup = sp.IsWarmup
 	if wasWarmup != sp.IsWarmup {
+		if !wasWarmup && sp.IsWarmup {
+			rs.WarmupShots = nil
+		}
 		resetRangeFooter(rs)
 	}
 
-	// Shooter change: reset footer and target for the new shooter
+	// Shooter change: reset footer, target, and retained warmup for the new shooter
 	var newShooterName string
 	if sp.Shooter != nil {
 		newShooterName = sp.Shooter.Firstname + " " + sp.Shooter.Lastname
 		if newShooterName != rs.ShooterName {
 			rs.ShooterName = newShooterName
+			rs.WarmupShots = nil
 			resetRangeFooter(rs)
 		} else {
 			rs.ShooterName = newShooterName
@@ -312,8 +353,8 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		}
 	}
 
-	// Parse total shots from MenuItemName (e.g. "40 Schuss"); prefer MenuPointName for discipline
-	// (e.g. "KK-Gewehr") so target mapping is not stuck on shot-count labels like "10 Schuss".
+	// Parse total shots from MenuItemName (e.g. "40 Schuss"); prefer concrete program
+	// labels for discipline (e.g. "LG 30 Schuss Auflage") over generic folders.
 	// DiscType (LG/LP/KK) is the OpticScore short code and is always kept for face resolution.
 	if sp.DiscType != "" {
 		rs.DiscType = sp.DiscType
@@ -348,6 +389,9 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		rs.Shots = nil
 	}
 	rs.Shots = append(rs.Shots, shot)
+	if sp.IsWarmup {
+		rs.WarmupShots = append(rs.WarmupShots, shot)
+	}
 
 	// After placing the shot, if we have exactly 10 shots on the target, record the series.
 	if len(rs.Shots) == 10 {
@@ -416,6 +460,7 @@ type RangeSnapshot struct {
 	SeriesSumsInt    []int     `json:"seriesSumsInt"`
 	SeriesSums       []float64 `json:"seriesSums"`
 	SeriesShots      [][]Shot  `json:"seriesShots"`
+	WarmupShots      []Shot    `json:"warmupShots"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
 }
@@ -459,6 +504,7 @@ func (ls *LiveState) RangeSnapshot(rng int) (RangeSnapshot, bool) {
 		SeriesSumsInt:    append([]int(nil), rs.SeriesSumsInt...),
 		SeriesSums:       append([]float64(nil), rs.SeriesSums...),
 		SeriesShots:      copySeriesShots(rs.SeriesShots),
+		WarmupShots:      append([]Shot(nil), rs.WarmupShots...),
 		Last10Values:     append([]float64(nil), rs.Last10Values...),
 		TotalShotsToFire: rs.TotalShotsToFire,
 	}, true
@@ -482,6 +528,7 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 		seriesSumsInt := append([]int(nil), rs.SeriesSumsInt...)
 		seriesSums := append([]float64(nil), rs.SeriesSums...)
 		seriesShots := copySeriesShots(rs.SeriesShots)
+		warmupShots := append([]Shot(nil), rs.WarmupShots...)
 		last10 := append([]float64(nil), rs.Last10Values...)
 		out = append(out, RangeSnapshot{
 			RangeNum:         rs.RangeNum,
@@ -503,6 +550,7 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 			SeriesSumsInt:    seriesSumsInt,
 			SeriesSums:       seriesSums,
 			SeriesShots:      seriesShots,
+			WarmupShots:      warmupShots,
 			Last10Values:     last10,
 			TotalShotsToFire: rs.TotalShotsToFire,
 		})
