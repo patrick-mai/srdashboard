@@ -1482,13 +1482,35 @@ async function loadQRFormats() {
   }
 }
 
+function setQRModalView(modal, view) {
+  const showJson = view === 'json';
+  modal.dataset.view = showJson ? 'json' : 'qr';
+  const body = modal.querySelector('#qr-result-body');
+  const jsonPanel = modal.querySelector('#qr-result-json-panel');
+  const viewBtn = modal.querySelector('#qr-view-toggle');
+  const copyBtn = modal.querySelector('#qr-json-copy');
+  const jsonText = (modal.querySelector('#qr-result-json') || {}).textContent || '';
+  if (body) body.hidden = showJson;
+  if (jsonPanel) jsonPanel.hidden = !showJson;
+  if (viewBtn) {
+    viewBtn.textContent = showJson ? 'QR' : 'JSON';
+    viewBtn.title = showJson ? 'QR-Code anzeigen' : 'Plaintext JSON anzeigen';
+  }
+  if (copyBtn) copyBtn.hidden = !showJson || !jsonText;
+}
+
 function ensureQRModal() {
   let modal = document.getElementById('qr-result-modal');
+  if (modal && !modal.querySelector('#qr-view-toggle')) {
+    modal.remove();
+    modal = null;
+  }
   if (modal) return modal;
   modal = document.createElement('div');
   modal.id = 'qr-result-modal';
   modal.className = 'qr-result-modal';
   modal.hidden = true;
+  modal.dataset.view = 'qr';
   modal.innerHTML =
     '<div class="qr-result-backdrop" data-qr-close="1"></div>' +
     '<div class="qr-result-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-result-title">' +
@@ -1496,17 +1518,41 @@ function ensureQRModal() {
     '<h2 id="qr-result-title">Ergebnis-QR</h2>' +
     '<button type="button" class="qr-result-close btn btn-ghost" data-qr-close="1" aria-label="Schließen">×</button>' +
     '</div>' +
+    '<div class="qr-result-toolbar">' +
     '<div class="qr-result-formats" id="qr-result-formats"></div>' +
-    '<div class="qr-result-body">' +
+    '<button type="button" class="qr-view-toggle" id="qr-view-toggle" hidden>JSON</button>' +
+    '<button type="button" class="qr-json-copy" id="qr-json-copy" hidden title="JSON in Zwischenablage">Copy</button>' +
+    '</div>' +
+    '<div class="qr-result-body" id="qr-result-body">' +
     '<img class="qr-result-img" id="qr-result-img" alt="QR-Code" width="512" height="512">' +
     '<p class="qr-result-hint" id="qr-result-hint"></p>' +
     '<p class="qr-result-error" id="qr-result-error" hidden></p>' +
+    '</div>' +
+    '<div class="qr-result-json-panel" id="qr-result-json-panel" hidden>' +
+    '<pre class="qr-result-json" id="qr-result-json"></pre>' +
     '</div>' +
     '</div>';
   document.body.appendChild(modal);
   modal.addEventListener('click', function (ev) {
     if (ev.target && ev.target.getAttribute('data-qr-close')) {
       modal.hidden = true;
+    }
+  });
+  modal.querySelector('#qr-view-toggle').addEventListener('click', function () {
+    setQRModalView(modal, modal.dataset.view === 'json' ? 'qr' : 'json');
+  });
+  modal.querySelector('#qr-json-copy').addEventListener('click', async function () {
+    const pre = modal.querySelector('#qr-result-json');
+    const text = pre && pre.textContent;
+    if (!text) return;
+    const btn = modal.querySelector('#qr-json-copy');
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    } catch (e) {
+      btn.textContent = 'Failed';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
     }
   });
   document.addEventListener('keydown', function (ev) {
@@ -1521,10 +1567,19 @@ async function openResultQRModal(rangeNum, fmtId) {
   const hint = modal.querySelector('#qr-result-hint');
   const errEl = modal.querySelector('#qr-result-error');
   const formatsEl = modal.querySelector('#qr-result-formats');
+  const jsonEl = modal.querySelector('#qr-result-json');
+  const viewBtn = modal.querySelector('#qr-view-toggle');
+  const copyBtn = modal.querySelector('#qr-json-copy');
+  const keepView = modal.dataset.view === 'json' ? 'json' : 'qr';
   errEl.hidden = true;
   errEl.textContent = '';
   img.removeAttribute('src');
   hint.textContent = 'Lade…';
+  jsonEl.textContent = '';
+  viewBtn.hidden = true;
+  copyBtn.hidden = true;
+  copyBtn.textContent = 'Copy';
+  setQRModalView(modal, 'qr');
 
   const formats = await loadQRFormats();
   const activeFmt = fmtId || (formats[0] && formats[0].id) || 'rr';
@@ -1555,10 +1610,18 @@ async function openResultQRModal(rangeNum, fmtId) {
     hint.textContent = 'Mit dem Handy scannen → ' + (meta.label || activeFmt);
     img.src = '/api/qr.png?range=' + encodeURIComponent(rangeNum) +
       '&fmt=' + encodeURIComponent(activeFmt) + '&t=' + Date.now();
+    if (meta.json) {
+      jsonEl.textContent = meta.json;
+      viewBtn.hidden = false;
+      setQRModalView(modal, keepView === 'json' ? 'json' : 'qr');
+    } else {
+      setQRModalView(modal, 'qr');
+    }
   } catch (e) {
     errEl.hidden = false;
     errEl.textContent = e.message || String(e);
     hint.textContent = '';
+    setQRModalView(modal, 'qr');
   }
 }
 

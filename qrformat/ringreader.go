@@ -26,13 +26,20 @@ type RingReader struct{}
 func (RingReader) ID() string    { return "rr" }
 func (RingReader) Label() string { return "Ring Reader" }
 
+// EncodePayloadJSON returns the uncompressed Ring Reader envelope (debug).
+func (RingReader) EncodePayloadJSON(snap ResultInput) ([]byte, error) {
+	if !snap.HasExportableShots() {
+		return nil, fmt.Errorf("no shots to export")
+	}
+	return json.MarshalIndent(buildRingReaderEnvelope(snap), "", "  ")
+}
+
 // EncodeURL builds https://ringreader.app/import/qr#<deflateRaw+base64url>.
 func (RingReader) EncodeURL(snap ResultInput) (string, error) {
 	if !snap.HasExportableShots() {
 		return "", fmt.Errorf("no shots to export")
 	}
-	env := buildRingReaderEnvelope(snap)
-	raw, err := json.Marshal(env)
+	raw, err := json.Marshal(buildRingReaderEnvelope(snap))
 	if err != nil {
 		return "", err
 	}
@@ -87,11 +94,12 @@ func buildRingReaderEnvelope(snap ResultInput) rrEnvelope {
 	series := make([]rrSeries, 0, 1+len(snap.Series)+1)
 	scale := dsgPerMm(snap.DiscType)
 
-	if len(snap.WarmupShots) > 0 {
+	// Probe/warmup: same 10-shot series split as Wertung (Ring Reader keeps series boundaries).
+	for i, chunk := range chunkShots(snap.WarmupShots, 10) {
 		series = append(series, rrSeries{
-			ID:    fmt.Sprintf("%s-%s-bahn%d-probe", day, slug, snap.RangeNum),
+			ID:    fmt.Sprintf("%s-%s-bahn%d-probe%d", day, slug, snap.RangeNum, i+1),
 			Trial: true,
-			Shots: mapRRShots(snap.WarmupShots, scale),
+			Shots: mapRRShots(chunk, scale),
 		})
 	}
 
@@ -150,6 +158,22 @@ func mapRRShots(shots []ShotInput, dsgPerMm float64) []rrShot {
 			}
 		}
 		out = append(out, sh)
+	}
+	return out
+}
+
+// chunkShots splits shots into groups of size n (last chunk may be shorter).
+func chunkShots(shots []ShotInput, n int) [][]ShotInput {
+	if len(shots) == 0 || n <= 0 {
+		return nil
+	}
+	out := make([][]ShotInput, 0, (len(shots)+n-1)/n)
+	for i := 0; i < len(shots); i += n {
+		end := i + n
+		if end > len(shots) {
+			end = len(shots)
+		}
+		out = append(out, shots[i:end])
 	}
 	return out
 }

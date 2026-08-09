@@ -48,7 +48,8 @@ func FromRangeSnapshot(snap state.RangeSnapshot) ResultInput {
 	for _, ser := range snap.SeriesShots {
 		in.Series = append(in.Series, mapShots(ser))
 	}
-	if len(snap.Shots) > 0 {
+	// Incomplete live series only — a full 10-shot target is already archived in SeriesShots.
+	if len(snap.Shots) > 0 && len(snap.Shots) < 10 {
 		in.OpenShots = mapShots(snap.Shots)
 	}
 	return in

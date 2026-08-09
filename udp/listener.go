@@ -91,9 +91,8 @@ func (l *Listener) readLoop() {
 }
 
 func (l *Listener) handlePacket(data []byte) {
-	data = normalizeOpticScoreJSON(data)
 	var msg Message
-	if err := json.Unmarshal(data, &msg); err != nil {
+	if err := decodeOpticScoreJSON(data, &msg); err != nil {
 		log.Printf("UDP: invalid JSON (len=%d): %v", len(data), err)
 		return
 	}
@@ -107,10 +106,15 @@ func (l *Listener) handlePacket(data []byte) {
 	}
 	receivedAt := time.Now()
 	for oi, raw := range msg.Objects {
+		// Object slices are already UTF-8 if the envelope was normalized as a whole.
+		// Re-normalize each object in case a future multiplexer mixes encodings.
 		var shot state.ShotPayload
-		if err := json.Unmarshal(raw, &shot); err != nil {
+		if err := decodeOpticScoreJSON(raw, &shot); err != nil {
 			log.Printf("UDP: failed to parse shot object[%d]: %v", oi, err)
 			continue
+		}
+		if shot.Shooter != nil {
+			warnIfReplacementInName(shot.Shooter.Firstname, shot.Shooter.Lastname)
 		}
 		rng := shot.Range
 		if rng == 0 {
@@ -142,6 +146,17 @@ func (l *Listener) handlePacket(data []byte) {
 				s.At = shotAt
 			}
 			l.onShot(rng, s, l.state.ShotNumber(rng))
+		}
+	}
+}
+
+func warnIfReplacementInName(first, last string) {
+	for _, s := range []string{first, last} {
+		for _, r := range s {
+			if r == '\uFFFD' {
+				log.Printf("UDP: shooter name contains U+FFFD — upstream likely JSON-decoded CP1252 as UTF-8; send raw OpticScore bytes")
+				return
+			}
 		}
 	}
 }

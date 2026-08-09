@@ -12,6 +12,11 @@ type Encoder interface {
 	EncodeURL(snap ResultInput) (string, error)
 }
 
+// PayloadJSONExporter optionally exposes the uncompressed payload JSON (debug).
+type PayloadJSONExporter interface {
+	EncodePayloadJSON(snap ResultInput) ([]byte, error)
+}
+
 var registry = map[string]Encoder{}
 
 // Register adds an encoder (called from init in format packages).

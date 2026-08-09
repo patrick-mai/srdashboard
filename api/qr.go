@@ -32,7 +32,7 @@ func (h *Handlers) QRFormats(w http.ResponseWriter, r *http.Request) {
 }
 
 // QR encodes a result QR for one range.
-// GET /api/qr?range=N&fmt=rr → JSON { format, label, url }
+// GET /api/qr?range=N&fmt=rr → JSON { format, label, url, range, json? }
 // GET /api/qr.png?range=N&fmt=rr → PNG image (ECC M)
 func (h *Handlers) QR(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -77,12 +77,19 @@ func (h *Handlers) QR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	out := map[string]any{
 		"format": enc.ID(),
 		"label":  enc.Label(),
 		"url":    url,
 		"range":  n,
-	})
+	}
+	if pe, ok := enc.(qrformat.PayloadJSONExporter); ok {
+		if payload, err := pe.EncodePayloadJSON(in); err == nil {
+			out["json"] = string(payload)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	_ = json.NewEncoder(w).Encode(out)
 }

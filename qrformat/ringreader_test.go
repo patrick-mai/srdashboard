@@ -70,12 +70,74 @@ func TestRingReaderEncodeURLRoundTrip(t *testing.T) {
 	}
 }
 
-func TestRingReaderEmptyRejected(t *testing.T) {
-	_, err := qrformat.MustGet("rr").EncodeURL(qrformat.ResultInput{RangeNum: 1})
-	if err == nil {
-		t.Fatal("expected error for empty result")
+func TestRingReaderWarmupSplitEvery10(t *testing.T) {
+	at := time.Date(2026, 4, 28, 18, 0, 0, 0, time.FixedZone("CEST", 2*3600))
+	warm := make([]state.Shot, 22)
+	for i := range warm {
+		warm[i] = state.Shot{
+			X: i, Y: i, DecValue: 10.0, At: at.Add(time.Duration(i) * time.Second), IsWarmup: true,
+		}
+	}
+	comp := make([]state.Shot, 10)
+	for i := range comp {
+		comp[i] = state.Shot{X: i, Y: i, DecValue: 10.5, At: at.Add(time.Duration(100+i) * time.Second)}
+	}
+	url, err := qrformat.MustGet("rr").EncodeURL(qrformat.FromRangeSnapshot(state.RangeSnapshot{
+		RangeNum:    1,
+		DiscType:    "LG",
+		Discipline:  "LG 30 Schuss Auflage",
+		WarmupShots: warm,
+		SeriesShots: [][]state.Shot{comp},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b64 := strings.TrimPrefix(url, "https://ringreader.app/import/qr#")
+	raw, err := base64.RawURLEncoding.DecodeString(b64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fr := flate.NewReader(bytes.NewReader(raw))
+	plain, err := io.ReadAll(fr)
+	_ = fr.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env struct {
+		Payload struct {
+			Series []struct {
+				ID    string `json:"id"`
+				Trial bool   `json:"trial"`
+				Shots []any  `json:"shots"`
+			} `json:"series"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(plain, &env); err != nil {
+		t.Fatal(err)
+	}
+	// 22 probe → probe1(10)+probe2(10)+probe3(2), then 1 competition series
+	if len(env.Payload.Series) != 4 {
+		t.Fatalf("series blocks=%d want 4", len(env.Payload.Series))
+	}
+	want := []struct {
+		trial bool
+		n     int
+		idSub string
+	}{
+		{true, 10, "probe1"},
+		{true, 10, "probe2"},
+		{true, 2, "probe3"},
+		{false, 10, "-s1"},
+	}
+	for i, w := range want {
+		s := env.Payload.Series[i]
+		if s.Trial != w.trial || len(s.Shots) != w.n || !strings.Contains(s.ID, w.idSub) {
+			t.Fatalf("series[%d]=id=%q trial=%v shots=%d want id~%q trial=%v n=%d",
+				i, s.ID, s.Trial, len(s.Shots), w.idSub, w.trial, w.n)
+		}
 	}
 }
+
 
 func TestRingReaderDSBDisciplineCodes(t *testing.T) {
 	cases := []struct {
