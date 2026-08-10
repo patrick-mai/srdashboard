@@ -31,7 +31,7 @@ func TestHandlePacket_CP1252ShooterName(t *testing.T) {
 	}
 
 	// Minimal Shot envelope; Lastname uses CP1252 ö (0xF6)
-	payload := append([]byte(`{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":1,"Y":2,"Distance":0.5,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"Shooter":{"Firstname":"Christoph","Lastname":"N`), 0xF6)
+	payload := append([]byte(`{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":1,"Y":2,"Distance":0.5,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"Shooter":{"Firstname":"Test","Lastname":"N`), 0xF6)
 	payload = append(payload, []byte(`lle"}}]}`)...)
 
 	l.handlePacket(payload)
@@ -41,8 +41,8 @@ func TestHandlePacket_CP1252ShooterName(t *testing.T) {
 		t.Fatal("no range state")
 	}
 	name := snap[0].ShooterName
-	if name != "Christoph Nölle" {
-		t.Fatalf("ShooterName=%q want %q", name, "Christoph Nölle")
+	if name != "Test Nölle" {
+		t.Fatalf("ShooterName=%q want %q", name, "Test Nölle")
 	}
 	for _, r := range name {
 		if r == '\uFFFD' {
