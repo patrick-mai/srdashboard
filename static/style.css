@@ -1426,7 +1426,11 @@ body::before {
 /* ——— Full-page config (/config) ——— */
 body.config-display {
   margin: 0;
+  height: auto;
+  max-height: none;
   min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(120% 80% at 50% -10%, #1a2838 0%, transparent 55%),
     var(--bg, #0e1218);
@@ -1520,6 +1524,13 @@ body.config-display {
   inset: 0;
   z-index: 2;
   background: #0a0e12;
+}
+
+/* Fox paints meadow on the host itself — keep it opaque so the classic
+   range grid never ghosts through during remounts. */
+#f1-race-master-host.fox-view,
+#f1-race-master-host:has(.fox-view) {
+  background: #343a28;
 }
 
 #f1-race-master-host[hidden] {
@@ -1783,9 +1794,15 @@ body.config-display {
   font-weight: 600;
   font-size: 22px;
   line-height: 26px;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .range-header-meta-row {

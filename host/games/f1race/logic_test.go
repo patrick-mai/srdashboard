@@ -780,6 +780,86 @@ func TestPitCueArmsOnRoundEntry(t *testing.T) {
 	}
 }
 
+func TestPitRoundSkipWaitsForCueWindow(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{
+		"numRanges": 2, "stintSize": 10, "fieldEventsEnabled": false,
+		"roundDurationSec": 30, "pitCueWindowMs": 5000,
+	})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"numRanges": 2,
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 20},
+			"2": map[string]any{"totalShotsToFire": 20},
+		},
+		"now": now.Format(time.RFC3339Nano),
+	})
+	tshot := now
+	// Grid + rounds 2..9 → enter pit round 10 with shared cue.
+	for round := 1; round <= 9; round++ {
+		tshot = tshot.Add(time.Second)
+		sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+			RangeNum: 1, Shot: state.Shot{DecValue: 9, FullValue: 9}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 20}, Now: tshot,
+		})
+		sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+			RangeNum: 2, Shot: state.Shot{DecValue: 8, FullValue: 8}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 20}, Now: tshot,
+		})
+	}
+	rs, _ := unmarshalState(sess)
+	if rs.CurrentRound != 10 || rs.PitCueAt == nil {
+		t.Fatalf("want pit round 10 with cue, got round=%d cue=%v", rs.CurrentRound, rs.PitCueAt)
+	}
+	cue := *rs.PitCueAt
+
+	// Car 1 pits immediately (starts RoundOpenedAt). Old logic would skip car 2
+	// after RoundDuration from that first shot; new logic keys off the cue.
+	pitAt := cue.Add(200 * time.Millisecond)
+	sess, _, _ = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10, FullValue: 10}, Live: logicapi.LiveRangeInfo{TotalShotsToFire: 20}, Now: pitAt,
+	})
+
+	// Still inside cue window + well before cue+roundDuration — must not skip car 2.
+	mid := cue.Add(3 * time.Second)
+	sess, evs, changed, err := l.Tick(sess, mid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		for _, e := range evs {
+			if e.Type == "round_skip" || e.Type == "crash" {
+				t.Fatalf("unexpected %s during pit cue window: %#v", e.Type, e)
+			}
+		}
+	}
+	rs, _ = unmarshalState(sess)
+	if rs.Cars["2"].Status != StatusRacing || rs.Cars["2"].ShotsFired != 9 {
+		t.Fatalf("car2 should still be racing at 9 shots, status=%s shots=%d", rs.Cars["2"].Status, rs.Cars["2"].ShotsFired)
+	}
+
+	// After cue + roundDuration, car 2 is skipped once (not crashed yet).
+	late := cue.Add(31 * time.Second)
+	sess, evs, changed, err = l.Tick(sess, late)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected round close after pit deadline")
+	}
+	hasSkip := false
+	for _, e := range evs {
+		if e.Type == "round_skip" {
+			hasSkip = true
+		}
+		if e.Type == "crash" {
+			t.Fatalf("single miss should not crash: %#v", e)
+		}
+	}
+	if !hasSkip {
+		t.Fatalf("expected round_skip for car 2, events=%#v", evs)
+	}
+}
+
 func TestNextHintOvertake(t *testing.T) {
 	l := New(nil)
 	sess, _ := l.Init(map[string]any{

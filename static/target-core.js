@@ -652,10 +652,11 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
   }
 }
 
-function renderTarget(container, rangeData, isWarmup) {
+function renderTarget(container, rangeData, isWarmup, opts) {
   if (!container || !rangeData) return;
 
   const rangeNum = rangeData.rangeNum;
+  const pinFullDisk = !!(opts && opts.pinFullDisk);
   updateTargetContext(rangeNum, rangeData);
 
   container.querySelectorAll('.target-plot').forEach((el) => el.remove());
@@ -693,7 +694,20 @@ function renderTarget(container, rangeData, isWarmup) {
       zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     }
   } else if (!userZoomedByRange[rangeNum]) {
-    zoomStateByRange[rangeNum] = computeAutoFit(shots, rangeNum);
+    // Game plugins (F1) keep classic Scheibe fidelity: full scoring disk, never ring-8 auto-zoom.
+    // Only widen when a shot falls outside the scoring disk.
+    if (pinFullDisk) {
+      let z = fullDiskZoom(rangeNum);
+      if (currentLen > 0) {
+        const fitted = computeAutoFit(shots, rangeNum);
+        if (viewSpan(fitted, rangeNum) > viewSpan(z, rangeNum)) {
+          z = fitted;
+        }
+      }
+      zoomStateByRange[rangeNum] = z;
+    } else {
+      zoomStateByRange[rangeNum] = computeAutoFit(shots, rangeNum);
+    }
   } else {
     const state = zoomStateByRange[rangeNum];
     const latest = shots[shots.length - 1];
@@ -933,7 +947,7 @@ function renderFooter(rangeData) {
   const t = rangeData.currentTeiler != null && f.teiler ? rangeData.currentTeiler.toFixed(1) : '–';
   const best =
     f.teiler && rangeData.bestTeilerShot > 0
-      ? Number(rangeData.bestTeiler).toFixed(1) + ' #' + rangeData.bestTeilerShot
+      ? Number(rangeData.bestTeiler).toFixed(1) + ' Sch.' + rangeData.bestTeilerShot
       : '–';
   const sumInt = f.overallSumInt || f.overallSumDecimal ? String(rangeData.overallSumInt ?? 0) : '–';
   const sumDec = f.overallSumInt || f.overallSumDecimal ? (rangeData.overallSumDecimal ?? 0).toFixed(1) : '–';
@@ -988,7 +1002,7 @@ function renderFooter(rangeData) {
     '<table class="footer-inner-table"><thead><tr>' +
     thLabel('Wert') + thValue(w) + thLabel('Teiler') + thValue(t) + thLabel('Summe') + thValueLeft(sumInt) + thLabel('Prognose') + thValueLeft(predInt) +
     '</tr></thead><tbody><tr>' +
-    tdLabel('#') + tdValue(sharp) + tdLabel('Bester') + tdValue(best) + tdLabel('') + tdValueLeft(sumDec) + tdLabel('') + tdValueLeft(predDec) +
+    tdLabel('Schuss') + tdValue(sharp) + tdLabel('Bester T') + tdValue(best) + tdLabel('') + tdValueLeft(sumDec) + tdLabel('') + tdValueLeft(predDec) +
     '</tr></tbody></table>';
 
   return (
@@ -1185,9 +1199,13 @@ function fillRangeHeader(header, rangeData) {
   const standEl = line3.querySelector('.range-stand');
   const shotMeta = metaRow.querySelector('.shot-meta');
 
-  if (line1) line1.textContent = h.line1;
+  if (line1) {
+    line1.textContent = h.line1;
+    line1.title = rangeData.shooterName ? h.line1 : '';
+  }
   if (clubEl) {
     clubEl.textContent = h.line2;
+    clubEl.title = h.line2 || '';
     clubEl.hidden = !h.line2;
   }
   metaRow.hidden = !h.line2 && !chip.meta;
@@ -1259,7 +1277,7 @@ function stripLegacyPanelChrome(panel) {
   }
 }
 
-function renderClassicRangeView(container, rangeData) {
+function renderClassicRangeView(container, rangeData, opts) {
   if (!container || !rangeData) return;
 
   // Drop leftover markup from another plugin (e.g. f1-race) before painting.
@@ -1319,7 +1337,7 @@ function renderClassicRangeView(container, rangeData) {
   footerEl.dataset.seriesN = String(seriesN);
   wireSeriesClicks(footerEl, rangeData);
   paintSeriesFocusActive(footerEl, rangeData.rangeNum);
-  renderTarget(targetEl, rangeData, rangeData.isWarmup);
+  renderTarget(targetEl, rangeData, rangeData.isWarmup, opts);
 }
 
 function syncRangePanel(panel, r) {

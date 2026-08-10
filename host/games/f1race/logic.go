@@ -439,9 +439,8 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 		}
 	}
 
-	if rs.ActiveFieldEvent == nil && rs.RoundOpenedAt != nil {
-		deadline := rs.RoundOpenedAt.Add(time.Duration(rs.RoundDurationSec) * time.Second)
-		if now.After(deadline) || now.Equal(deadline) {
+	if rs.ActiveFieldEvent == nil {
+		if deadline, ok := rs.roundSkipDeadline(); ok && (now.After(deadline) || now.Equal(deadline)) {
 			for _, car := range rs.Cars {
 				if car.Status == StatusCrashed || car.Status == StatusFinished {
 					continue
@@ -461,7 +460,6 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 					}
 				}
 			}
-			// advance round
 			rs.CurrentRound++
 			rs.RoundOpenedAt = nil
 			rs.PitCueAt = nil
@@ -564,8 +562,7 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 	}
 	var roundEndsAt any
 	var roundRemainingSec any
-	if rs.RoundOpenedAt != nil {
-		end := rs.RoundOpenedAt.Add(time.Duration(rs.RoundDurationSec) * time.Second)
+	if end, ok := rs.roundSkipDeadline(); ok {
 		roundEndsAt = end.UTC().Format(time.RFC3339Nano)
 		roundRemainingSec = math.Max(0, end.Sub(time.Now()).Seconds())
 	}
@@ -1339,6 +1336,31 @@ func (rs *RaceState) isPitRound(round int) bool {
 	return stintSize > 0 && round > 0 && round%stintSize == 0
 }
 
+// roundSkipDeadline is when the current round may close and mark non-shooters as skipped.
+// Power rounds: clock starts on first shot (RoundOpenedAt).
+// Stint pit rounds: clock starts on the shared pit cue, never before the reaction window
+// ends, so lagging lanes are not skipped while the PIT NOW banner is still live.
+func (rs *RaceState) roundSkipDeadline() (time.Time, bool) {
+	dur := time.Duration(rs.RoundDurationSec) * time.Second
+	if dur <= 0 {
+		dur = 120 * time.Second
+	}
+	if rs.isPitRound(rs.CurrentRound) && rs.PitCueAt != nil {
+		window := time.Duration(cfgInt(rs.Config, "pitCueWindowMs", 5000)) * time.Millisecond
+		// Full round length from cue, but never before the reaction window closes.
+		end := rs.PitCueAt.Add(dur)
+		earliest := rs.PitCueAt.Add(window)
+		if end.Before(earliest) {
+			end = earliest
+		}
+		return end, true
+	}
+	if rs.RoundOpenedAt != nil {
+		return rs.RoundOpenedAt.Add(dur), true
+	}
+	return time.Time{}, false
+}
+
 // armPitRoundIfNeeded starts a shared pit countdown when the new round is a
 // stint pit. All ranges see the same pitCueAt so countdowns stay in sync.
 func (rs *RaceState) armPitRoundIfNeeded(now time.Time) []logicapi.PluginEvent {
@@ -1387,6 +1409,10 @@ func (rs *RaceState) maybeRandomFieldEvent(now time.Time, events *[]logicapi.Plu
 		return
 	}
 	if rs.ActiveFieldEvent != nil {
+		return
+	}
+	// Stint pit rounds already have a shared cue — don't stack a second pit demand.
+	if rs.isPitRound(rs.CurrentRound) {
 		return
 	}
 	minGap := cfgInt(rs.Config, "fieldEventMinGapSec", 90)

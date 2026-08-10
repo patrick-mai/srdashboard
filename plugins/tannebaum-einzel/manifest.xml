@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="tannebaum-einzel" label="Tannebaum Einzel" version="1.0.0" mode="shared" kind="game">
+  <description>Kegel-Tannebaum für die Scheibe — jeder Stand räumt seinen eigenen Baum (Stufen A/B/C). Wer zuerst fertig ist, gewinnt; Treffer auf schon geräumte Stufen gehen als Geschenk an den Gegner.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+    <disciplineTargets>
+      <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <LG>air_rifle_10m</LG>
+      <Luftpistole>air_pistol_10m</Luftpistole>
+      <LP>air_pistol_10m</LP>
+      <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK-Gewehr>smallbore_50m_prone</KK-Gewehr>
+      <KK>smallbore_50m_prone</KK>
+    </disciplineTargets>
+  </config>
+</plugin>

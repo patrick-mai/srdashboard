@@ -604,6 +604,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     updatePitOverlay(overlayEl, race);
 
     container._f1LastVM = viewModel;
+    container._sharedReady = true;
     const svgRoot = host && host.querySelector('svg');
     if (svgRoot) {
       placeCars(svgRoot, race.cars, true);
@@ -686,7 +687,8 @@ window.SRPluginViews = window.SRPluginViews || {};
       '</div>';
 
     if (rangeData && core && typeof core.renderClassicRangeView === 'function') {
-      core.renderClassicRangeView(target, rangeData);
+      // Keep full scoring-disk framing (no ring-8 auto-zoom) so pellets stay classic-sized.
+      core.renderClassicRangeView(target, rangeData, { pinFullDisk: true });
     } else {
       target.innerHTML = '<div class="classic-range-loading">Warte auf Scheibe…</div>';
     }

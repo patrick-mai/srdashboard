@@ -17,7 +17,7 @@
     <last10Int>true</last10Int>
     <last10Decimal>true</last10Decimal>
   </footer>
-  <plugins dir="plugins" active="f1-race"/>
+  <plugins dir="plugins" active="fox-on-the-run"/>
   <display>
     <!-- Pellet outline width in mm (SVG units). Typical: 0.06–0.12; clubs often disagree. -->
     <shotStrokeWidth>0.1</shotStrokeWidth>

@@ -28,3 +28,6 @@ host/inbox/*
 !host/inbox/.gitkeep
 plugins/*/config.xml
 *.log
+
+# Local audio edits (optional; safe if missing)
+fox-edit/

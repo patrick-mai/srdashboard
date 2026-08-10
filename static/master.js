@@ -29,9 +29,11 @@
     const id = currentPluginId();
     if (!id) return false;
     if (activePlugin && activePlugin.id === id) {
-      return activePlugin.mode === 'shared' || id === 'f1-race';
+      return activePlugin.mode === 'shared';
     }
-    return id === 'f1-race';
+    const installed = installedPlugins.find(function (p) { return p.id === id; });
+    if (installed) return installed.mode === 'shared';
+    return id === 'f1-race' || id === 'fox-on-the-run';
   }
 
   function teardownSharedHost() {
@@ -39,6 +41,8 @@
     if (host) {
       host.innerHTML = '';
       host.hidden = true;
+      delete host._sharedReady;
+      delete host._f1LastVM;
       host.removeAttribute('style');
       if (host.parentNode) host.parentNode.removeChild(host);
     }
@@ -47,6 +51,11 @@
       grid.hidden = false;
       grid.style.display = '';
     }
+  }
+
+  /** Shared host is ready for in-place live updates (any shared plugin, not F1-only). */
+  function sharedHostReady(host) {
+    return !!(host && !host.hidden && (host._sharedReady || host._f1LastVM));
   }
 
   function clearRangePluginMounts() {
@@ -260,7 +269,10 @@
         viewModel,
         activePlugin.themeUrl || ''
       );
-      if (gen !== mountGen) teardownSharedHost();
+      // Stale mount must NOT tear down a newer host — that unhides #ranges-grid
+      // under/through the absolute fox/F1 surface (meadow + Scheibe ghosting).
+      if (gen !== mountGen) return;
+      host._sharedReady = true;
       return;
     }
 
@@ -274,8 +286,10 @@
   }
 
   function buildSharedViewModel(session) {
+    // rangeNum 0 = master overview. Plugins that key off rangeNum (fox, tannebaum)
+    // must not see a lane id here or they paint the shooter layout on the hall screen.
     const viewModel = Object.assign({}, (session && session.viewModel) || {}, {
-      rangeNum: 1,
+      rangeNum: 0,
       events: (session && session.events) || []
     });
     if (viewModel.race && viewModel.race.cars && core.lastLiveData) {
@@ -286,6 +300,18 @@
         const copy = Object.assign({}, c);
         if (live.shooterName) copy.shooterName = live.shooterName;
         if (live.currentValue != null && live.currentValue > 0) copy.lastShotValue = live.currentValue;
+        return copy;
+      });
+    }
+    if (viewModel.hunt && viewModel.hunt.players && core.lastLiveData) {
+      const lives = core.lastLiveData.ranges || [];
+      viewModel.hunt.players = viewModel.hunt.players.map(function (p) {
+        const live = lives.find(function (r) { return r.rangeNum === p.rangeNum; });
+        if (!live) return p;
+        const copy = Object.assign({}, p);
+        if (live.shooterName) copy.shooterName = live.shooterName;
+        if (live.discipline) copy.discipline = live.discipline;
+        if (live.discType) copy.discipline = copy.discipline || live.discType;
         return copy;
       });
     }
@@ -382,9 +408,10 @@
           core.lastLiveData = { ranges: ranges };
           core.bumpLiveGen();
           if (isSharedPlugin()) {
-            // Live scores update the side panel; do not remount the track.
+            // Live scores update in place; remounting every shot races mountGen
+            // and can briefly expose the classic range grid under the shared host.
             const host = document.getElementById('f1-race-master-host');
-            if (host && host._f1LastVM) {
+            if (sharedHostReady(host)) {
               updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
             } else {
               mountAllPluginViews();
@@ -438,10 +465,10 @@
       '<select id="plugin-active-select"></select></label>' +
       '<a class="btn btn-ghost" id="plugin-config-link" href="/config">Einstellungen</a>' +
       '<span id="race-controls" class="race-controls" hidden>' +
-      '<button type="button" class="btn btn-primary" id="race-start-btn">Rennen starten</button>' +
+      '<button type="button" class="btn btn-primary" id="race-start-btn">Start</button>' +
       '<button type="button" class="btn" id="race-reset-btn">Reset</button>' +
-      '<button type="button" class="btn" id="race-puncture-btn">Reifenplatzer</button>' +
-      '<button type="button" class="btn" id="race-oil-btn">Ölverlust</button>' +
+      '<button type="button" class="btn" id="race-puncture-btn" hidden>Reifenplatzer</button>' +
+      '<button type="button" class="btn" id="race-oil-btn" hidden>Ölverlust</button>' +
       '</span>' +
       '<label class="plugin-active-label">Bahn zurücksetzen' +
       '<select id="range-reset-select"></select></label>' +
@@ -550,7 +577,29 @@
     }).join('');
     const race = document.getElementById('race-controls');
     if (race) {
-      race.hidden = !isSharedPlugin();
+      const shared = isSharedPlugin();
+      const id = currentPluginId();
+      race.hidden = !shared;
+      const startBtn = document.getElementById('race-start-btn');
+      const punctureBtn = document.getElementById('race-puncture-btn');
+      const oilBtn = document.getElementById('race-oil-btn');
+      if (id === 'f1-race') {
+        if (startBtn) startBtn.textContent = 'Rennen starten';
+        if (punctureBtn) punctureBtn.hidden = false;
+        if (oilBtn) oilBtn.hidden = false;
+      } else if (id === 'fox-on-the-run') {
+        if (startBtn) startBtn.textContent = 'Jagd starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'tannebaum-einzel' || id === 'tannebaum-team') {
+        if (startBtn) startBtn.textContent = 'Tannebaum starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else {
+        if (startBtn) startBtn.textContent = 'Start';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      }
     }
     const rangeSel = document.getElementById('range-reset-select');
     if (rangeSel) {
@@ -589,11 +638,19 @@
     if (live) {
       core.lastLiveData = live;
       if (isSharedPlugin()) {
-        await mountAllPluginViews();
+        // Prefer in-place update — full remount every SAFETY_POLL_MS flickered.
+        updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
       } else {
         (live.ranges || []).forEach(function (r) { queueLiveRange(r); });
       }
     } else if (!wsOpen) {
+      if (isSharedPlugin()) {
+        const host = document.getElementById('f1-race-master-host');
+        if (host && !host.hidden) {
+          updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
+          return;
+        }
+      }
       await mountAllPluginViews();
     }
   }

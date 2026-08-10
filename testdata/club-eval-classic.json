@@ -1,0 +1,633 @@
+{
+  "games": [
+    {
+      "plugin": "classic-range",
+      "startedAt": "2026-08-10T20:53:43.4150787+02:00",
+      "finishedAt": "0001-01-01T00:00:00Z",
+      "durationMs": 0,
+      "shotsSent": 48,
+      "phase": "classic-live",
+      "ok": true,
+      "session": {
+        "active": {
+          "active": true,
+          "kind": "display",
+          "label": "Classic Range View",
+          "mode": "per-range",
+          "pluginId": "classic-range"
+        },
+        "match": {
+          "active": true,
+          "pluginId": "classic-range"
+        },
+        "sessions": [
+          {
+            "phase": "active",
+            "pluginId": "classic-range",
+            "rangeNum": 1,
+            "shotCount": 5,
+            "updatedAt": "2026-08-10T20:53:48.5256345+02:00",
+            "viewModel": {
+              "kind": "display",
+              "label": "Classic Range View",
+              "mode": "per-range",
+              "pluginId": "classic-range",
+              "range": {
+                "bestTeiler": 0.1,
+                "bestTeilerShot": 1,
+                "clubName": "",
+                "currentTeiler": 4.2,
+                "currentValue": 10.9,
+                "discType": "",
+                "discipline": "LG 20 Schuss",
+                "isWarmup": false,
+                "last10Values": [
+                  10.9,
+                  10.2,
+                  10.2,
+                  9.6,
+                  10.9
+                ],
+                "overallSumDecimal": 51.8,
+                "overallSumInt": 49,
+                "predictionDecimal": 207.2,
+                "predictionInt": 196,
+                "rangeNum": 1,
+                "seriesShots": null,
+                "seriesSums": null,
+                "seriesSumsInt": null,
+                "shooterName": "Alex Alpha ",
+                "shotNumber": 5,
+                "shots": [
+                  {
+                    "at": "2026-08-10T20:53:45.472+02:00",
+                    "decValue": 10.9,
+                    "distance": 0.1,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:45.6791277+02:00",
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "at": "2026-08-10T20:53:46.482+02:00",
+                    "decValue": 10.2,
+                    "distance": 17,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.5341777+02:00",
+                    "x": 12,
+                    "y": 12
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.11+02:00",
+                    "decValue": 10.2,
+                    "distance": 15,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.2498843+02:00",
+                    "x": 9,
+                    "y": 12
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.524+02:00",
+                    "decValue": 9.6,
+                    "distance": 7.3,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.7065567+02:00",
+                    "x": -7,
+                    "y": 2
+                  },
+                  {
+                    "at": "2026-08-10T20:53:48.054+02:00",
+                    "decValue": 10.9,
+                    "distance": 4.2,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:48.3699209+02:00",
+                    "x": -3,
+                    "y": -3
+                  }
+                ],
+                "totalShotsToFire": 20,
+                "warmupShots": null
+              },
+              "rangeNum": 1
+            }
+          },
+          {
+            "phase": "active",
+            "pluginId": "classic-range",
+            "rangeNum": 2,
+            "shotCount": 5,
+            "updatedAt": "2026-08-10T20:53:48.6642714+02:00",
+            "viewModel": {
+              "kind": "display",
+              "label": "Classic Range View",
+              "mode": "per-range",
+              "pluginId": "classic-range",
+              "range": {
+                "bestTeiler": 0.1,
+                "bestTeilerShot": 1,
+                "clubName": "",
+                "currentTeiler": 20.8,
+                "currentValue": 9,
+                "discType": "",
+                "discipline": "LG 20 Schuss",
+                "isWarmup": false,
+                "last10Values": [
+                  10.8,
+                  10.6,
+                  9.5,
+                  10.6,
+                  9
+                ],
+                "overallSumDecimal": 50.5,
+                "overallSumInt": 48,
+                "predictionDecimal": 202,
+                "predictionInt": 192,
+                "rangeNum": 2,
+                "seriesShots": null,
+                "seriesSums": null,
+                "seriesSumsInt": null,
+                "shooterName": "Blake Bravo ",
+                "shotNumber": 5,
+                "shots": [
+                  {
+                    "at": "2026-08-10T20:53:45.712+02:00",
+                    "decValue": 10.8,
+                    "distance": 0.1,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:45.872529+02:00",
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "at": "2026-08-10T20:53:46.524+02:00",
+                    "decValue": 10.6,
+                    "distance": 2,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.5452081+02:00",
+                    "x": 0,
+                    "y": 2
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.156+02:00",
+                    "decValue": 9.5,
+                    "distance": 26,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.3397861+02:00",
+                    "x": 1,
+                    "y": -26
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.586+02:00",
+                    "decValue": 10.6,
+                    "distance": 0.1,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.8358426+02:00",
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "at": "2026-08-10T20:53:48.096+02:00",
+                    "decValue": 9,
+                    "distance": 20.8,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:48.5266344+02:00",
+                    "x": 17,
+                    "y": 12
+                  }
+                ],
+                "totalShotsToFire": 20,
+                "warmupShots": null
+              },
+              "rangeNum": 2
+            }
+          },
+          {
+            "phase": "active",
+            "pluginId": "classic-range",
+            "rangeNum": 3,
+            "shotCount": 5,
+            "updatedAt": "2026-08-10T20:53:48.7538569+02:00",
+            "viewModel": {
+              "kind": "display",
+              "label": "Classic Range View",
+              "mode": "per-range",
+              "pluginId": "classic-range",
+              "range": {
+                "bestTeiler": 2.2,
+                "bestTeilerShot": 3,
+                "clubName": "",
+                "currentTeiler": 15.3,
+                "currentValue": 10.2,
+                "discType": "",
+                "discipline": "LG 20 Schuss",
+                "isWarmup": false,
+                "last10Values": [
+                  7.9,
+                  7.7,
+                  9.4,
+                  8.4,
+                  10.2
+                ],
+                "overallSumDecimal": 43.599999999999994,
+                "overallSumInt": 41,
+                "predictionDecimal": 174.39999999999998,
+                "predictionInt": 164,
+                "rangeNum": 3,
+                "seriesShots": null,
+                "seriesSums": null,
+                "seriesSumsInt": null,
+                "shooterName": "Casey Charlie ",
+                "shotNumber": 5,
+                "shots": [
+                  {
+                    "at": "2026-08-10T20:53:45.872+02:00",
+                    "decValue": 7.9,
+                    "distance": 28.3,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:45.8982594+02:00",
+                    "x": -21,
+                    "y": 19
+                  },
+                  {
+                    "at": "2026-08-10T20:53:46.703+02:00",
+                    "decValue": 7.7,
+                    "distance": 3.2,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.7070088+02:00",
+                    "x": 3,
+                    "y": -1
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.245+02:00",
+                    "decValue": 9.4,
+                    "distance": 2.2,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.4202208+02:00",
+                    "x": -1,
+                    "y": -2
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.637+02:00",
+                    "decValue": 8.4,
+                    "distance": 42.5,
+                    "fullValue": 8,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.8373504+02:00",
+                    "x": 21,
+                    "y": 37
+                  },
+                  {
+                    "at": "2026-08-10T20:53:48.137+02:00",
+                    "decValue": 10.2,
+                    "distance": 15.3,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:48.6642714+02:00",
+                    "x": 13,
+                    "y": -8
+                  }
+                ],
+                "totalShotsToFire": 20,
+                "warmupShots": null
+              },
+              "rangeNum": 3
+            }
+          },
+          {
+            "phase": "active",
+            "pluginId": "classic-range",
+            "rangeNum": 4,
+            "shotCount": 5,
+            "updatedAt": "2026-08-10T20:53:48.9662065+02:00",
+            "viewModel": {
+              "kind": "display",
+              "label": "Classic Range View",
+              "mode": "per-range",
+              "pluginId": "classic-range",
+              "range": {
+                "bestTeiler": 5.1,
+                "bestTeilerShot": 4,
+                "clubName": "",
+                "currentTeiler": 17.1,
+                "currentValue": 8.4,
+                "discType": "",
+                "discipline": "LG 20 Schuss",
+                "isWarmup": false,
+                "last10Values": [
+                  7.6,
+                  9,
+                  7.7,
+                  7.6,
+                  8.4
+                ],
+                "overallSumDecimal": 40.3,
+                "overallSumInt": 38,
+                "predictionDecimal": 161.2,
+                "predictionInt": 152,
+                "rangeNum": 4,
+                "seriesShots": null,
+                "seriesSums": null,
+                "seriesSumsInt": null,
+                "shooterName": "Dana Delta ",
+                "shotNumber": 5,
+                "shots": [
+                  {
+                    "at": "2026-08-10T20:53:46.027+02:00",
+                    "decValue": 7.6,
+                    "distance": 60.2,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.062705+02:00",
+                    "x": 12,
+                    "y": 59
+                  },
+                  {
+                    "at": "2026-08-10T20:53:46.764+02:00",
+                    "decValue": 9,
+                    "distance": 21.6,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.773874+02:00",
+                    "x": 5,
+                    "y": 21
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.301+02:00",
+                    "decValue": 7.7,
+                    "distance": 66.5,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.4878275+02:00",
+                    "x": -64,
+                    "y": -18
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.701+02:00",
+                    "decValue": 7.6,
+                    "distance": 5.1,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.8383597+02:00",
+                    "x": -1,
+                    "y": 5
+                  },
+                  {
+                    "at": "2026-08-10T20:53:48.177+02:00",
+                    "decValue": 8.4,
+                    "distance": 17.1,
+                    "fullValue": 8,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:48.7538569+02:00",
+                    "x": -2,
+                    "y": -17
+                  }
+                ],
+                "totalShotsToFire": 20,
+                "warmupShots": null
+              },
+              "rangeNum": 4
+            }
+          },
+          {
+            "phase": "active",
+            "pluginId": "classic-range",
+            "rangeNum": 5,
+            "shotCount": 5,
+            "updatedAt": "2026-08-10T20:53:49.1377883+02:00",
+            "viewModel": {
+              "kind": "display",
+              "label": "Classic Range View",
+              "mode": "per-range",
+              "pluginId": "classic-range",
+              "range": {
+                "bestTeiler": 5.4,
+                "bestTeilerShot": 5,
+                "clubName": "",
+                "currentTeiler": 5.4,
+                "currentValue": 10.6,
+                "discType": "",
+                "discipline": "LG 20 Schuss",
+                "isWarmup": false,
+                "last10Values": [
+                  9,
+                  8.2,
+                  5.6,
+                  8.7,
+                  10.6
+                ],
+                "overallSumDecimal": 42.099999999999994,
+                "overallSumInt": 40,
+                "predictionDecimal": 168.39999999999998,
+                "predictionInt": 160,
+                "rangeNum": 5,
+                "seriesShots": null,
+                "seriesSums": null,
+                "seriesSumsInt": null,
+                "shooterName": "Eden Echo ",
+                "shotNumber": 5,
+                "shots": [
+                  {
+                    "at": "2026-08-10T20:53:46.143+02:00",
+                    "decValue": 9,
+                    "distance": 5.8,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.1815273+02:00",
+                    "x": -3,
+                    "y": -5
+                  },
+                  {
+                    "at": "2026-08-10T20:53:46.889+02:00",
+                    "decValue": 8.2,
+                    "distance": 48.4,
+                    "fullValue": 8,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.0122466+02:00",
+                    "x": 38,
+                    "y": -30
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.376+02:00",
+                    "decValue": 5.6,
+                    "distance": 104,
+                    "fullValue": 5,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.5285246+02:00",
+                    "x": 40,
+                    "y": 96
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.793+02:00",
+                    "decValue": 8.7,
+                    "distance": 31.4,
+                    "fullValue": 8,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.8383597+02:00",
+                    "x": 25,
+                    "y": -19
+                  },
+                  {
+                    "at": "2026-08-10T20:53:48.218+02:00",
+                    "decValue": 10.6,
+                    "distance": 5.4,
+                    "fullValue": 10,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:49.0127561+02:00",
+                    "x": 2,
+                    "y": -5
+                  }
+                ],
+                "totalShotsToFire": 20,
+                "warmupShots": null
+              },
+              "rangeNum": 5
+            }
+          },
+          {
+            "phase": "active",
+            "pluginId": "classic-range",
+            "rangeNum": 6,
+            "shotCount": 4,
+            "updatedAt": "2026-08-10T20:53:48.3699209+02:00",
+            "viewModel": {
+              "kind": "display",
+              "label": "Classic Range View",
+              "mode": "per-range",
+              "pluginId": "classic-range",
+              "range": {
+                "bestTeiler": 7.1,
+                "bestTeilerShot": 2,
+                "clubName": "",
+                "currentTeiler": 18.7,
+                "currentValue": 7.4,
+                "discType": "",
+                "discipline": "LG 20 Schuss",
+                "isWarmup": false,
+                "last10Values": [
+                  9.5,
+                  6.7,
+                  7.8,
+                  6,
+                  7.4
+                ],
+                "overallSumDecimal": 37.4,
+                "overallSumInt": 35,
+                "predictionDecimal": 149.6,
+                "predictionInt": 140,
+                "rangeNum": 6,
+                "seriesShots": null,
+                "seriesSums": null,
+                "seriesSumsInt": null,
+                "shooterName": "Finn Foxtrot ",
+                "shotNumber": 5,
+                "shots": [
+                  {
+                    "at": "2026-08-10T20:53:46.431+02:00",
+                    "decValue": 9.5,
+                    "distance": 24.5,
+                    "fullValue": 9,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:46.482791+02:00",
+                    "x": -5,
+                    "y": -24
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.011+02:00",
+                    "decValue": 6.7,
+                    "distance": 7.1,
+                    "fullValue": 6,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.11154+02:00",
+                    "x": 7,
+                    "y": -1
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.458+02:00",
+                    "decValue": 7.8,
+                    "distance": 72.8,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:47.5886048+02:00",
+                    "x": 20,
+                    "y": -70
+                  },
+                  {
+                    "at": "2026-08-10T20:53:47.95+02:00",
+                    "decValue": 6,
+                    "distance": 30.7,
+                    "fullValue": 6,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:48.027139+02:00",
+                    "x": -10,
+                    "y": -29
+                  },
+                  {
+                    "at": "2026-08-10T20:53:48.259+02:00",
+                    "decValue": 7.4,
+                    "distance": 18.7,
+                    "fullValue": 7,
+                    "isWarmup": false,
+                    "receivedAt": "2026-08-10T20:53:49.1377883+02:00",
+                    "x": 5,
+                    "y": -18
+                  }
+                ],
+                "totalShotsToFire": 20,
+                "warmupShots": null
+              },
+              "rangeNum": 6
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "generatedAt": "2026-08-10T20:53:49+02:00",
+  "seed": 42,
+  "shooters": [
+    {
+      "Name": "Alex Alpha",
+      "Mean": 10.34,
+      "Range": 1
+    },
+    {
+      "Name": "Blake Bravo",
+      "Mean": 10.08,
+      "Range": 2
+    },
+    {
+      "Name": "Casey Charlie",
+      "Mean": 8.57,
+      "Range": 3
+    },
+    {
+      "Name": "Dana Delta",
+      "Mean": 8.49,
+      "Range": 4
+    },
+    {
+      "Name": "Eden Echo",
+      "Mean": 7.01,
+      "Range": 5
+    },
+    {
+      "Name": "Finn Foxtrot",
+      "Mean": 6.67,
+      "Range": 6
+    }
+  ],
+  "sourceLog": "synthetic"
+}

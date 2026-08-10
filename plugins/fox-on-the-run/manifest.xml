@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="fox-on-the-run" label="Fox on the Run" version="1.0.0" mode="shared" kind="game">
+  <description>Fuchsjagd — jeder Stand einmal Fuchs; Meute jagt den Vorsprung. Kalibrierung, Startbonus, Revier-Terrain.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <calibrateShots>5</calibrateShots>
+    <openingShots>2</openingShots>
+    <escapeTarget>30</escapeTarget>
+    <equalizerEnabled>true</equalizerEnabled>
+    <equalizerMin>-2</equalizerMin>
+    <equalizerMax>2</equalizerMax>
+    <startBonusFactor>1</startBonusFactor>
+    <startBonusMin>0</startBonusMin>
+    <startBonusMax>8</startBonusMax>
+    <terrainEnabled>true</terrainEnabled>
+    <terrainBand>5</terrainBand>
+    <terrainDampMax>1</terrainDampMax>
+    <trailAidMax>0</trailAidMax>
+    <maxChaseShots>40</maxChaseShots>
+    <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+    <disciplineTargets>
+      <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <LG>air_rifle_10m</LG>
+      <Luftpistole>air_pistol_10m</Luftpistole>
+      <LP>air_pistol_10m</LP>
+      <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK-Gewehr>smallbore_50m_prone</KK-Gewehr>
+      <KK>smallbore_50m_prone</KK>
+    </disciplineTargets>
+  </config>
+</plugin>

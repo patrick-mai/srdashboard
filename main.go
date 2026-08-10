@@ -18,6 +18,8 @@ import (
 	"srdashboard/api"
 	"srdashboard/config"
 	_ "srdashboard/host/games/f1race"
+	_ "srdashboard/host/games/foxontherun"
+	_ "srdashboard/host/games/tannebaum"
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
 	"srdashboard/state"

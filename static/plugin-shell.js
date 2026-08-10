@@ -46,16 +46,24 @@ window.SRPluginShell = (function () {
       if (pluginId) removeTheme(pluginId);
       return;
     }
-    if (loadedThemes[pluginId]) return;
     const url = resolveViewUrl(pluginId, themeUrl);
     if (!url) return;
+    const path = url.pathname;
+    let link = loadedThemes[pluginId];
+    // Keep the same stylesheet once loaded — reassigning href with a fresh
+    // ?t= on every render caused FOUC / flicker on live polls and updates.
+    // clearCache() / plugin switch still forces a reload.
+    if (link && link.dataset.themePath === path) return;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.dataset.pluginTheme = pluginId;
+      document.head.appendChild(link);
+      loadedThemes[pluginId] = link;
+    }
+    link.dataset.themePath = path;
     url.searchParams.set('t', String(Date.now()));
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.dataset.pluginTheme = pluginId;
     link.href = url.pathname + url.search;
-    document.head.appendChild(link);
-    loadedThemes[pluginId] = link;
   }
 
   async function renderPluginView(container, pluginId, viewUrl, assetsBase, viewModel, themeUrl) {
@@ -71,9 +79,11 @@ window.SRPluginShell = (function () {
       // that every loaded plugin overwrites, so the last script to load wins.
       const fn = window.SRPluginViews && window.SRPluginViews[pluginId];
       if (typeof fn === 'function') {
-        fn(container, viewModel, assetsBase);
+        // Await async plugin paints (fox/F1) so overlapping live remounts cannot
+        // interleave skeleton + Scheibe/Revier writes on the same host.
+        await fn(container, viewModel, assetsBase);
       } else if (window.SRPlugins && typeof window.SRPlugins.render === 'function') {
-        window.SRPlugins.render(pluginId, container, viewModel, assetsBase);
+        await window.SRPlugins.render(pluginId, container, viewModel, assetsBase);
       } else {
         // textContent, not innerHTML: the view model carries shooter names and
         // other values straight off the wire.
