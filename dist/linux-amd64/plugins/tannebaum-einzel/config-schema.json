@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "autoStartWhenAllReady": { "type": "boolean", "description": "Automatisch starten wenn alle Stände bereit" },
+    "defaultTargetProfile": {
+      "type": "string",
+      "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+    },
+    "disciplineTargets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+      }
+    }
+  }
+}

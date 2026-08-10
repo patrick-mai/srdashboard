@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "calibrateShots": { "type": "integer", "description": "Kalibrier-Schüsse pro Stand" },
+    "openingShots": { "type": "integer", "description": "Vorwürfe des Fuchses" },
+    "escapeTarget": { "type": "number", "description": "Vorsprung zum Bau" },
+    "equalizerEnabled": { "type": "boolean" },
+    "equalizerMin": { "type": "number" },
+    "equalizerMax": { "type": "number" },
+    "startBonusFactor": { "type": "number" },
+    "startBonusMin": { "type": "number" },
+    "startBonusMax": { "type": "number" },
+    "terrainEnabled": { "type": "boolean" },
+    "terrainBand": { "type": "number" },
+    "terrainDampMax": { "type": "number" },
+    "trailAidMax": { "type": "number" },
+    "maxChaseShots": { "type": "integer" },
+    "autoStartWhenAllReady": { "type": "boolean" },
+    "defaultTargetProfile": {
+      "type": "string",
+      "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+    },
+    "disciplineTargets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+      }
+    }
+  }
+}

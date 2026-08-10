@@ -1,6 +1,6 @@
 # SRDashboard
 
-Live shooting-range **display** for DISAG OpticScore. Shows configurable ranges with target visualization, footer stats, and optional **game plugins**.
+Live shooting-range **display** for DISAG OpticScore. Shows configurable ranges with target visualization, footer stats, result QR codes, and optional **game plugins**.
 
 **Stack:** Go 1.24 HTTP/WebSocket server + vanilla JS frontend.
 
@@ -12,7 +12,7 @@ Live shooting-range **display** for DISAG OpticScore. Shows configurable ranges 
 
 ### Prerequisites
 
-- Go 1.21+ ([go.dev/dl](https://go.dev/dl/))
+- Go 1.24+ ([go.dev/dl](https://go.dev/dl/))
 - DISAG OpticScore JSON Live on UDP port **30169** (default)
 
 ### Build & run
@@ -28,7 +28,15 @@ Custom site config:
 ./srdashboard.exe C:\path\to\config.xml
 ```
 
-Open **http://localhost:8080** (master display). For a single-range tablet: `http://localhost:8080/?display=shooter&range=2`.
+Open **http://localhost:8080** (master display). Shortcuts:
+
+| URL | Role |
+|-----|------|
+| `/?display=master` | All ranges (default) |
+| `/?display=shooter&range=2` or `/2` | Single-range tablet |
+| `/config` | Settings UI |
+
+Override the listen port with `PORT` (e.g. `PORT=9090 ./srdashboard.exe`).
 
 ### Cross-compile (e.g. Raspberry Pi)
 
@@ -51,7 +59,7 @@ DISAG OpticScore (UDP JSON)
         ↓
   host/rangestate          ← active plugin sessions / match
         ↓
-  plugins/{id}             ← display or game plugins
+  host/games/* + plugins/{id}  ← built-in game logic + views
         ↓
   api/hub (WebSocket) + /api/live (HTTP)
         ↓
@@ -60,12 +68,14 @@ DISAG OpticScore (UDP JSON)
 
 | Layer | Path | Role |
 |-------|------|------|
-| Site config | `config.xml` | Ranges, UDP port, footer toggles |
+| Site config | `config.xml` | Ranges, UDP port, footer toggles, active plugin |
 | UDP | `udp/` | OpticScore JSON Live listener |
 | Live state | `state/` | Shots, series sums, shooter names |
 | Plugin host | `host/loader`, `host/rangestate`, `host/logicapi` | Load plugins, run matches, standings |
-| Plugins | `plugins/{id}/` | `manifest.xml`, optional `logic/`, `view.js`, assets |
-| Frontend | `static/` | Master grid, shooter tablet, target SVG in `static/assets/` |
+| Game logic | `host/games/` | Built-in Go scoring (`f1race`, `foxontherun`, `tannebaum`) |
+| Plugins | `plugins/{id}/` | `manifest.xml`, `view.js`, theme, assets |
+| Result QR | `qrformat/` | RingReader and related QR encodings |
+| Frontend | `static/` | Master grid, shooter tablet, shared target core |
 
 ---
 
@@ -75,13 +85,16 @@ DISAG OpticScore (UDP JSON)
 |-----|---------|-------------|
 | `udpPort` | 30169 | OpticScore JSON Live UDP port (1–65535) |
 | `ranges` | 6 | Number of shooting ranges (1–256) |
-| `layoutColumns` | 3 | Panels per row on master display |
+| `layoutColumns` | 4 | Panels per row on master display |
 | `odbcName` | — | ODBC DSN for historic DB (**not wired in UI yet**) |
 | `footer/*` | mostly `true` | Footer stat visibility toggles |
+| `plugins/@dir` | `plugins` | Plugin root directory |
+| `plugins/@active` | `classic-range` | Always-on active plugin id |
+| `display/defaultMode` | `master` | Default display mode |
+| `display/shotStrokeWidth` | — | Pellet outline width in mm (SVG units) |
 | `display/controlToken` | — | See [Access control](#access-control) |
-| `plugins/dir` | `plugins` | Plugin root directory |
 
-Master UI includes a **Settings** panel (`config-editor.js`) for site + per-plugin overrides. Target faces and discipline mapping live in the **classic-range** plugin config (`plugins/classic-range/config.xml`), not in global `config.xml`.
+Master UI includes a **Settings** panel (`/config`) for site + per-plugin overrides. Target faces and discipline mapping live in each plugin’s config (e.g. `plugins/classic-range/config.xml`), not in global `config.xml`.
 
 ---
 
@@ -107,7 +120,8 @@ WebSocket upgrades are restricted to same-origin requests, so other sites cannot
 | URL | Role |
 |-----|------|
 | `/?display=master` | All ranges, plugin control, live status, settings |
-| `/?display=shooter&range=N` | Single-range tablet UI |
+| `/?display=shooter&range=N` or `/N` | Single-range tablet UI |
+| `/config` | Site + plugin settings |
 
 Endpoints marked 🔒 require the `X-SR-Control-Token` header when a token is configured.
 
@@ -119,6 +133,9 @@ Endpoints marked 🔒 require the `X-SR-Control-Token` header when a token is co
 | `GET /api/config` | Site config (never includes the control token) |
 | 🔒 `PUT /api/config` | Save site config |
 | `GET /api/historic` | Historic ODBC status (stub) |
+| `GET /api/qr/formats` | Available result QR formats |
+| `GET /api/qr?range=N&fmt=rr` | Result QR metadata / payload |
+| `GET /api/qr.png?range=N&fmt=rr` | Result QR as PNG |
 | `GET /api/plugins`, `/api/plugins/active` | Installed / active plugins |
 | `GET /api/plugins/session?range=N` | Plugin session + viewModel for range |
 | `GET`/🔒 `PUT /api/plugins/{id}/config` | Per-plugin overrides |
@@ -138,28 +155,27 @@ Endpoints marked 🔒 require the `X-SR-Control-Token` header when a token is co
 
 | ID | Label | Mode | Status |
 |----|-------|------|--------|
-| `classic-range` | Classic Range View | Solo display | **Stable** — standard target, footer, last-10 chart |
-| `f1-race` | F1 Race | Shared game | **In development** — server logic in `host/games/f1race/` |
+| `classic-range` | Classic Range View | Solo display | **Stable** — target, footer, last-10 chart, result QR |
+| `f1-race` | F1 Race | Shared game | **In development** — circuits, pits, DRS; logic in `host/games/f1race/` |
+| `fox-on-the-run` | Fox on the Run | Shared game | **In development** — Fuchsjagd with calibration, equalizer, terrain; `host/games/foxontherun/` |
+| `tannebaum-einzel` | Tannebaum Einzel | Shared game | **In development** — per-stand Kegel tree (stages A/B/C); `host/games/tannebaum/` |
+| `tannebaum-team` | Tannebaum Team | Shared game | **In development** — two-team tree race; same logic package |
 
-`plugins/f1-race/target-registry.js` is a verbatim copy of the classic-range one; plugins ship as self-contained zips, so keep the two identical or the same shot plots differently on master and tablet.
+Game plugins register via `loader.RegisterBuiltin` (blank-imported from `main.go`). Target-registry / face assets are shipped per plugin so distribution zips stay self-contained.
 
 ### Layout
 
 ```
 plugins/{id}/
-  manifest.xml      ← id, label, default config
-  config.xml        ← site overrides (not in distribution zips)
-  logic/*.go        ← optional server scoring (compiled into host)
-  view.js           ← browser UI (SRPluginViews.{id})
-  theme.css         ← optional
-  assets/           ← optional images/SVG
+  manifest.xml       ← id, label, mode, kind, default config
+  config.xml         ← site overrides (not in distribution zips)
+  config-schema.json ← optional settings schema for the UI
+  view.js            ← browser UI (SRPluginViews.{id})
+  theme.css          ← optional
+  assets/            ← optional images/SVG
 ```
 
-Distribution zips (view/assets only):
-
-```bash
-go run ./cmd/zip-bundled
-```
+Server scoring for bundled games lives under `host/games/`, not under `plugins/*/logic/`. Third-party plugins may still ship `logic.wasm` (see `host/loader`).
 
 ---
 
@@ -167,36 +183,40 @@ go run ./cmd/zip-bundled
 
 | File | Role |
 |------|------|
-| `static/app.js` | Core live target rendering |
+| `static/app.js` | Display mode routing (`master` / `shooter` / `config`) |
+| `static/target-core.js` | Shared target SVG, shot plotting, result QR UI |
 | `static/master.js` | Range grid, plugin control |
 | `static/shooter.js` | Tablet view per range |
 | `static/plugin-shell.js` | Loads plugin `view.js` + theme (same-origin `/plugins/{id}/` only) |
-| `static/config-editor.js` | Site + plugin settings UI |
+| `static/config-editor.js` | Site + plugin settings forms |
+| `static/config-page.js` | Standalone `/config` page |
 | `static/auth.js` | Stores the control token per device, prompts on `403` |
 
 ---
 
 ## Project layout
 
+What end users need is the binary, `config.xml`, and `plugins/` (as in `dist/{platform}/`). Source layout of the runtime:
+
 ```
 srdashboard/
   main.go                 Entry: HTTP, UDP, plugin wiring
   config.xml              Site config
   config/                 XML load/save, plugin config merge
-  api/                    REST + WebSocket hub
+  api/                    REST + WebSocket hub + QR
   udp/                    OpticScore listener
   state/                  Live range state, shot parsing
+  qrformat/               Result QR encoders (e.g. RingReader)
   host/
-    loader/               Plugin manifests, Go/WASM logic
+    loader/               Plugin manifests, builtins, WASM
     rangestate/           Sessions, matches, standings
     logicapi/             Plugin interfaces
-    games/                Built-in Go game logic (f1race)
-  plugins/                One folder per plugin
+    games/                Built-in Go game logic
+      f1race/
+      foxontherun/
+      tannebaum/
+  plugins/                One folder per plugin (views + assets)
   static/                 Web UI + assets/ target SVG
-  cmd/
-    replay-log/           Replay DISAG JSON log over UDP
-    send-shot/            Send synthetic Shot UDP packets for testing
-    zip-bundled/          Build .srplugin.zip distributions
   LICENSE                 AGPL-3.0
 ```
 
@@ -207,9 +227,10 @@ srdashboard/
 | Area | State |
 |------|--------|
 | Historic view / ODBC | DSN in config; `GET /api/historic` stub; UI/queries not built |
-| WASM plugins | Loader supports `game.wasm`; bundled plugins may use Go builtins; no execution timeout yet |
+| WASM plugins | Loader supports `game.wasm`; bundled games use Go builtins; no execution timeout yet |
 | Changing `ranges` | Requires a restart; the API reports it in `restartFields` |
 | Transport security | Plain HTTP on all interfaces; put it behind a reverse proxy for TLS |
+| Shared games | F1 / Fox / Tannebaum are playable but still evolving (balance, UX, edge cases) |
 
 ---
 

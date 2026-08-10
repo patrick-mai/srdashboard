@@ -1,0 +1,538 @@
+/* Fox on the Run — hilly meadow + liquid glass chrome
+   System UI stack only (stable on Windows + Android Chrome; no Google Fonts). */
+.fox-view {
+  --fox-ink: #1c2e22;
+  --fox-muted: #3d5244;
+  --fox-accent: #e85d04;
+  --fox-meute: #264653;
+  --fox-ok: #2a9d8f;
+  --fox-line: rgba(255, 255, 255, 0.45);
+  --fox-glass: rgba(255, 255, 255, 0.28);
+  --fox-glass-strong: rgba(255, 252, 247, 0.42);
+  --fox-solid: #fffdf8;
+  --fox-solid-ink: #1c2e22;
+  --fox-radius: 18px;
+  --fox-radius-sm: 14px;
+  --fox-blur: saturate(140%) blur(10px);
+  /* Segoe UI (Win) / Roboto via system-ui (Android Chrome) */
+  --fox-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--fox-ink);
+  font-family: var(--fox-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #343a28;
+  background-image:
+    radial-gradient(ellipse 50% 40% at 50% 35%, rgba(151, 152, 136, 0.18), transparent 70%),
+    url('/plugins/fox-on-the-run/assets/meadow-bg.svg?v=4');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+#f1-race-master-host > .fox-view,
+#f1-race-master-host.fox-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+}
+
+.fox-view::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(42, 51, 38, 0.25) 0%, transparent 40%, rgba(43, 52, 37, 0.35) 100%);
+}
+
+.fox-view > * {
+  position: relative;
+  z-index: 1;
+}
+
+.fox-view * { box-sizing: border-box; }
+
+.fox-shooter-layout,
+.fox-master-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+/* ——— Liquid glass shell ——— */
+.fox-glass {
+  background: var(--fox-glass);
+  backdrop-filter: var(--fox-blur);
+  -webkit-backdrop-filter: var(--fox-blur);
+  border: 1px solid var(--fox-line);
+  border-radius: var(--fox-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(28, 46, 34, 0.06),
+    0 10px 32px rgba(28, 46, 34, 0.14);
+}
+
+.fox-glass-strong {
+  background: var(--fox-glass-strong);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--fox-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(28, 46, 34, 0.05),
+    0 12px 36px rgba(28, 46, 34, 0.16);
+}
+
+/* Opaque surfaces for critical readouts */
+.fox-solid {
+  background: var(--fox-solid);
+  color: var(--fox-solid-ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(28, 46, 34, 0.1);
+  border-radius: var(--fox-radius-sm);
+  box-shadow: 0 4px 16px rgba(28, 46, 34, 0.1);
+}
+
+.fox-header {
+  flex: 0 0 auto;
+  margin: 0.45rem 0.55rem 0;
+  padding: 0.55rem 0.95rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+  align-items: baseline;
+  background: var(--fox-glass-strong);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--fox-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 10px 28px rgba(28, 46, 34, 0.12);
+}
+
+.fox-title {
+  font-family: var(--fox-font);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--fox-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.fox-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--fox-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(232, 93, 4, 0.35);
+}
+
+.fox-badge.jäger {
+  background: var(--fox-meute);
+  box-shadow: 0 2px 8px rgba(38, 70, 83, 0.35);
+}
+.fox-badge.turn {
+  background: var(--fox-ok);
+  animation: fox-pulse 0.9s ease-in-out infinite alternate;
+  box-shadow: 0 2px 8px rgba(42, 157, 143, 0.4);
+}
+
+.fox-meta { color: var(--fox-muted); font-size: 0.95rem; }
+.fox-status {
+  font-weight: 700;
+  color: var(--fox-ink);
+  margin-left: auto;
+  padding: 0.2rem 0.55rem;
+  background: var(--fox-solid);
+  border-radius: 999px;
+  border: 1px solid rgba(28, 46, 34, 0.08);
+  opacity: 1;
+}
+
+.fox-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 0.55rem;
+  padding: 0.5rem 0.55rem 0.55rem;
+  min-height: 0;
+}
+
+.fox-target-col,
+.fox-chase-col {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fox-panel {
+  background: var(--fox-glass);
+  backdrop-filter: var(--fox-blur);
+  -webkit-backdrop-filter: var(--fox-blur);
+  border: 1px solid var(--fox-line);
+  border-radius: var(--fox-radius-sm);
+  padding: 0.5rem 0.6rem;
+  color: var(--fox-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 8px 24px rgba(28, 46, 34, 0.1);
+}
+
+/* Shot / recent panels under Scheibe: opaque cream, always readable */
+.fox-panel-solid,
+.fox-shot-hud .fox-panel,
+.fox-target-col > [data-recent] .fox-panel {
+  background: var(--fox-solid) !important;
+  color: var(--fox-solid-ink) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(28, 46, 34, 0.12) !important;
+  box-shadow: 0 6px 18px rgba(28, 46, 34, 0.12);
+  opacity: 1;
+}
+
+.fox-panel-solid h3,
+.fox-shot-hud h3,
+.fox-target-col > [data-recent] h3 {
+  color: #3d5244 !important;
+}
+
+.fox-panel-solid .fox-shot-sub,
+.fox-shot-hud .fox-shot-sub,
+.fox-target-col > [data-recent] .fox-shot-sub {
+  color: #3d5244 !important;
+  opacity: 1;
+}
+
+/* Scheibe: translucent mat — meadow shows through; disk stays crisp */
+.fox-scheibe-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 252, 247, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--fox-radius);
+  overflow: hidden;
+  position: relative;
+  flex-grow: 3;
+  container-type: size;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 10px 28px rgba(28, 46, 34, 0.12);
+}
+
+.fox-scheibe-wrap svg,
+.fox-scheibe-wrap .fox-scheibe-svg {
+  /* Largest square that fits — kills letterbox white around the disk */
+  width: min(100cqi, 100cqb);
+  height: min(100cqi, 100cqb);
+  display: block;
+  background: transparent;
+  filter: drop-shadow(0 4px 12px rgba(28, 46, 34, 0.2));
+}
+
+.fox-shot-hud {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.fox-shot-hud .fox-panel {
+  padding: 0.4rem 0.55rem;
+}
+
+.fox-shot-hud h3 {
+  margin: 0 0 0.2rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fox-muted);
+  font-weight: 700;
+}
+
+/* Shot score: solid chip, 100% visibility */
+.fox-shot-val {
+  display: inline-block;
+  margin: 0.1rem 0;
+  padding: 0.15rem 0.45rem;
+  font-size: 1.55rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fox-accent);
+  line-height: 1.1;
+  background: var(--fox-solid);
+  border-radius: 10px;
+  border: 1px solid rgba(232, 93, 4, 0.2);
+  opacity: 1;
+}
+
+.fox-shot-sub { font-size: 0.82rem; color: var(--fox-muted); }
+
+.fox-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.fox-recent li {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.fox-recent li strong {
+  background: var(--fox-solid);
+  padding: 0.1rem 0.35rem;
+  border-radius: 8px;
+  opacity: 1;
+}
+
+.fox-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.fox-swatch.outline {
+  background: transparent !important;
+}
+
+/* Revier map sits in glass frame; SVG content stays opaque */
+.fox-revier-wrap {
+  flex: 1.2 1 0;
+  min-height: 160px;
+  max-height: 52%;
+  background: rgba(255, 252, 247, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--fox-radius);
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 10px 30px rgba(28, 46, 34, 0.14);
+}
+
+.fox-revier-wrap svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 1;
+}
+
+.fox-token {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.fox-token.is-me {
+  stroke: #fff;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(232, 93, 4, 0.7));
+}
+
+.fox-token-fox.is-me {
+  filter: drop-shadow(0 0 6px rgba(232, 93, 4, 0.85));
+}
+
+.fox-hud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+/* Vorsprung: solid opaque readout */
+.fox-lead {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--fox-solid);
+  color: var(--fox-solid-ink);
+  padding: 0.25rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(28, 46, 34, 0.1);
+  opacity: 1;
+  box-shadow: 0 2px 10px rgba(28, 46, 34, 0.08);
+}
+
+.fox-lead-bar {
+  flex: 1;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 120px;
+  box-shadow: inset 0 1px 2px rgba(28, 46, 34, 0.12);
+}
+
+.fox-lead-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--fox-meute), var(--fox-accent));
+  border-radius: 999px;
+  transition: width 0.25s ease;
+  opacity: 1;
+}
+
+.fox-chase-col > [data-hud],
+.fox-chase-col > [data-terrain],
+.fox-target-col > [data-recent] {
+  flex: 0 0 auto;
+}
+
+.fox-chase-col > [data-standings],
+.fox-target-col > [data-standings] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--fox-glass-strong);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--fox-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 10px 30px rgba(28, 46, 34, 0.12);
+}
+
+.fox-standings {
+  list-style: none;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  max-height: none;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.fox-standings li {
+  display: grid;
+  grid-template-columns: 14px 1.4rem 1fr auto auto;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.28rem 0.35rem;
+  border-bottom: 1px solid rgba(28, 46, 34, 0.08);
+  font-size: 0.95rem;
+  min-height: 0;
+}
+
+/* Score + status cells: opaque */
+.fox-standings li > span:nth-child(4),
+.fox-standings li > span:nth-child(5) {
+  background: var(--fox-solid);
+  padding: 0.15rem 0.4rem;
+  border-radius: 8px;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.fox-standings li.is-fox { font-weight: 700; }
+.fox-standings li.is-me {
+  background: rgba(255, 253, 248, 0.72);
+  border-radius: 10px;
+}
+.fox-standings li.is-turn {
+  outline: 2px solid var(--fox-ok);
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+
+.fox-footer {
+  flex: 0 0 auto;
+  margin: 0 0.55rem 0.45rem;
+  padding: 0.45rem 0.95rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.95rem;
+  background: var(--fox-glass);
+  backdrop-filter: var(--fox-blur);
+  -webkit-backdrop-filter: var(--fox-blur);
+  border: 1px solid var(--fox-line);
+  border-radius: var(--fox-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 8px 24px rgba(28, 46, 34, 0.1);
+}
+
+.fox-terrain {
+  padding: 0.4rem 0.7rem;
+  border-left: 3px solid var(--fox-accent);
+  font-style: normal;
+  font-weight: 700;
+  color: var(--fox-solid-ink);
+  background: var(--fox-solid);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0 var(--fox-radius-sm) var(--fox-radius-sm) 0;
+  border-top: 1px solid rgba(28, 46, 34, 0.1);
+  border-right: 1px solid rgba(28, 46, 34, 0.1);
+  border-bottom: 1px solid rgba(28, 46, 34, 0.1);
+  opacity: 1;
+}
+
+.fox-terrain-chip-text {
+  fill: #1c2e22 !important;
+}
+
+.fox-master-layout .fox-main {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
+.fox-blocked {
+  color: #9b2226;
+  font-weight: 700;
+  background: var(--fox-solid);
+  opacity: 1;
+}
+
+@keyframes fox-pulse {
+  from { opacity: 0.85; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.03); }
+}
+
+@media (max-width: 1100px) {
+  .fox-main { grid-template-columns: 1fr; }
+}
+
+/* Fallback when backdrop-filter is unsupported */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .fox-panel,
+  .fox-header,
+  .fox-footer,
+  .fox-chase-col > [data-standings],
+  .fox-target-col > [data-standings],
+  .fox-revier-wrap {
+    background: rgba(255, 252, 247, 0.88);
+  }
+}
