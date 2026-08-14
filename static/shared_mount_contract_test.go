@@ -115,3 +115,47 @@ func TestSharedViewModelUsesMasterRangeNum(t *testing.T) {
 	mustContain(t, js, "rangeNum: 0",
 		"shared VM must not pass a lane id or fox paints shooter layout on the hall screen")
 }
+
+func TestNewSharedGamesPreserveHostClassAndLayout(t *testing.T) {
+	style := readRepoFile(t, "static", "style.css")
+	master := readRepoFile(t, "static", "master.js")
+	games := []struct {
+		id, dir, prefix, setFn, staleFn, startLabel string
+	}{
+		{"zehner-bingo", "zehner-bingo", "zb", "setZbSurfaceClasses", "zbPaintStale", "Bingo starten"},
+		{"malefiz", "malefiz", "mz", "setMzSurfaceClasses", "mzPaintStale", "Malefiz starten"},
+		{"maedn", "maedn", "md", "setMdSurfaceClasses", "mdPaintStale", "Spiel starten"},
+	}
+	for _, g := range games {
+		js := readRepoFile(t, "plugins", g.dir, "view.js")
+		css := readRepoFile(t, "plugins", g.dir, "theme.css")
+		mustContain(t, js, "function "+g.setFn,
+			g.id+" must add classes without wiping #f1-race-master-host identity")
+		mustContain(t, js, "container.classList.add('f1-race-master-host')",
+			g.id+" shared host class must survive paints so absolute fill CSS applies")
+		mustContain(t, js, "container._sharedReady = true",
+			g.id+" master must opt into in-place live updates")
+		mustContain(t, js, g.staleFn,
+			g.id+" stale async paints must bail after await")
+		mustContain(t, js, g.prefix+"-master-layout",
+			g.id+" master skeleton must exist for hall overview")
+		masterIdx := strings.Index(js, g.prefix+"-master-layout")
+		if masterIdx < 0 {
+			t.Fatalf("%s master layout missing", g.id)
+		}
+		chunk := js[masterIdx:min(len(js), masterIdx+900)]
+		ti := strings.Index(chunk, g.prefix+"-target-col")
+		bi := strings.Index(chunk, g.prefix+"-board-col")
+		if ti < 0 || bi < 0 || ti > bi {
+			t.Fatalf("%s master must place Scheibe (%s-target-col) left of board", g.id, g.prefix)
+		}
+		mustNotContain(t, js, "container.className = 'range-plugin-view "+g.prefix+"-view",
+			"assigning className on the shared host drops f1-race-master-host and breaks fill")
+		mustContain(t, css, "#f1-race-master-host."+g.prefix+"-view",
+			"host itself carries ."+g.prefix+"-view; child-only selector left the surface unfilled")
+		mustContain(t, style, "#f1-race-master-host."+g.prefix+"-view",
+			"shared host must stay opaque under "+g.id+" so the classic grid cannot ghost through")
+		mustContain(t, master, g.startLabel,
+			g.id+" start button label")
+	}
+}

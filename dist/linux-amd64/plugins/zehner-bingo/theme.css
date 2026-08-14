@@ -1,0 +1,110 @@
+.zb-view {
+  --zb-ink: #1e2f24;
+  --zb-muted: #3d5244;
+  --zb-accent: #c9a227;
+  --zb-ok: #2f6b3a;
+  --zb-snow: #fffdf8;
+  --zb-line: rgba(255, 255, 255, 0.45);
+  --zb-glass: rgba(255, 255, 255, 0.28);
+  --zb-solid: #fffdf8;
+  --zb-radius: 18px;
+  --zb-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--zb-ink);
+  font-family: var(--zb-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #3d6b4a;
+  background-image:
+    radial-gradient(ellipse 40% 30% at 80% 10%, rgba(255, 220, 120, 0.35), transparent 70%),
+    linear-gradient(180deg, #5a8f68 0%, #3d6b4a 55%, #2a4a34 100%);
+  overflow: hidden;
+}
+.zb-view * { box-sizing: border-box; }
+
+#f1-race-master-host.zb-view,
+#f1-race-master-host > .zb-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+}
+
+.zb-master-layout, .zb-shooter-layout {
+  display: flex; flex-direction: column; height: 100%; min-height: 100%;
+}
+.zb-header {
+  flex: 0 0 auto; margin: 0.45rem 0.55rem 0; padding: 0.55rem 0.95rem;
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: baseline;
+  background: rgba(255,252,247,0.42); border: 1px solid var(--zb-line);
+  border-radius: var(--zb-radius);
+}
+.zb-title { font-size: 1.45rem; font-weight: 700; }
+.zb-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: var(--zb-ok); color: #fff; font-weight: 700; font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.zb-meta { color: var(--zb-muted); font-size: 0.95rem; }
+.zb-status {
+  font-weight: 700; margin-left: auto; padding: 0.2rem 0.55rem;
+  background: var(--zb-solid); border-radius: 999px;
+}
+.zb-main {
+  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+}
+.zb-target-col, .zb-board-col {
+  min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+}
+.zb-panel {
+  background: var(--zb-solid); border: 1px solid rgba(28,46,34,0.12);
+  border-radius: 14px; padding: 0.5rem 0.6rem;
+}
+.zb-panel h3 { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--zb-muted); }
+.zb-scheibe-wrap {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; background: var(--zb-glass); border: 1px solid var(--zb-line);
+  border-radius: var(--zb-radius);
+}
+.zb-scheibe-wrap svg, .zb-scheibe-svg { width: 100%; height: 100%; }
+.zb-board-svg { width: 100%; height: auto; flex: 1 1 auto; min-height: 0; display: block; }
+.zb-shot-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.zb-shot-val { font-size: 1.6rem; font-weight: 700; }
+.zb-muted { color: var(--zb-muted); font-size: 0.85rem; }
+.zb-block {
+  margin-top: 0.35rem; background: rgba(196,92,38,0.16);
+  border: 1px solid rgba(196,92,38,0.35); border-radius: 12px; padding: 8px 12px; color: #6b2f12;
+}
+.zb-board-host {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+  padding: 0.35rem; background: var(--zb-glass); border: 1px solid var(--zb-line);
+  border-radius: var(--zb-radius); overflow: auto;
+}
+.zb-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem; align-items: start;
+}
+.zb-card {
+  background: var(--zb-solid); border-radius: 14px; padding: 0.4rem;
+  border: 2px solid transparent;
+}
+.zb-card.is-me { border-color: var(--zb-ok); }
+.zb-card.is-win { border-color: var(--zb-accent); box-shadow: 0 0 0 2px rgba(201,162,39,0.4); }
+.zb-card-label { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.25rem; display: flex; gap: 0.35rem; align-items: center; }
+.zb-card-svg { width: 100%; height: auto; display: block; }
+.zb-recent, .zb-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.zb-recent li, .zb-standings li {
+  display: grid; grid-template-columns: 14px 1fr auto auto; gap: 0.45rem; align-items: center; font-size: 0.86rem;
+}
+.zb-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.zb-footer {
+  flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
+  background: var(--zb-glass); border: 1px solid var(--zb-line); border-radius: 14px;
+}
+@media (max-width: 900px) {
+  .zb-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
+}

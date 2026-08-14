@@ -33,7 +33,8 @@
     }
     const installed = installedPlugins.find(function (p) { return p.id === id; });
     if (installed) return installed.mode === 'shared';
-    return id === 'f1-race' || id === 'fox-on-the-run';
+    return id === 'f1-race' || id === 'fox-on-the-run' ||
+      id === 'zehner-bingo' || id === 'malefiz' || id === 'maedn';
   }
 
   function teardownSharedHost() {
@@ -456,6 +457,69 @@
     await refreshAll();
   }
 
+  function selectedResetRanges() {
+    const list = document.getElementById('range-reset-select');
+    const out = [];
+    if (!list) return out;
+    const boxes = list.querySelectorAll('input[data-range]');
+    for (let i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) continue;
+      const n = parseInt(boxes[i].getAttribute('data-range'), 10);
+      if (n >= 1) out.push(n);
+    }
+    return out;
+  }
+
+  function formatBahnList(nums) {
+    if (!nums.length) return '';
+    if (nums.length === 1) return 'Bahn ' + nums[0];
+    const parts = [];
+    let start = nums[0];
+    let prev = nums[0];
+    for (let i = 1; i <= nums.length; i++) {
+      const cur = nums[i];
+      if (cur === prev + 1) {
+        prev = cur;
+        continue;
+      }
+      parts.push(start === prev ? String(start) : start + '–' + prev);
+      start = prev = cur;
+    }
+    return 'Bahnen ' + parts.join(', ');
+  }
+
+  function clearRangeResetSelection() {
+    const list = document.getElementById('range-reset-select');
+    if (!list) return;
+    const boxes = list.querySelectorAll('input[data-range]');
+    for (let i = 0; i < boxes.length; i++) boxes[i].checked = false;
+  }
+
+  function setSideMenuOpen(open) {
+    const toggle = document.getElementById('menu-toggle');
+    const menu = document.getElementById('top-bar-menu');
+    const bar = document.getElementById('top-bar');
+    if (!menu) return;
+    menu.hidden = !open;
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (bar) bar.classList.toggle('is-menu-open', !!open);
+  }
+
+  function fillRangeResetSelect() {
+    const list = document.getElementById('range-reset-select');
+    if (!list) return;
+    const n = Math.max(1, (core.config && core.config.ranges) || 1);
+    const prev = selectedResetRanges();
+    const boxes = list.querySelectorAll('input[data-range]');
+    if (boxes.length === n) return;
+    let html = '';
+    for (let i = 1; i <= n; i++) {
+      html += '<label class="range-reset-item"><input type="checkbox" data-range="' + i + '"' +
+        (prev.indexOf(i) >= 0 ? ' checked' : '') + '>Bahn ' + i + '</label>';
+    }
+    list.innerHTML = html;
+  }
+
   function buildControls() {
     const strip = document.getElementById('control-strip');
     if (!strip) return;
@@ -470,9 +534,9 @@
       '<button type="button" class="btn" id="race-puncture-btn" hidden>Reifenplatzer</button>' +
       '<button type="button" class="btn" id="race-oil-btn" hidden>Ölverlust</button>' +
       '</span>' +
-      '<label class="plugin-active-label">Bahn zurücksetzen' +
-      '<select id="range-reset-select"></select></label>' +
-      '<button type="button" class="btn btn-danger" id="btn-range-reset">Bahn zurücksetzen</button>' +
+      '<div class="plugin-active-label">Bahnen zurücksetzen' +
+      '<div id="range-reset-select" class="range-reset-list" role="group" aria-label="Bahnen"></div></div>' +
+      '<button type="button" class="btn btn-danger" id="btn-range-reset">Bahnen zurücksetzen</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-theme-toggle">Dunkelmodus</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
@@ -501,20 +565,29 @@
     const rangeResetBtn = document.getElementById('btn-range-reset');
     if (rangeResetBtn) {
       rangeResetBtn.onclick = async function () {
-        const rangeSel = document.getElementById('range-reset-select');
-        const n = rangeSel ? parseInt(rangeSel.value, 10) : NaN;
-        if (!n || n < 1) {
-          alert('Bitte eine Bahn wählen.');
+        const nums = selectedResetRanges();
+        if (!nums.length) {
+          alert('Bitte mindestens eine Bahn wählen.');
           return;
         }
-        if (!confirm('Bahn ' + n + ' wirklich zurücksetzen? Schütze, Schüsse und Summen werden gelöscht.')) {
+        const label = formatBahnList(nums);
+        if (!confirm(label + ' wirklich zurücksetzen? Schütze, Schüsse und Summen werden gelöscht.')) {
           return;
         }
-        const res = await controlFetch('/api/live/reset?range=' + encodeURIComponent(n), {
-          method: 'POST',
-          body: '{}'
-        });
-        if (!res.ok) alert('Zurücksetzen fehlgeschlagen: ' + (await res.text()));
+        const failed = [];
+        for (let i = 0; i < nums.length; i++) {
+          const n = nums[i];
+          const res = await controlFetch('/api/live/reset?range=' + encodeURIComponent(n), {
+            method: 'POST',
+            body: '{}'
+          });
+          if (!res.ok) failed.push(n);
+        }
+        if (failed.length) {
+          alert('Zurücksetzen fehlgeschlagen: ' + formatBahnList(failed));
+        }
+        clearRangeResetSelection();
+        setSideMenuOpen(false);
       };
     }
     const tokenBtn = document.getElementById('btn-control-token');
@@ -595,25 +668,25 @@
         if (startBtn) startBtn.textContent = 'Tannebaum starten';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'zehner-bingo') {
+        if (startBtn) startBtn.textContent = 'Bingo starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'malefiz') {
+        if (startBtn) startBtn.textContent = 'Malefiz starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'maedn') {
+        if (startBtn) startBtn.textContent = 'Spiel starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
       } else {
         if (startBtn) startBtn.textContent = 'Start';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
       }
     }
-    const rangeSel = document.getElementById('range-reset-select');
-    if (rangeSel) {
-      const prev = rangeSel.value;
-      const n = Math.max(1, (core.config && core.config.ranges) || 1);
-      let opts = '';
-      for (let i = 1; i <= n; i++) {
-        opts += '<option value="' + i + '">Bahn ' + i + '</option>';
-      }
-      rangeSel.innerHTML = opts;
-      if (prev && parseInt(prev, 10) >= 1 && parseInt(prev, 10) <= n) {
-        rangeSel.value = prev;
-      }
-    }
+    fillRangeResetSelect();
   }
 
   async function refreshAll() {
@@ -672,13 +745,9 @@
   function wireMenu() {
     const toggle = document.getElementById('menu-toggle');
     const menu = document.getElementById('top-bar-menu');
-    const bar = document.getElementById('top-bar');
     if (toggle && menu) {
       toggle.onclick = function () {
-        const open = menu.hidden;
-        menu.hidden = !open;
-        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (bar) bar.classList.toggle('is-menu-open', open);
+        setSideMenuOpen(menu.hidden);
       };
     }
     const stopSlim = document.getElementById('plugin-stop-slim');

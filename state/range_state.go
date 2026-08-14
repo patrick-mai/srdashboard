@@ -383,8 +383,7 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	rs.OverallSumInt += sp.FullValue
 	rs.OverallSumDec += sp.DecValue
 
-	// If we already have 10 shots, this shot is the first of a new series: clear target first.
-	// Series sums are now calculated when the last shot of a series is placed, not during target cleanup.
+	// If we already have 10 shots, this shot opens a new series: clear the target first.
 	if len(rs.Shots) == 10 {
 		rs.Shots = nil
 	}
@@ -393,16 +392,10 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		rs.WarmupShots = append(rs.WarmupShots, shot)
 	}
 
-	// After placing the shot, if we have exactly 10 shots on the target, record the series.
+	// Running series totals: first shot of a series starts a new column;
+	// later shots add to that column. Snapshot the 10 shots when the series completes.
+	addShotToCurrentSeries(rs, shot)
 	if len(rs.Shots) == 10 {
-		var sumInt int
-		var sumDec float64
-		for _, s := range rs.Shots {
-			sumInt += s.FullValue
-			sumDec += s.DecValue
-		}
-		rs.SeriesSumsInt = appendCapped(rs.SeriesSumsInt, sumInt, maxSeriesSums)
-		rs.SeriesSums = appendCapped(rs.SeriesSums, sumDec, maxSeriesSums)
 		rs.SeriesShots = appendSeriesCapped(rs.SeriesShots, rs.Shots, maxSeriesSums)
 	}
 
@@ -418,6 +411,23 @@ func appendCapped[T any](s []T, v T, max int) []T {
 		s = append(s[:0], s[len(s)-max:]...)
 	}
 	return s
+}
+
+// addShotToCurrentSeries updates running series totals after a shot has been
+// appended to rs.Shots. A new series column starts with that shot; otherwise
+// the value is added to the open series.
+func addShotToCurrentSeries(rs *RangeState, shot Shot) {
+	if len(rs.Shots) == 1 {
+		rs.SeriesSumsInt = appendCapped(rs.SeriesSumsInt, shot.FullValue, maxSeriesSums)
+		rs.SeriesSums = appendCapped(rs.SeriesSums, shot.DecValue, maxSeriesSums)
+		return
+	}
+	if last := len(rs.SeriesSumsInt) - 1; last >= 0 {
+		rs.SeriesSumsInt[last] += shot.FullValue
+	}
+	if last := len(rs.SeriesSums) - 1; last >= 0 {
+		rs.SeriesSums[last] += shot.DecValue
+	}
 }
 
 // Prediction returns the extrapolated totals to match the sum display (integer sum / decimal sum).

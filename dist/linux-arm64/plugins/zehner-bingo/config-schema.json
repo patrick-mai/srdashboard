@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "autoStartWhenAllReady": { "type": "boolean" },
+    "winMode": { "type": "string", "enum": ["line", "blackout"], "title": "Sieg" },
+    "defaultTargetProfile": {
+      "type": "string",
+      "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+    },
+    "handicaps": { "type": "object", "title": "Handicap je Bahn (auf den Schusswert)" },
+    "disciplineTargets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+      }
+    }
+  }
+}

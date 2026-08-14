@@ -1,6 +1,7 @@
 package state
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -159,6 +160,56 @@ func TestSeriesShotsStoredOnComplete(t *testing.T) {
 	}
 	if len(snap.Shots) != 1 || snap.Shots[0].X != 100 {
 		t.Fatalf("live shots = %+v, want single shot X=100", snap.Shots)
+	}
+	if len(snap.SeriesSumsInt) != 2 || snap.SeriesSumsInt[1] != 9 {
+		t.Fatalf("SeriesSumsInt after 11th = %v, want [completed, 9]", snap.SeriesSumsInt)
+	}
+}
+
+func TestSeriesSumsFollowEachShot(t *testing.T) {
+	ls := NewLiveState(1)
+	ls.ApplyShot(1, &ShotPayload{DecValue: 10.5, FullValue: 10})
+	snap := ls.Snapshot()[0]
+	if len(snap.SeriesSumsInt) != 1 || snap.SeriesSumsInt[0] != 10 {
+		t.Fatalf("after shot 1: SeriesSumsInt = %v, want [10]", snap.SeriesSumsInt)
+	}
+	if len(snap.SeriesSums) != 1 || snap.SeriesSums[0] != 10.5 {
+		t.Fatalf("after shot 1: SeriesSums = %v, want [10.5]", snap.SeriesSums)
+	}
+	if len(snap.SeriesShots) != 0 {
+		t.Fatalf("SeriesShots after shot 1 = %d, want 0 (series not complete)", len(snap.SeriesShots))
+	}
+
+	ls.ApplyShot(1, &ShotPayload{DecValue: 9.4, FullValue: 9})
+	snap = ls.Snapshot()[0]
+	if len(snap.SeriesSumsInt) != 1 || snap.SeriesSumsInt[0] != 19 {
+		t.Fatalf("after shot 2: SeriesSumsInt = %v, want [19]", snap.SeriesSumsInt)
+	}
+	if len(snap.SeriesSums) != 1 || math.Abs(snap.SeriesSums[0]-19.9) > 1e-9 {
+		t.Fatalf("after shot 2: SeriesSums = %v, want [19.9]", snap.SeriesSums)
+	}
+
+	for i := 0; i < 8; i++ {
+		ls.ApplyShot(1, &ShotPayload{DecValue: 10.0, FullValue: 10})
+	}
+	snap = ls.Snapshot()[0]
+	if len(snap.SeriesSumsInt) != 1 || snap.SeriesSumsInt[0] != 99 {
+		t.Fatalf("after 10 shots: SeriesSumsInt = %v, want [99]", snap.SeriesSumsInt)
+	}
+	if len(snap.SeriesShots) != 1 {
+		t.Fatalf("SeriesShots after 10 shots = %d, want 1", len(snap.SeriesShots))
+	}
+
+	ls.ApplyShot(1, &ShotPayload{DecValue: 8.1, FullValue: 8})
+	snap = ls.Snapshot()[0]
+	if len(snap.SeriesSumsInt) != 2 {
+		t.Fatalf("after opening shot of series 2: %d columns, want 2", len(snap.SeriesSumsInt))
+	}
+	if snap.SeriesSumsInt[1] != 8 {
+		t.Fatalf("new series started with %d, want 8", snap.SeriesSumsInt[1])
+	}
+	if math.Abs(snap.SeriesSums[1]-8.1) > 1e-9 {
+		t.Fatalf("new series decimal = %v, want 8.1", snap.SeriesSums[1])
 	}
 }
 

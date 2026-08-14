@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "autoStartWhenAllReady": { "type": "boolean" },
+    "cellsPerPlayer": { "type": "integer" },
+    "homeLength": { "type": "integer" },
+    "enterMin": { "type": "number", "title": "Mindestwert zum Einsetzen" },
+    "stepMin": { "type": "number" },
+    "doubleMin": { "type": "number" },
+    "defaultTargetProfile": {
+      "type": "string",
+      "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+    },
+    "handicaps": { "type": "object", "title": "Handicap je Bahn" },
+    "disciplineTargets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["air_rifle_10m", "air_pistol_10m", "smallbore_50m_prone", "smallbore_50m_3p"]
+      }
+    }
+  }
+}

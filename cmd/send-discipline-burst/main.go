@@ -2,7 +2,7 @@
 // different DSB-style programs (LG/LP/KK × freistehend/Auflage), including Probe.
 //
 //	go run ./cmd/send-discipline-burst
-//	go run ./cmd/send-discipline-burst -addr 127.0.0.1:30169 -warmup 5 -comp 20
+//	go run ./cmd/send-discipline-burst -already 20   # finish programs already in progress
 package main
 
 import (
@@ -30,84 +30,126 @@ type program struct {
 	Club       string
 	TeilerBand float64
 	DecLo      float64
+	ProgramN   int // Wertung shots in the DSB program
 }
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:30169", "UDP host:port")
 	warmupN := flag.Int("warmup", 5, "Probe shots per range")
-	compN := flag.Int("comp", 20, "Competition shots per range (open series ok)")
+	compN := flag.Int("comp", 0, "Competition shots per range (0 = full ProgramN)")
+	already := flag.Int("already", 0, "Wertung shots already on each range; send the rest of the program")
 	gap := flag.Duration("gap", 8*time.Millisecond, "Delay between shots")
 	flag.Parse()
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	programs := []program{
-		{1, "LG", "Sportordnung", "LG 30 Schuss", "Anna", "Müller", "SV Adler", 25, 9.0},
-		{2, "LG", "Sportordnung", "LG 30 Schuss Auflage", "Max", "Schmidt", "KSG Mitte", 25, 9.5},
-		{3, "LP", "Sportordnung", "LP 40 Schuss", "Lena", "Fischer", "SSC West", 80, 8.0},
-		{4, "LP", "Sportordnung", "LP 40 Schuss Auflage", "Tom", "Weber", "BSV Ost", 80, 8.5},
-		{5, "KK", "Sportordnung", "KK 40 Schuss", "Sarah", "Meyer", "SG Süd", 80, 8.0},
-		{6, "KK", "Sportordnung", "KK Sportgewehr Auflage", "Felix", "Wagner", "SV Adler", 80, 8.5},
+		{1, "LG", "Sportordnung", "LG 30 Schuss", "Anna", "Müller", "SV Adler", 25, 9.2, 30},
+		{2, "LG", "Sportordnung", "LG 30 Schuss Auflage", "Max", "Schmidt", "KSG Mitte", 25, 9.7, 30},
+		{3, "LP", "Sportordnung", "LP 40 Schuss", "Lena", "Fischer", "SSC West", 80, 7.0, 40},
+		{4, "LP", "Sportordnung", "LP 40 Schuss Auflage", "Tom", "Weber", "BSV Ost", 80, 8.4, 40},
+		{5, "KK", "Sportordnung", "KK 40 Schuss", "Sarah", "Meyer", "SG Süd", 80, 4.5, 40},
+		{6, "KK", "Sportordnung", "KK Sportgewehr 40 Schuss Auflage", "Felix", "Wagner", "SV Adler", 80, 7.8, 40},
 	}
 
-	log.Printf("burst → %s  (warmup=%d comp=%d per range)", *addr, *warmupN, *compN)
-	for _, p := range programs {
-		log.Printf("range %d: %s %s — %s [%s] → expect DSB %s",
-			p.Range, p.Firstname, p.Lastname, p.MenuItem, p.DiscType, expectDSB(p.DiscType, p.MenuItem))
-		base := time.Now()
-		shotIdx := 0
-		sendBlock := func(n int, warmup bool) {
-			for i := 0; i < n; i++ {
-				dec := pickDec(rng, p.DecLo)
-				x, y, dist := pickShotCoords(rng, dec, p.TeilerBand)
-				full := int(math.Floor(dec))
-				if full > 10 {
-					full = 10
-				}
-				at := base.Add(time.Duration(shotIdx) * 900 * time.Millisecond)
-				shotIdx++
-				msg := map[string]any{
-					"MessageType": "Event",
-					"MessageVerb": "Shot",
-					"Ranges":      p.Range,
-					"Objects": []any{
-						map[string]any{
-							"X":            x,
-							"Y":            y,
-							"Distance":     dist,
-							"FullValue":    full,
-							"DecValue":     dec,
-							"Range":        p.Range,
-							"IsWarmup":     warmup,
-							"IsHot":        !warmup,
-							"IsValid":      true,
-							"DiscType":     p.DiscType,
-							"DiscTypeRaw":  p.DiscType,
-							"ShotDateTime": at.Format("2006-01-02 15:04:05.000"),
-							"Shooter": map[string]any{
-								"Firstname": p.Firstname,
-								"Lastname":  p.Lastname,
-								"Club":      map[string]any{"Name": p.Club},
-							},
-							"MenuItem": map[string]any{
-								"MenuPointName": p.MenuPoint,
-								"MenuItemName":  p.MenuItem,
-							},
-						},
+	if *already > 0 {
+		*warmupN = 0
+	}
+	remain := make([]int, len(programs))
+	maxRemain := 0
+	for i, p := range programs {
+		want := *compN
+		if want <= 0 {
+			want = p.ProgramN
+		}
+		r := want - *already
+		if r < 0 {
+			r = 0
+		}
+		remain[i] = r
+		if r > maxRemain {
+			maxRemain = r
+		}
+	}
+
+	log.Printf("burst → %s  (warmup=%d, already=%d)", *addr, *warmupN, *already)
+	for i, p := range programs {
+		log.Printf("range %d: %s %s — %s [%s] floor=%.1f remain=%d/%d → expect DSB %s",
+			p.Range, p.Firstname, p.Lastname, p.MenuItem, p.DiscType, p.DecLo, remain[i], p.ProgramN, expectDSB(p.DiscType, p.MenuItem))
+	}
+
+	bases := make([]time.Time, len(programs))
+	shotIdx := make([]int, len(programs))
+	now := time.Now()
+	for i := range programs {
+		bases[i] = now
+	}
+
+	sendOne := func(i int, warmup bool) {
+		p := programs[i]
+		dec := pickDec(rng, p.DecLo)
+		x, y, dist := pickShotCoords(rng, dec, p.TeilerBand)
+		full := int(math.Floor(dec))
+		if full > 10 {
+			full = 10
+		}
+		at := bases[i].Add(time.Duration(shotIdx[i]) * 900 * time.Millisecond)
+		shotIdx[i]++
+		msg := map[string]any{
+			"MessageType": "Event",
+			"MessageVerb": "Shot",
+			"Ranges":      p.Range,
+			"Objects": []any{
+				map[string]any{
+					"X":            x,
+					"Y":            y,
+					"Distance":     dist,
+					"FullValue":    full,
+					"DecValue":     dec,
+					"Range":        p.Range,
+					"IsWarmup":     warmup,
+					"IsHot":        !warmup,
+					"IsValid":      true,
+					"DiscType":     p.DiscType,
+					"DiscTypeRaw":  p.DiscType,
+					"ShotDateTime": at.Format("2006-01-02 15:04:05.000"),
+					"Shooter": map[string]any{
+						"Firstname": p.Firstname,
+						"Lastname":  p.Lastname,
+						"Club":      map[string]any{"Name": p.Club},
 					},
-				}
-				data, err := json.Marshal(msg)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if err := sendUDP(*addr, data); err != nil {
-					log.Fatal(err)
-				}
-				time.Sleep(*gap)
+					"MenuItem": map[string]any{
+						"MenuPointName": p.MenuPoint,
+						"MenuItemName":  p.MenuItem,
+					},
+				},
+			},
+		}
+		data, err := json.Marshal(msg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := sendUDP(*addr, data); err != nil {
+			log.Fatal(err)
+		}
+		time.Sleep(*gap)
+	}
+
+	log.Printf("warmup %d × %d ranges…", *warmupN, len(programs))
+	for n := 0; n < *warmupN; n++ {
+		for i := range programs {
+			sendOne(i, true)
+		}
+	}
+	log.Printf("competition remaining (max %d)…", maxRemain)
+	for n := 0; n < maxRemain; n++ {
+		for i := range programs {
+			if n < remain[i] {
+				sendOne(i, false)
 			}
 		}
-		sendBlock(*warmupN, true)
-		sendBlock(*compN, false)
-		log.Printf("  range %d done (%d probe + %d wertung)", p.Range, *warmupN, *compN)
+		if (n+1)%10 == 0 {
+			log.Printf("  competition +%d", n+1)
+		}
 	}
 	fmt.Println("done — open each Bahn QR (Ring Reader): LG 1.10/1.11, LP 2.10/2.11, KK 1.40/1.41")
 }

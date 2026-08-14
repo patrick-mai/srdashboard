@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="zehner-bingo" label="Zehner-Bingo" version="1.0.0" mode="shared" kind="game">
+  <description>3×3 nur hohe Zellen (9.0–10.9). Ein Schuss markiert die höchste noch offene Zelle, die er erreichen kann. 6–7 zählen nicht. Erste Linie gewinnt.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <winMode>line</winMode>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+    <disciplineTargets>
+      <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <LG>air_rifle_10m</LG>
+      <Luftpistole>air_pistol_10m</Luftpistole>
+      <LP>air_pistol_10m</LP>
+      <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK-Gewehr>smallbore_50m_prone</KK-Gewehr>
+      <KK>smallbore_50m_prone</KK>
+    </disciplineTargets>
+  </config>
+</plugin>
