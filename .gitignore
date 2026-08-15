@@ -10,6 +10,7 @@
 /docs/*
 !/docs/*.md
 /docs/DISAG_QR.md
+/exampledata/
 
 # Ship pre-built binaries for non-developers
 !dist/**/*.exe
