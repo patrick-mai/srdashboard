@@ -528,6 +528,7 @@
       '<label class="plugin-active-label">Aktiv' +
       '<select id="plugin-active-select"></select></label>' +
       '<a class="btn btn-ghost" id="plugin-config-link" href="/config">Einstellungen</a>' +
+      '<button type="button" class="btn btn-ghost" id="rulebook-menu-btn" hidden>Regelbuch</button>' +
       '<span id="race-controls" class="race-controls" hidden>' +
       '<button type="button" class="btn btn-primary" id="race-start-btn">Start</button>' +
       '<button type="button" class="btn" id="race-reset-btn">Reset</button>' +
@@ -687,6 +688,18 @@
       }
     }
     fillRangeResetSelect();
+    syncRulebookButtons();
+  }
+
+  function syncRulebookButtons() {
+    const rb = window.SRRulebook;
+    if (!rb) return;
+    const slim = document.getElementById('rulebook-btn');
+    const menuBtn = document.getElementById('rulebook-menu-btn');
+    rb.wireButton(slim);
+    rb.wireButton(menuBtn);
+    rb.syncButton(slim, activePlugin);
+    rb.syncButton(menuBtn, activePlugin);
   }
 
   async function refreshAll() {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -53,16 +54,17 @@ func (h *Handlers) PluginsActiveList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item := map[string]any{
-		"id":         ap.Manifest.ID,
-		"label":      ap.Manifest.Label,
-		"version":    ap.Manifest.Version,
+		"id":          ap.Manifest.ID,
+		"label":       ap.Manifest.Label,
+		"version":     ap.Manifest.Version,
 		"description": ap.Manifest.Description,
-		"kind":       ap.Manifest.Kind,
-		"mode":       ap.Manifest.Mode,
-		"defaults":   h.Plugins.MergedConfig(ap.Manifest.ID),
-		"viewUrl":    pluginAssetURL(ap.Manifest.ID, ap.Manifest.Entrypoints.View),
-		"themeUrl":   "",
-		"assetsBase": pluginAssetURL(ap.Manifest.ID, ap.Manifest.AssetsDir),
+		"kind":        ap.Manifest.Kind,
+		"mode":        ap.Manifest.Mode,
+		"defaults":    h.Plugins.MergedConfig(ap.Manifest.ID),
+		"viewUrl":     pluginAssetURL(ap.Manifest.ID, ap.Manifest.Entrypoints.View),
+		"themeUrl":    "",
+		"assetsBase":  pluginAssetURL(ap.Manifest.ID, ap.Manifest.AssetsDir),
+		"rulebookUrl": h.pluginRulebookURL(ap),
 	}
 	if ap.Manifest.Entrypoints.Theme != "" {
 		item["themeUrl"] = pluginAssetURL(ap.Manifest.ID, ap.Manifest.Entrypoints.Theme)
@@ -158,6 +160,7 @@ func (h *Handlers) PluginByID(w http.ResponseWriter, r *http.Request) {
 			"manifest":    ap.Manifest,
 			"viewUrl":     pluginAssetURL(parts[0], ap.Manifest.Entrypoints.View),
 			"assetsBase":  pluginAssetURL(parts[0], ap.Manifest.AssetsDir),
+			"rulebookUrl": h.pluginRulebookURL(ap),
 		}
 		if ap.Logic != nil {
 			resp["configSchema"] = ap.Logic.ConfigSchema()
@@ -317,6 +320,25 @@ func pluginAssetURL(id, rest string) string {
 		return "/plugins/" + id
 	}
 	return "/plugins/" + id + "/" + rest
+}
+
+const rulebookFile = "rulebook.json"
+
+func (h *Handlers) pluginRulebookURL(ap *loader.ActivePlugin) string {
+	if ap == nil || ap.Manifest == nil {
+		return ""
+	}
+	dir := ap.Dir
+	if dir == "" && h.Plugins != nil {
+		dir = filepath.Join(h.Plugins.RootDir(), ap.Manifest.ID)
+	}
+	if dir == "" {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(dir, rulebookFile)); err != nil {
+		return ""
+	}
+	return pluginAssetURL(ap.Manifest.ID, rulebookFile)
 }
 
 // ServePlugin serves plugin assets at /plugins/:id/* (never config.xml or wasm as editable config).

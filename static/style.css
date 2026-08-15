@@ -1836,6 +1836,83 @@ body.config-display {
   font-size: 0.9rem;
 }
 
+.rulebook-btn {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 2px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.rulebook-btn:hover:not(:disabled),
+.rulebook-btn:focus-visible {
+  border-color: var(--accent, #3d7ea6);
+  outline: none;
+}
+
+.rulebook-btn:disabled,
+.rulebook-btn[hidden] {
+  display: none;
+}
+
+.side-rail.is-menu-open .rulebook-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.rulebook-dialog {
+  width: min(92vw, 560px);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  text-align: left;
+}
+
+.rulebook-body {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.rulebook-summary {
+  margin: 0 0 14px;
+  color: var(--muted);
+}
+
+.rulebook-section {
+  margin: 0 0 16px;
+}
+
+.rulebook-section:last-child {
+  margin-bottom: 0;
+}
+
+.rulebook-section h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rulebook-section p {
+  margin: 0 0 8px;
+}
+
+.rulebook-section ul {
+  margin: 0 0 8px;
+  padding-left: 1.2em;
+}
+
+.rulebook-section li {
+  margin: 0 0 4px;
+}
+
 .range-header-text { min-width: 0; flex: 1; }
 
 .range-header-line1 {

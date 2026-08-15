@@ -12,7 +12,7 @@
       } catch (e) { /* ignore */ }
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=qr-rr">
+  <link rel="stylesheet" href="/style.css?v=rulebook">
 </head>
 <body>
   <div id="shooter-app" hidden></div>
@@ -24,6 +24,7 @@
           <span class="menu-toggle-icon" aria-hidden="true"></span>
           <span class="menu-toggle-label">Menü</span>
         </button>
+        <button type="button" class="rulebook-btn" id="rulebook-btn" hidden title="Regelbuch" aria-label="Regelbuch">Regeln</button>
         <div id="match-status-compact" class="match-status-compact" aria-live="polite">
           <span class="status-idle">Live</span>
         </div>
@@ -51,6 +52,7 @@
   <script src="/auth.js"></script>
   <script src="/target-core.js?v=qr-rr"></script>
   <script src="/plugin-shell.js"></script>
+  <script src="/rulebook.js?v=rulebook"></script>
   <script src="/config-editor.js"></script>
   <script src="/app.js"></script>
   <script>
