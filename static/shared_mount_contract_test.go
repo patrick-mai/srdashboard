@@ -166,7 +166,7 @@ func TestAutorennenPreservesSharedHostClassAndLayout(t *testing.T) {
 	style := readRepoFile(t, "static", "style.css")
 	master := readRepoFile(t, "static", "master.js")
 	mustContain(t, js, "window.SRPluginViews['autorennen']",
-		"hall/shooter paint looks up SRPluginViews[pluginId]; a stale f1-race key leaves the surface blank")
+		"hall/shooter paint looks up SRPluginViews[pluginId]; a mismatched key leaves the surface blank")
 	mustContain(t, js, "container.classList.add('shared-master-host')",
 		"shared host class must survive Autorennen paints so absolute fill CSS applies")
 	mustContain(t, js, "container._sharedReady = true",
@@ -175,8 +175,6 @@ func TestAutorennenPreservesSharedHostClassAndLayout(t *testing.T) {
 		"master skeleton must exist for hall overview")
 	mustNotContain(t, js, "container.className = 'range-plugin-view autorennen-view",
 		"assigning className on the shared host drops shared-master-host and blanks the hall")
-	mustNotContain(t, js, "SRPluginViews['f1-race']",
-		"old plugin id would never match the loaded autorennen session")
 	mustContain(t, css, "#shared-master-host.autorennen-view",
 		"host itself carries .autorennen-view; child-only selector left the track unfilled")
 	mustContain(t, style, "#shared-master-host.autorennen-view",

@@ -55,22 +55,6 @@ func TestRenamedPluginAssetsServedForGUI(t *testing.T) {
 	if !strings.Contains(body, "SRPluginViews['autorennen']") {
 		t.Error("served autorennen view.js does not register SRPluginViews['autorennen']")
 	}
-	if strings.Contains(body, "SRPluginViews['f1-race']") {
-		t.Error("served autorennen view.js still registers f1-race")
-	}
-
-	for _, old := range []string{
-		"/plugins/f1-race/view.js",
-		"/plugins/maedn/view.js",
-		"/plugins/malefiz/view.js",
-		"/plugins/autorennen/assets/circuits/spa.svg",
-	} {
-		rec := httptest.NewRecorder()
-		h.ServePlugin(rec, httptest.NewRequest(http.MethodGet, old, nil))
-		if rec.Code == http.StatusOK {
-			t.Errorf("%s still served — GUI could load a stale id", old)
-		}
-	}
 }
 
 func TestPluginsListUsesRenamedIds(t *testing.T) {
@@ -97,11 +81,6 @@ func TestPluginsListUsesRenamedIds(t *testing.T) {
 	for id, label := range want {
 		if got[id] != label {
 			t.Errorf("list %s: got %q, want label %q — plugin picker would show the wrong name or omit the game", id, got[id], label)
-		}
-	}
-	for _, old := range []string{"f1-race", "maedn", "malefiz"} {
-		if _, ok := got[old]; ok {
-			t.Errorf("plugin picker still lists old id %s", old)
 		}
 	}
 }

@@ -33,7 +33,9 @@ func TestAllBundledPluginsLoadAndActivate(t *testing.T) {
 		"autorennen", "barrikade", "classic-range", "fox-on-the-run",
 		"ludo", "tannebaum-einzel", "tannebaum-team", "zehner-bingo",
 	}
+	wantSet := map[string]bool{}
 	for _, id := range want {
+		wantSet[id] = true
 		ap, err := pm.Get(id)
 		if err != nil {
 			t.Errorf("Get(%s): %v", id, err)
@@ -46,9 +48,13 @@ func TestAllBundledPluginsLoadAndActivate(t *testing.T) {
 			t.Errorf("%s: no logic (builtin factory miss after rename)", id)
 		}
 	}
-	for _, old := range []string{"f1-race", "maedn", "malefiz"} {
-		if _, err := pm.Get(old); err == nil {
-			t.Errorf("old plugin %s is still loadable", old)
+	listed, err := pm.ListInstalled()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, info := range listed {
+		if !wantSet[info.ID] {
+			t.Errorf("unexpected bundled plugin %q", info.ID)
 		}
 	}
 
