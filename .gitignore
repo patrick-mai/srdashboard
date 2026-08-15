@@ -9,6 +9,7 @@
 /replay-log
 /docs/*
 !/docs/*.md
+/docs/DISAG_QR.md
 
 # Ship pre-built binaries for non-developers
 !dist/**/*.exe
