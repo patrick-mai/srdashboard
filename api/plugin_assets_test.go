@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -154,5 +155,67 @@ func TestActivePluginPayloadUsesNewIdsAndAssetURLs(t *testing.T) {
 				t.Fatalf("assetsBase=%q", assets)
 			}
 		})
+	}
+}
+
+func TestPluginActivateKeepsClassicRangeStartup(t *testing.T) {
+	root := filepath.Join("..", "plugins")
+	pm := loader.NewManager(root)
+	if err := pm.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(t.TempDir(), "config.xml")
+	cfg := &config.Config{
+		UDPPort:       30169,
+		Ranges:        2,
+		LayoutColumns: 2,
+		Plugins:       config.Plugins{Dir: root, Active: "classic-range"},
+	}
+	if err := config.Save(cfgPath, cfg); err != nil {
+		t.Fatal(err)
+	}
+	ps := rangestate.NewManager(2, pm, "classic-range")
+	ps.SetLiveSource(state.NewLiveState(2))
+	if err := ps.Activate("classic-range"); err != nil {
+		t.Fatal(err)
+	}
+	h := &Handlers{
+		State:       state.NewLiveState(2),
+		Cfg:         cfg,
+		ConfigPath:  cfgPath,
+		Plugins:     pm,
+		PluginState: ps,
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/plugins/activate", strings.NewReader(`{"id":"barrikade"}`))
+	rec := httptest.NewRecorder()
+	h.PluginActivate(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if ps.ActivePluginID() != "barrikade" {
+		t.Fatalf("live plugin = %q", ps.ActivePluginID())
+	}
+	if got := h.cfgSnapshot().Plugins.Active; got != "classic-range" {
+		t.Fatalf("in-memory startup plugin = %q", got)
+	}
+	raw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `active="classic-range"`) {
+		t.Fatalf("config.xml lost classic-range:\n%s", text)
+	}
+	if strings.Contains(text, `active="barrikade"`) {
+		t.Fatal("hall switch wrote the live game into config.xml")
+	}
+	crec := httptest.NewRecorder()
+	h.Config(crec, httptest.NewRequest(http.MethodGet, "/api/config", nil))
+	var resp ConfigResponse
+	if err := json.Unmarshal(crec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.ActivePlugin != "classic-range" {
+		t.Fatalf("config editor activePlugin=%q — saving settings would change the startup game", resp.ActivePlugin)
 	}
 }

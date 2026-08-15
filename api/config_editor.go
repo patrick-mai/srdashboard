@@ -42,10 +42,8 @@ type configSaveResponse struct {
 func (h *Handlers) configResponse() ConfigResponse {
 	cfg := h.cfgSnapshot()
 	active := cfg.Plugins.Active
-	if h.PluginState != nil {
-		if id := h.PluginState.ActivePluginID(); id != "" {
-			active = id
-		}
+	if active == "" {
+		active = "classic-range"
 	}
 	stroke := cfg.Display.ShotStrokeWidth
 	if stroke <= 0 {

@@ -21,7 +21,7 @@ type Config struct {
 // Plugins holds the plugin directory, site-active plugin, and optional version pins.
 type Plugins struct {
 	Dir    string      `xml:"dir,attr"`    // plugins/{id}/ — manifest, assets, config.xml
-	Active string      `xml:"active,attr"` // always-on active plugin id (default classic-range)
+	Active string      `xml:"active,attr"` // startup plugin id; hall switches do not rewrite this (default classic-range)
 	Plugin []PluginRef `xml:"plugin"`
 }
 

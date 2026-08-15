@@ -4,20 +4,14 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"srdashboard/config"
 	"srdashboard/host/loader"
 )
-
-func saveActivePlugin(path string, cfg *config.Config) error {
-	return config.Save(path, cfg)
-}
 
 type activateRequest struct {
 	ID string `json:"id"`
@@ -245,13 +239,6 @@ func (h *Handlers) PluginActivate(w http.ResponseWriter, r *http.Request) {
 	if err := h.PluginState.Activate(req.ID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	}
-	h.mutateCfg(func(c *config.Config) { c.Plugins.Active = req.ID })
-	if h.ConfigPath != "" {
-		snap := h.cfgSnapshot()
-		if err := saveActivePlugin(h.ConfigPath, &snap); err != nil {
-			log.Printf("persist active plugin %q: %v", req.ID, err)
-		}
 	}
 	if h.Hub != nil {
 		h.Hub.BroadcastAll(map[string]any{"type": "plugins_changed"})
