@@ -1,4 +1,4 @@
-package maedn
+package ludo
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	loader.RegisterBuiltin("maedn", func(m *loader.Manifest) logicapi.Logic {
+	loader.RegisterBuiltin("ludo", func(m *loader.Manifest) logicapi.Logic {
 		return New(m)
 	})
 }
@@ -29,13 +29,13 @@ func (l *Logic) ID() string {
 	if l.manifest != nil && l.manifest.ID != "" {
 		return l.manifest.ID
 	}
-	return "maedn"
+	return "ludo"
 }
 func (l *Logic) Label() string {
 	if l.manifest != nil && l.manifest.Label != "" {
 		return l.manifest.Label
 	}
-	return "Mensch ärgere dich nicht"
+	return "Ludo"
 }
 func (l *Logic) Version() string {
 	if l.manifest != nil && l.manifest.Version != "" {
@@ -65,7 +65,7 @@ func (l *Logic) ConfigSchema() map[string]any {
 func defaultConfig() map[string]any {
 	return map[string]any{
 		"autoStartWhenAllReady": true,
-		"cellsPerPlayer":        8,
+		"cellsPerPlayer":        10,
 		"homeLength":            4,
 		"enterMin":              10.0,
 		"stepMin":               9.0,
@@ -113,6 +113,7 @@ type GameState struct {
 	Players            map[string]*Player `json:"players"`
 	Shots              []ShotMark         `json:"shots"`
 	RingSize           int                `json:"ringSize"`
+	BoardArms          int                `json:"boardArms"`
 	HomeLength         int                `json:"homeLength"`
 	WinnerRange        int                `json:"winnerRange"`
 	StartBlockedReason string             `json:"startBlockedReason"`
@@ -128,7 +129,7 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 		Config:     merged,
 		Players:    map[string]*Player{},
 		HomeLength: gameutil.CfgInt(merged, "homeLength", 4),
-		StatusLine: "Einschießen — danach Mensch ärgere dich nicht",
+		StatusLine: "Einschießen — danach Ludo",
 	}
 	gs.ensure()
 	return marshalState(gs)
@@ -168,7 +169,7 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
 		if gs.Phase == gameutil.PhaseWarmup {
 			gs.Phase = gameutil.PhaseArming
-			gs.StatusLine = "Bereit — Spiel starten"
+			gs.StatusLine = "Bereit — Ludo starten"
 		}
 		if gs.Phase == gameutil.PhaseArming && gameutil.CfgBool(gs.Config, "autoStartWhenAllReady", true) && gs.allSeatedReady() {
 			events = append(events, gs.beginPlay()...)
@@ -339,8 +340,9 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 			"startBlockedReason":   gs.StartBlockedReason,
 			"winnerRange":          gs.WinnerRange,
 			"ringSize":             gs.RingSize,
+			"boardArms":            gs.BoardArms,
 			"homeLength":           gs.HomeLength,
-			"cellsPerPlayer":       gameutil.CfgInt(gs.Config, "cellsPerPlayer", 8),
+			"cellsPerPlayer":       cellsPerArm(gs),
 			"enterMin":             gameutil.CfgFloat(gs.Config, "enterMin", 10),
 			"stepMin":              gameutil.CfgFloat(gs.Config, "stepMin", 9),
 			"doubleMin":            gameutil.CfgFloat(gs.Config, "doubleMin", 10.5),
@@ -450,9 +452,9 @@ func (gs *GameState) captureAt(cell, mover int, home bool) int {
 func (gs *GameState) beginPlay() []logicapi.PluginEvent {
 	gs.ensure()
 	seated := gs.seatNow()
-	per := gameutil.CfgInt(gs.Config, "cellsPerPlayer", 8)
+	per := gameutil.CfgInt(gs.Config, "cellsPerPlayer", 10)
 	if per < 4 {
-		per = 8
+		per = 10
 	}
 	gs.HomeLength = gameutil.CfgInt(gs.Config, "homeLength", 4)
 	if gs.HomeLength < 1 {
@@ -462,12 +464,22 @@ func (gs *GameState) beginPlay() []logicapi.PluginEvent {
 	if n < 1 {
 		n = 1
 	}
-	gs.RingSize = per * n
+	// 2–3 players still use the classic 4-arm board (40+ fields). A 2-point
+	// star only has a handful of cells and looks broken.
+	arms := n
+	if n < 4 {
+		arms = 4
+		if per < 10 {
+			per = 10
+		}
+	}
+	gs.BoardArms = arms
+	gs.RingSize = per * arms
 	gs.Phase = gameutil.PhasePlaying
 	gs.WinnerRange = 0
 	gs.Shots = nil
 	gs.StartBlockedReason = ""
-	gs.StatusLine = "Mensch ärgere dich nicht — 10.0 setzt ein"
+	gs.StatusLine = "Ludo — 10.0 setzt ein"
 	for _, p := range gs.Players {
 		if p == nil {
 			continue
@@ -484,10 +496,28 @@ func (gs *GameState) beginPlay() []logicapi.PluginEvent {
 	for i, p := range seated {
 		p.Seated = true
 		p.InYard = true
-		p.Entry = i * per
+		arm := i
+		if n == 2 && arms == 4 {
+			arm = i * 2
+		}
+		p.Entry = arm * per
 		p.RingCell = p.Entry
 	}
-	return []logicapi.PluginEvent{{Type: "match_start", Data: map[string]any{"ringSize": gs.RingSize}}}
+	return []logicapi.PluginEvent{{Type: "match_start", Data: map[string]any{"ringSize": gs.RingSize, "boardArms": gs.BoardArms}}}
+}
+
+func cellsPerArm(gs *GameState) int {
+	if gs == nil {
+		return 10
+	}
+	if gs.BoardArms > 0 && gs.RingSize >= gs.BoardArms {
+		return gs.RingSize / gs.BoardArms
+	}
+	per := gameutil.CfgInt(gs.Config, "cellsPerPlayer", 10)
+	if per < 4 {
+		return 10
+	}
+	return per
 }
 
 func (gs *GameState) seatNow() []*Player {

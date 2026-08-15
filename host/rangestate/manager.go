@@ -52,7 +52,7 @@ func (m *Manager) SetBroadcaster(b Broadcaster) { m.broadcast = b }
 func (m *Manager) SetLiveSource(live LiveSource) { m.live = live }
 
 // SetNumRanges updates how many lanes the manager tracks and re-inits the
-// active plugin so shared games (e.g. f1-race) drop/add cars to match.
+// active plugin so shared games (e.g. autorennen) drop/add cars to match.
 func (m *Manager) SetNumRanges(n int) error {
 	if n < 1 {
 		return fmt.Errorf("numRanges must be >= 1")

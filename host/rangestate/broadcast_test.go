@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	_ "srdashboard/host/games/f1race"
+	_ "srdashboard/host/games/autorennen"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -63,22 +63,22 @@ func (b *recordingBroadcaster) reset() {
 func newSharedManager(t *testing.T, ranges int) (*Manager, *recordingBroadcaster) {
 	t.Helper()
 	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
-	src := filepath.Join("..", "..", "plugins", "f1-race")
+	src := filepath.Join("..", "..", "plugins", "autorennen")
 	if _, err := os.Stat(src); err != nil {
-		t.Skip("f1-race not present")
+		t.Skip("autorennen not present")
 	}
-	if err := copyDir(src, filepath.Join(pluginsRoot, "f1-race")); err != nil {
+	if err := copyDir(src, filepath.Join(pluginsRoot, "autorennen")); err != nil {
 		t.Fatal(err)
 	}
 	pm := loader.NewManager(pluginsRoot)
 	if err := pm.Reload(); err != nil {
 		t.Fatal(err)
 	}
-	m := NewManager(ranges, pm, "f1-race")
+	m := NewManager(ranges, pm, "autorennen")
 	m.SetLiveSource(state.NewLiveState(ranges))
 	b := &recordingBroadcaster{}
 	m.SetBroadcaster(b)
-	if err := m.Activate("f1-race"); err != nil {
+	if err := m.Activate("autorennen"); err != nil {
 		t.Fatal(err)
 	}
 	return m, b

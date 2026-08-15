@@ -79,7 +79,7 @@ window.SRPluginShell = (function () {
       // that every loaded plugin overwrites, so the last script to load wins.
       const fn = window.SRPluginViews && window.SRPluginViews[pluginId];
       if (typeof fn === 'function') {
-        // Await async plugin paints (fox/F1) so overlapping live remounts cannot
+        // Await async plugin paints (fox/Autorennen) so overlapping live remounts cannot
         // interleave skeleton + Scheibe/Revier writes on the same host.
         await fn(container, viewModel, assetsBase);
       } else if (window.SRPlugins && typeof window.SRPlugins.render === 'function') {

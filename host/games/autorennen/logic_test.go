@@ -1,4 +1,4 @@
-package f1race
+package autorennen
 
 import (
 	"math"
@@ -120,7 +120,7 @@ func TestReadyAndStartGate(t *testing.T) {
 
 func TestSkipRoundCrash(t *testing.T) {
 	l := New(nil)
-	sess, _ := l.Init(map[string]any{"numRanges": 2, "roundDurationSec": 1, "skippedRoundsToCrash": 2})
+	sess, _ := l.Init(map[string]any{"numRanges": 2, "roundDurationSec": 1, "skippedRoundsToCrash": 2, "fieldEventsEnabled": false})
 	now := time.Now()
 	sess, _, _ = l.Control(sess, "start", map[string]any{
 		"numRanges": 2,
@@ -274,8 +274,8 @@ func TestOvertakeMaintainsGap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Fall back to Spa circuit zones when drsSections empty
-	rs.DRSZones = circuitDRS["spa"]
+	// Fall back to Bergsee circuit zones when drsSections empty
+	rs.DRSZones = circuitDRS["bergsee"]
 	lead := rs.Cars["1"]
 	chase := rs.Cars["2"]
 	lead.Status = StatusRacing
@@ -288,7 +288,7 @@ func TestOvertakeMaintainsGap(t *testing.T) {
 	chase.ShotsFired = 5
 	lead.ShotThisRound = true
 	chase.ShotThisRound = true
-	rs.snapFieldToSection(5) // section 5 mid=0.45 — outside Spa/Melbourne DRS
+	rs.snapFieldToSection(5) // section 5 mid=0.45 — outside Bergsee/Hafenpark DRS
 	leadProg := lead.Progress
 	chaseProg := chase.Progress
 	if leadProg <= chaseProg {
@@ -602,7 +602,7 @@ func TestPitZeroDropsPlace(t *testing.T) {
 func TestDRSActiveEvent(t *testing.T) {
 	l := New(nil)
 	sess, err := l.Init(map[string]any{
-		"numRanges": 2, "circuitId": "melbourne", "fieldEventsEnabled": false, "stintSize": 10,
+		"numRanges": 2, "circuitId": "hafenpark", "fieldEventsEnabled": false, "stintSize": 10,
 		"drsSections": "2,3,4,7,8", "paceCompress": 1, "drsStackPerPlace": 0,
 	})
 	if err != nil {

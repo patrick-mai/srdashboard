@@ -51,7 +51,7 @@ func TestSharedMountDoesNotTeardownOnStaleGen(t *testing.T) {
 	mustContain(t, js, "host._sharedReady = true",
 		"shared mount must mark host ready for in-place live updates")
 	mustContain(t, js, "sharedHostReady(host)",
-		"live path must accept any shared plugin ready flag, not only F1 _f1LastVM")
+		"live path must accept any shared plugin ready flag, not only Autorennen _arLastVM")
 	mustContain(t, js, "Stale mount must NOT tear down",
 		"document the race: stale mountGen must not unhide #ranges-grid")
 	// Exact anti-pattern that caused fox meadow/Scheibe ghosting.
@@ -62,14 +62,14 @@ func TestSharedMountDoesNotTeardownOnStaleGen(t *testing.T) {
 func TestPluginShellAwaitsAsyncPluginPaint(t *testing.T) {
 	js := readRepoFile(t, "static", "plugin-shell.js")
 	mustContain(t, js, "await fn(container, viewModel, assetsBase);",
-		"overlapping live paints must not interleave without awaiting fox/F1 render")
+		"overlapping live paints must not interleave without awaiting fox/Autorennen render")
 }
 
 func TestFoxPreservesSharedHostClassAndMasterLayout(t *testing.T) {
 	js := readRepoFile(t, "plugins", "fox-on-the-run", "view.js")
 	mustContain(t, js, "function setFoxSurfaceClasses",
-		"fox must add classes without wiping #f1-race-master-host identity")
-	mustContain(t, js, "container.classList.add('f1-race-master-host')",
+		"fox must add classes without wiping #shared-master-host identity")
+	mustContain(t, js, "container.classList.add('shared-master-host')",
 		"shared host class must survive fox paints so absolute fill CSS applies")
 	mustContain(t, js, "container._sharedReady = true",
 		"fox master must opt into in-place live updates")
@@ -77,7 +77,7 @@ func TestFoxPreservesSharedHostClassAndMasterLayout(t *testing.T) {
 		"stale async fox paints must bail after await")
 	mustContain(t, js, "fox-master-layout",
 		"master skeleton must exist for hall overview")
-	// Scheibe column must precede chase column (same as shooter / F1 / classic).
+	// Scheibe column must precede chase column (same as shooter / Autorennen / classic).
 	masterIdx := strings.Index(js, "fox-master-layout")
 	if masterIdx < 0 {
 		t.Fatal("fox-master-layout missing")
@@ -89,20 +89,20 @@ func TestFoxPreservesSharedHostClassAndMasterLayout(t *testing.T) {
 		t.Fatal("fox master must place Scheibe (fox-target-col) left of chase map")
 	}
 	mustNotContain(t, js, "container.className = 'range-plugin-view fox-view fox-race-master'",
-		"assigning className on the shared host drops f1-race-master-host and breaks fill")
+		"assigning className on the shared host drops shared-master-host and breaks fill")
 }
 
 func TestFoxHostCSSFillsSharedSurface(t *testing.T) {
 	css := readRepoFile(t, "plugins", "fox-on-the-run", "theme.css")
-	mustContain(t, css, "#f1-race-master-host.fox-view",
+	mustContain(t, css, "#shared-master-host.fox-view",
 		"host itself carries .fox-view; child-only selector left the meadow unfilled")
 	style := readRepoFile(t, "static", "style.css")
-	mustContain(t, style, "#f1-race-master-host.fox-view",
+	mustContain(t, style, "#shared-master-host.fox-view",
 		"shared host must stay opaque under fox so the classic grid cannot ghost through")
-	if strings.Contains(style, "#f1-race-master-host:has(.fox-view)") &&
+	if strings.Contains(style, "#shared-master-host:has(.fox-view)") &&
 		strings.Contains(style, "background: transparent") {
 		// Narrow: only fail if the fox host rule itself is transparent.
-		idx := strings.Index(style, "#f1-race-master-host:has(.fox-view)")
+		idx := strings.Index(style, "#shared-master-host:has(.fox-view)")
 		chunk := style[idx:min(len(style), idx+120)]
 		if strings.Contains(chunk, "background: transparent") {
 			t.Fatal("transparent shared host let range-grid Scheibe bleed through fox")
@@ -123,15 +123,15 @@ func TestNewSharedGamesPreserveHostClassAndLayout(t *testing.T) {
 		id, dir, prefix, setFn, staleFn, startLabel string
 	}{
 		{"zehner-bingo", "zehner-bingo", "zb", "setZbSurfaceClasses", "zbPaintStale", "Bingo starten"},
-		{"malefiz", "malefiz", "mz", "setMzSurfaceClasses", "mzPaintStale", "Malefiz starten"},
-		{"maedn", "maedn", "md", "setMdSurfaceClasses", "mdPaintStale", "Spiel starten"},
+		{"barrikade", "barrikade", "br", "setBrSurfaceClasses", "brPaintStale", "Barrikade starten"},
+		{"ludo", "ludo", "ld", "setLdSurfaceClasses", "ldPaintStale", "Ludo starten"},
 	}
 	for _, g := range games {
 		js := readRepoFile(t, "plugins", g.dir, "view.js")
 		css := readRepoFile(t, "plugins", g.dir, "theme.css")
 		mustContain(t, js, "function "+g.setFn,
-			g.id+" must add classes without wiping #f1-race-master-host identity")
-		mustContain(t, js, "container.classList.add('f1-race-master-host')",
+			g.id+" must add classes without wiping #shared-master-host identity")
+		mustContain(t, js, "container.classList.add('shared-master-host')",
 			g.id+" shared host class must survive paints so absolute fill CSS applies")
 		mustContain(t, js, "container._sharedReady = true",
 			g.id+" master must opt into in-place live updates")
@@ -150,12 +150,75 @@ func TestNewSharedGamesPreserveHostClassAndLayout(t *testing.T) {
 			t.Fatalf("%s master must place Scheibe (%s-target-col) left of board", g.id, g.prefix)
 		}
 		mustNotContain(t, js, "container.className = 'range-plugin-view "+g.prefix+"-view",
-			"assigning className on the shared host drops f1-race-master-host and breaks fill")
-		mustContain(t, css, "#f1-race-master-host."+g.prefix+"-view",
+			"assigning className on the shared host drops shared-master-host and breaks fill")
+		mustContain(t, css, "#shared-master-host."+g.prefix+"-view",
 			"host itself carries ."+g.prefix+"-view; child-only selector left the surface unfilled")
-		mustContain(t, style, "#f1-race-master-host."+g.prefix+"-view",
+		mustContain(t, style, "#shared-master-host."+g.prefix+"-view",
 			"shared host must stay opaque under "+g.id+" so the classic grid cannot ghost through")
 		mustContain(t, master, g.startLabel,
 			g.id+" start button label")
 	}
+}
+
+func TestAutorennenPreservesSharedHostClassAndLayout(t *testing.T) {
+	js := readRepoFile(t, "plugins", "autorennen", "view.js")
+	css := readRepoFile(t, "plugins", "autorennen", "theme.css")
+	style := readRepoFile(t, "static", "style.css")
+	master := readRepoFile(t, "static", "master.js")
+	mustContain(t, js, "window.SRPluginViews['autorennen']",
+		"hall/shooter paint looks up SRPluginViews[pluginId]; a stale f1-race key leaves the surface blank")
+	mustContain(t, js, "container.classList.add('shared-master-host')",
+		"shared host class must survive Autorennen paints so absolute fill CSS applies")
+	mustContain(t, js, "container._sharedReady = true",
+		"Autorennen master must opt into in-place live updates")
+	mustContain(t, js, "ar-master-layout",
+		"master skeleton must exist for hall overview")
+	mustNotContain(t, js, "container.className = 'range-plugin-view autorennen-view",
+		"assigning className on the shared host drops shared-master-host and blanks the hall")
+	mustNotContain(t, js, "SRPluginViews['f1-race']",
+		"old plugin id would never match the loaded autorennen session")
+	mustContain(t, css, "#shared-master-host.autorennen-view",
+		"host itself carries .autorennen-view; child-only selector left the track unfilled")
+	mustContain(t, style, "#shared-master-host.autorennen-view",
+		"shared host must stay opaque under Autorennen so the classic grid cannot ghost through")
+	mustContain(t, master, "id === 'autorennen'",
+		"isSharedPlugin fallback / start-button wiring must use the new id or the hall stays on the range grid")
+	mustContain(t, master, "Rennen starten",
+		"Autorennen start button label")
+	mustNotContain(t, css, "max-height: 22%",
+		"capping shooter standings at 22% forces a scrollbar while unused space sits below")
+	mustContain(t, style, "#master-chrome[hidden]",
+		"display:flex on #master-chrome must not override [hidden] or shooter pages are 200vh")
+}
+
+func TestFoxScheibeKeepsRoundRings(t *testing.T) {
+	css := readRepoFile(t, "plugins", "fox-on-the-run", "theme.css")
+	idx := strings.Index(css, ".fox-scheibe-wrap svg")
+	if idx < 0 {
+		t.Fatal("missing .fox-scheibe-wrap svg rule")
+	}
+	chunk := css[idx:min(len(css), idx+500)]
+	if strings.Contains(chunk, "drop-shadow") {
+		t.Fatal("drop-shadow on the target SVG ghosts a second set of ring strokes")
+	}
+	if strings.Contains(chunk, "100cqi") {
+		t.Fatal("container-query width/height on the SVG stretched the disc off-square")
+	}
+}
+
+func TestTannebaumEinzelHallShowsEqualTrees(t *testing.T) {
+	js := readRepoFile(t, "plugins", "tannebaum-einzel", "view.js")
+	css := readRepoFile(t, "plugins", "tannebaum-einzel", "theme.css")
+	mustContain(t, js, "tb-trees-gallery",
+		"hall must paint every stand's tree at equal size instead of a clipped mini row")
+	mustNotContain(t, css, "max-height: 36%",
+		"capping the mini tree row at 36% plus overflow-y:hidden cut off the trunks")
+	mustNotContain(t, css, "max-height: 220px",
+		"fixed 220px mini frames cropped the bottom-left of each small tree")
+}
+
+func TestLudoViewHonorsBoardArms(t *testing.T) {
+	js := readRepoFile(t, "plugins", "ludo", "view.js")
+	mustContain(t, js, "game.boardArms",
+		"2-player matches send boardArms=4; ignoring it draws a 2-point star with almost no fields")
 }

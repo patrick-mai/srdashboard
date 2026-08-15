@@ -1,4 +1,4 @@
-package maedn
+package ludo
 
 import (
 	"testing"
@@ -169,5 +169,30 @@ func TestJumpDoesNotCapture(t *testing.T) {
 	}
 	if gs.Players["2"].LapProgress != 2 {
 		t.Fatalf("p2 progress=%d", gs.Players["2"].LapProgress)
+	}
+}
+
+func TestTwoPlayerUsesFullClassicBoard(t *testing.T) {
+	_, sess := startTwo(t)
+	gs, err := unmarshalState(sess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gs.BoardArms != 4 {
+		t.Fatalf("boardArms=%d want 4 so 2 players sit on a classic cross", gs.BoardArms)
+	}
+	if gs.RingSize < 40 {
+		t.Fatalf("ringSize=%d want >= 40 (10 cells × 4 arms)", gs.RingSize)
+	}
+	p1, p2 := gs.Players["1"], gs.Players["2"]
+	if p1 == nil || p2 == nil {
+		t.Fatal("expected two seated players")
+	}
+	if p1.Entry != 0 {
+		t.Fatalf("p1 entry=%d want 0", p1.Entry)
+	}
+	want := gs.RingSize / 2
+	if p2.Entry != want {
+		t.Fatalf("p2 entry=%d want opposite arm %d", p2.Entry, want)
 	}
 }

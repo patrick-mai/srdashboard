@@ -6,19 +6,19 @@ import (
 	"testing"
 	"time"
 
-	_ "srdashboard/host/games/f1race"
+	_ "srdashboard/host/games/autorennen"
 	"srdashboard/host/loader"
 	"srdashboard/state"
 )
 
-func TestSharedF1ActivateAndControl(t *testing.T) {
+func TestSharedAutorennenActivateAndControl(t *testing.T) {
 	dir := t.TempDir()
 	pluginsRoot := filepath.Join(dir, "plugins")
-	src := filepath.Join("..", "..", "plugins", "f1-race")
+	src := filepath.Join("..", "..", "plugins", "autorennen")
 	if _, err := os.Stat(src); err != nil {
-		t.Skip("f1-race not present")
+		t.Skip("autorennen not present")
 	}
-	if err := copyDir(src, filepath.Join(pluginsRoot, "f1-race")); err != nil {
+	if err := copyDir(src, filepath.Join(pluginsRoot, "autorennen")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -29,10 +29,10 @@ func TestSharedF1ActivateAndControl(t *testing.T) {
 
 	live := state.NewLiveState(2)
 	// Seed discipline totals via ApplyShot menu - or Control live map
-	ps := NewManager(2, pm, "f1-race")
+	ps := NewManager(2, pm, "autorennen")
 	ps.SetLiveSource(live)
 
-	if err := ps.Activate("f1-race"); err != nil {
+	if err := ps.Activate("autorennen"); err != nil {
 		t.Fatal(err)
 	}
 	if !ps.sharedMode {

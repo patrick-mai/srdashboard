@@ -7,7 +7,8 @@
 /srdashboard
 /send-shot
 /replay-log
-/docs/
+/docs/*
+!/docs/*.md
 
 # Ship pre-built binaries for non-developers
 !dist/**/*.exe

@@ -1,6 +1,7 @@
 package udp
 
 import (
+	"fmt"
 	"testing"
 
 	"srdashboard/state"
@@ -30,8 +31,12 @@ func TestHandlePacket_CP1252ShooterName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Minimal Shot envelope; Lastname uses CP1252 ö (0xF6)
-	payload := append([]byte(`{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":1,"Y":2,"Distance":0.5,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"Shooter":{"Firstname":"Test","Lastname":"N`), 0xF6)
+	x, y, d := PlaceShot(10.1, 1)
+	prefix := fmt.Sprintf(
+		`{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":%d,"Y":%d,"Distance":%.1f,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"Shooter":{"Firstname":"Test","Lastname":"N`,
+		x, y, d,
+	)
+	payload := append([]byte(prefix), 0xF6)
 	payload = append(payload, []byte(`lle"}}]}`)...)
 
 	l.handlePacket(payload)

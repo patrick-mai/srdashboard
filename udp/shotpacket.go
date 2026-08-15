@@ -11,15 +11,16 @@ import (
 
 // ShotPacketOpts describes one synthetic OpticScore Shot UDP payload.
 type ShotPacketOpts struct {
-	Range      int
-	X          int
-	Y          int
-	Distance   float64
-	DecValue   float64
-	IsWarmup   bool
-	Shooter    string
-	ShotAt     time.Time // zero → omit ShotDateTime (server uses receive time)
-	MenuItem   string
+	Range    int
+	X        int
+	Y        int
+	Distance float64
+	DecValue float64
+	IsWarmup bool
+	Shooter  string
+	ShotAt   time.Time // zero → omit ShotDateTime (server uses receive time)
+	MenuItem string
+	DiscType string // LG / LP / KK; empty → LG for synthetic packets
 }
 
 // BuildShotPacket returns JSON bytes for a DISAG Event/Shot message.
@@ -28,25 +29,32 @@ func BuildShotPacket(opts ShotPacketOpts) ([]byte, error) {
 	if rng <= 0 {
 		rng = 1
 	}
-	full := int(math.Floor(opts.DecValue))
-	if full < 0 {
-		full = 0
+	x, y, dist := opts.X, opts.Y, opts.Distance
+	if dist == 0 {
+		dist = math.Hypot(float64(x), float64(y))
 	}
-	if full > 10 {
-		full = 10
+	disc := opts.DiscType
+	if disc == "" {
+		disc = "LG"
 	}
-	dist := opts.Distance
-	if dist == 0 && opts.DecValue >= 10 {
-		dist = 0.1
+	probe := &state.ShotPayload{
+		X: x, Y: y, Distance: dist,
+		FullValue: FullValueOf(opts.DecValue),
+		DecValue:  opts.DecValue,
+		DiscType:  disc,
+	}
+	if err := ValidateShot(probe); err != nil {
+		x, y, dist = PlaceShot(opts.DecValue, opts.Range)
 	}
 	obj := map[string]any{
-		"X":         opts.X,
-		"Y":         opts.Y,
+		"X":         x,
+		"Y":         y,
 		"Distance":  dist,
-		"FullValue": full,
+		"FullValue": FullValueOf(opts.DecValue),
 		"DecValue":  opts.DecValue,
 		"Range":     rng,
 		"IsWarmup":  opts.IsWarmup,
+		"DiscType":  disc,
 	}
 	if !opts.ShotAt.IsZero() {
 		obj["ShotDateTime"] = state.FormatOpticScoreTime(opts.ShotAt)

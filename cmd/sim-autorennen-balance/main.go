@@ -1,4 +1,4 @@
-// sim-f1-balance: 10 F1 logics with DRS/overtake variables.
+// sim-autorennen-balance: 10 Autorennen logics with DRS/overtake variables.
 //
 // Key finding: flat DRS boost helps leaders reclaim, so beginners rarely hold P1.
 // Variants explore underdog DRS stacking: extra DRS pace only when the chaser's
@@ -101,18 +101,18 @@ type variantStats struct {
 }
 
 func variants() []logicVariant {
-	spa := []int{3, 8, 9}
+	narrow := []int{3, 8, 9}
 	wide := []int{2, 3, 4, 7, 8}
 	return []logicVariant{
-		{1, "Live baseline", 1.20, spa, 1.00, 0.00, false, "Current live: pace=Dec, ratio 1.2, Spa DRS"},
-		{2, "Soft overtake only", 1.08, spa, 1.00, 0.00, false, "Easier non-DRS passes; no compress/stack"},
+		{1, "Live baseline", 1.20, narrow, 1.00, 0.00, false, "Current live: pace=Dec, ratio 1.2, narrow DRS"},
+		{2, "Soft overtake only", 1.08, narrow, 1.00, 0.00, false, "Easier non-DRS passes; no compress/stack"},
 		{3, "Wide DRS only", 1.20, wide, 1.00, 0.00, false, "More DRS sections; live pass math"},
-		{4, "Underdog mild", 1.25, spa, 0.90, 0.08, true, "Small underdog DRS stack"},
-		{5, "Underdog medium", 1.28, spa, 0.75, 0.11, true, "Medium underdog stack + compress"},
+		{4, "Underdog mild", 1.25, narrow, 0.90, 0.08, true, "Small underdog DRS stack"},
+		{5, "Underdog medium", 1.28, narrow, 0.75, 0.11, true, "Medium underdog stack + compress"},
 		{6, "Underdog strong", 1.30, wide, 0.65, 0.12, true, "Strong underdog aid — watch upset rate"},
 		{7, "Sweet spot A", 1.12, wide, 0.50, 0.12, false, "Soft ratio + compress + flat stack"},
 		{8, "Sweet spot B", 1.05, wide, 0.45, 0.14, false, "Prior balanced hit (flat stack)"},
-		{9, "Skill-leaning", 1.35, spa, 0.70, 0.08, true, "Harder passes; advanced should dominate"},
+		{9, "Skill-leaning", 1.35, narrow, 0.70, 0.08, true, "Harder passes; advanced should dominate"},
 		{10, "Lottery", 1.02, wide, 0.35, 0.16, false, "Very open — expect coin-flip wins"},
 	}
 }

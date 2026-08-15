@@ -2,14 +2,14 @@ window.SRPlugins = window.SRPlugins || {};
 window.SRPluginViews = window.SRPluginViews || {};
 
 (function () {
-  const PLUGIN_ID = 'malefiz';
+  const PLUGIN_ID = 'barrikade';
   let audioCtx = null;
   let lastEventSig = '';
 
   const PHASE_LABEL = {
     warmup: 'Einschießen',
     arming: 'Bereit',
-    playing: 'Malefiz',
+    playing: 'Barrikade',
     finished: 'Beendet'
   };
 
@@ -163,19 +163,19 @@ window.SRPluginViews = window.SRPluginViews || {};
           svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
           svg.removeAttribute('width');
           svg.removeAttribute('height');
-          svg.classList.add('mz-scheibe-svg');
+          svg.classList.add('br-scheibe-svg');
         }
       } catch (e) {
-        host.innerHTML = '<div class="mz-muted">Scheibe nicht ladbar</div>';
+        host.innerHTML = '<div class="br-muted">Scheibe nicht ladbar</div>';
         return;
       }
     }
     const svg = host.querySelector('svg');
     if (!svg) return;
-    let g = svg.querySelector('#mz-shots');
+    let g = svg.querySelector('#br-shots');
     if (!g) {
       g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.setAttribute('id', 'mz-shots');
+      g.setAttribute('id', 'br-shots');
       svg.appendChild(g);
     }
     g.innerHTML = '';
@@ -213,11 +213,11 @@ window.SRPluginViews = window.SRPluginViews || {};
 
   function shotBlock(title, shot) {
     if (!shot) {
-      return '<div class="mz-panel"><h3>' + esc(title) + '</h3><div class="mz-muted">—</div></div>';
+      return '<div class="br-panel"><h3>' + esc(title) + '</h3><div class="br-muted">—</div></div>';
     }
-    return '<div class="mz-panel"><h3>' + esc(title) + '</h3>' +
-      '<div class="mz-shot-val">' + esc(fmt1(shot.raw)) + '</div>' +
-      '<div class="mz-muted">' + esc(resultLabel(shot)) +
+    return '<div class="br-panel"><h3>' + esc(title) + '</h3>' +
+      '<div class="br-shot-val">' + esc(fmt1(shot.raw)) + '</div>' +
+      '<div class="br-muted">' + esc(resultLabel(shot)) +
       (shot.rangeNum != null ? ' · Stand ' + esc(shot.rangeNum) : '') +
       '</div></div>';
   }
@@ -225,17 +225,17 @@ window.SRPluginViews = window.SRPluginViews || {};
   function recentHtml(game, focusRange) {
     const shots = (game && game.recentShots) || [];
     if (!shots.length) {
-      return '<div class="mz-panel"><h3>Letzte Schüsse</h3><div class="mz-muted">Noch keine</div></div>';
+      return '<div class="br-panel"><h3>Letzte Schüsse</h3><div class="br-muted">Noch keine</div></div>';
     }
     const items = shots.slice().reverse().map(function (s) {
       const mine = Number(s.rangeNum) === Number(focusRange);
       return '<li class="' + (mine ? 'is-me' : '') + '">' +
-        '<span class="mz-swatch" style="background:' + esc(s.color || '#888') + '"></span>' +
+        '<span class="br-swatch" style="background:' + esc(s.color || '#888') + '"></span>' +
         '<span>S' + esc(s.rangeNum) + ' · ' + esc(resultLabel(s)) + '</span>' +
         '<strong>' + esc(fmt1(s.raw)) + '</strong>' +
         '<span></span></li>';
     }).join('');
-    return '<div class="mz-panel"><h3>Letzte Schüsse</h3><ul class="mz-recent">' + items + '</ul></div>';
+    return '<div class="br-panel"><h3>Letzte Schüsse</h3><ul class="br-recent">' + items + '</ul></div>';
   }
 
   function visiblePlayers(game) {
@@ -251,11 +251,11 @@ window.SRPluginViews = window.SRPluginViews || {};
       if (!!a.finished !== !!b.finished) return a.finished ? -1 : 1;
       return (b.cell || 0) - (a.cell || 0);
     });
-    return '<ul class="mz-standings">' + list.map(function (p) {
+    return '<ul class="br-standings">' + list.map(function (p) {
       const cls = [].concat(Number(p.rangeNum) === Number(focusRange) ? ['is-me'] : [])
         .concat(p.finished ? ['is-done'] : []).join(' ');
       return '<li class="' + cls + '">' +
-        '<span class="mz-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
+        '<span class="br-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
         '<span>' + esc(p.label) + '</span>' +
         '<strong>' + (p.finished ? 'Burg' : esc(p.cell || 0) + '/' + esc(citadel)) + '</strong>' +
         '<span>' + esc(p.hint || '') + '</span></li>';
@@ -342,7 +342,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     });
 
     const h = Math.max(480, 80 + Math.ceil((citadel - 1) / 5) * 52);
-    return '<svg class="mz-board-svg" viewBox="0 0 320 ' + h + '" preserveAspectRatio="xMidYMid meet" aria-label="Malefiz">' +
+    return '<svg class="br-board-svg" viewBox="0 0 320 ' + h + '" preserveAspectRatio="xMidYMid meet" aria-label="Barrikade">' +
       path + cells + pawns + '</svg>';
   }
 
@@ -357,30 +357,30 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
-  /** Keep #f1-race-master-host identity; never wipe host className to only mz-view. */
-  function setMzSurfaceClasses(container, mode) {
+  /** Keep #shared-master-host identity; never wipe host className to only br-view. */
+  function setBrSurfaceClasses(container, mode) {
     if (!container) return;
-    container.classList.add('range-plugin-view', 'mz-view');
-    if (container.id === 'f1-race-master-host') {
-      container.classList.add('f1-race-master-host');
+    container.classList.add('range-plugin-view', 'br-view');
+    if (container.id === 'shared-master-host') {
+      container.classList.add('shared-master-host');
     }
     if (mode === 'master') {
-      container.classList.add('mz-race-master');
-      container.classList.remove('mz-race-shooter');
+      container.classList.add('br-race-master');
+      container.classList.remove('br-race-shooter');
     } else {
-      container.classList.add('mz-race-shooter');
-      container.classList.remove('mz-race-master');
+      container.classList.add('br-race-shooter');
+      container.classList.remove('br-race-master');
     }
   }
 
   function beginPaint(container) {
-    const gen = (container._mzPaintGen || 0) + 1;
-    container._mzPaintGen = gen;
+    const gen = (container._brPaintGen || 0) + 1;
+    container._brPaintGen = gen;
     return gen;
   }
 
-  function mzPaintStale(container, gen) {
-    return !container || container._mzPaintGen !== gen;
+  function brPaintStale(container, gen) {
+    return !container || container._brPaintGen !== gen;
   }
 
   async function render(container, viewModel, assetsBase) {
@@ -394,49 +394,49 @@ window.SRPluginViews = window.SRPluginViews || {};
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setMzSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setBrSurfaceClasses(container, isMaster ? 'master' : 'shooter');
 
-    const layoutCls = isMaster ? 'mz-master-layout' : 'mz-shooter-layout';
-    const otherCls = isMaster ? 'mz-shooter-layout' : 'mz-master-layout';
+    const layoutCls = isMaster ? 'br-master-layout' : 'br-shooter-layout';
+    const otherCls = isMaster ? 'br-shooter-layout' : 'br-master-layout';
     if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
-        '<header class="mz-header" data-header></header>' +
-        '<div class="mz-main">' +
-        '<div class="mz-target-col">' +
-        '<div class="mz-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="mz-shot-hud" data-shothud></div>') +
+        '<header class="br-header" data-header></header>' +
+        '<div class="br-main">' +
+        '<div class="br-target-col">' +
+        '<div class="br-scheibe-wrap" data-scheibe></div>' +
+        (isMaster ? '' : '<div class="br-shot-hud" data-shothud></div>') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '</div>' +
-        '<div class="mz-board-col">' +
-        '<div class="mz-board-host" data-board></div>' +
+        '<div class="br-board-col">' +
+        '<div class="br-board-host" data-board></div>' +
         '</div></div>' +
-        '<footer class="mz-footer" data-footer></footer></div>';
+        '<footer class="br-footer" data-footer></footer></div>';
     }
 
     await ensureTargetRegistry(assetsBase);
-    if (mzPaintStale(container, paintGen)) return;
+    if (brPaintStale(container, paintGen)) return;
     const core = window.SRCore;
     if (core && core.setTargetAssetBase && assetsBase) core.setTargetAssetBase(assetsBase);
 
     const header = container.querySelector('[data-header]');
     if (!header) return;
     header.innerHTML =
-      '<span class="mz-title">Malefiz</span>' +
-      '<span class="mz-badge">' + esc(PHASE_LABEL[game.phase] || game.phase || '') + '</span>' +
+      '<span class="br-title">Barrikade</span>' +
+      '<span class="br-badge">' + esc(PHASE_LABEL[game.phase] || game.phase || '') + '</span>' +
       (isShooter
-        ? '<span class="mz-meta">Stand ' + esc(focusRange) +
+        ? '<span class="br-meta">Stand ' + esc(focusRange) +
           (me && me.shooterName ? ' · ' + esc(me.shooterName) : '') + '</span>'
         : '') +
-      '<span class="mz-status">' + esc(game.statusLine || '') + '</span>';
+      '<span class="br-status">' + esc(game.statusLine || '') + '</span>';
 
     await renderScheibe(
       container.querySelector('[data-scheibe]'),
       assetsBase, game, isMaster ? null : focusRange,
       isMaster ? null : rangeDataFor(vm, focusRange), me
     );
-    if (mzPaintStale(container, paintGen)) return;
+    if (brPaintStale(container, paintGen)) return;
 
     if (!isMaster) {
       const hud = container.querySelector('[data-shothud]');
@@ -447,15 +447,15 @@ window.SRPluginViews = window.SRPluginViews || {};
     }
     container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="mz-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="br-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
     container.querySelector('[data-board]').innerHTML =
-      (game.startBlockedReason ? '<div class="mz-block">' + esc(game.startBlockedReason) + '</div>' : '') +
+      (game.startBlockedReason ? '<div class="br-block">' + esc(game.startBlockedReason) + '</div>' : '') +
       boardSvg(game, isMaster ? null : focusRange);
     const footer = container.querySelector('[data-footer]');
     if (footer) {
-      footer.innerHTML = '<span class="mz-meta">9+ ein Feld · 10.0 hebt die Mauer · 10.5 zwei Felder · 6–7 bleiben stehen</span>';
+      footer.innerHTML = '<span class="br-meta">9+ ein Feld · 10.0 hebt die Mauer · 10.5 zwei Felder · 6–7 bleiben stehen</span>';
     }
-    if (container.id === 'f1-race-master-host') {
+    if (container.id === 'shared-master-host') {
       container._sharedReady = true;
     }
   }

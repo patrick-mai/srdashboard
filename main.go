@@ -17,10 +17,10 @@ import (
 
 	"srdashboard/api"
 	"srdashboard/config"
-	_ "srdashboard/host/games/f1race"
+	_ "srdashboard/host/games/autorennen"
 	_ "srdashboard/host/games/foxontherun"
-	_ "srdashboard/host/games/maedn"
-	_ "srdashboard/host/games/malefiz"
+	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/barrikade"
 	_ "srdashboard/host/games/tannebaum"
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"

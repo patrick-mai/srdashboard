@@ -1,4 +1,4 @@
-package malefiz
+package barrikade
 
 import (
 	"testing"

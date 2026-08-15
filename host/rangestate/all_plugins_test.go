@@ -1,0 +1,113 @@
+package rangestate
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/barrikade"
+	_ "srdashboard/host/games/foxontherun"
+	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/tannebaum"
+	_ "srdashboard/host/games/zehnerbingo"
+	"srdashboard/host/loader"
+	"srdashboard/state"
+)
+
+func bundledPluginsRoot(t *testing.T) string {
+	t.Helper()
+	root := filepath.Join("..", "..", "plugins")
+	if _, err := os.Stat(root); err != nil {
+		t.Fatalf("plugins dir: %v", err)
+	}
+	return root
+}
+
+func TestAllBundledPluginsLoadAndActivate(t *testing.T) {
+	pm := loader.NewManager(bundledPluginsRoot(t))
+	if err := pm.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"autorennen", "barrikade", "classic-range", "fox-on-the-run",
+		"ludo", "tannebaum-einzel", "tannebaum-team", "zehner-bingo",
+	}
+	for _, id := range want {
+		ap, err := pm.Get(id)
+		if err != nil {
+			t.Errorf("Get(%s): %v", id, err)
+			continue
+		}
+		if ap.Manifest.ID != id {
+			t.Errorf("%s: loaded id %q != folder %q", id, ap.Manifest.ID, id)
+		}
+		if ap.Logic == nil {
+			t.Errorf("%s: no logic (builtin factory miss after rename)", id)
+		}
+	}
+	for _, old := range []string{"f1-race", "maedn", "malefiz"} {
+		if _, err := pm.Get(old); err == nil {
+			t.Errorf("old plugin %s is still loadable", old)
+		}
+	}
+
+	live := state.NewLiveState(2)
+	ps := NewManager(2, pm, "classic-range")
+	ps.SetLiveSource(live)
+	for _, id := range want {
+		if err := ps.Activate(id); err != nil {
+			t.Errorf("Activate(%s): %v — GUI would keep the previous plugin / blank host", id, err)
+			continue
+		}
+		if ps.ActivePluginID() != id {
+			t.Errorf("active after %s = %q", id, ps.ActivePluginID())
+		}
+		snap := ps.SnapshotRange(1)
+		if snap.PluginID != id {
+			t.Errorf("%s session pluginId = %q", id, snap.PluginID)
+		}
+		if snap.ViewModel == nil {
+			t.Errorf("%s: nil view model — hall/shooter paint has nothing to render", id)
+		}
+	}
+}
+
+func TestActivateLudoAndBarrikadeProduceSharedViewModels(t *testing.T) {
+	for _, id := range []string{"ludo", "barrikade"} {
+		t.Run(id, func(t *testing.T) {
+			dir := t.TempDir()
+			pluginsRoot := filepath.Join(dir, "plugins")
+			src := filepath.Join("..", "..", "plugins", id)
+			if err := copyDir(src, filepath.Join(pluginsRoot, id)); err != nil {
+				t.Fatal(err)
+			}
+			pm := loader.NewManager(pluginsRoot)
+			if err := pm.Reload(); err != nil {
+				t.Fatal(err)
+			}
+			ps := NewManager(2, pm, id)
+			ps.SetLiveSource(state.NewLiveState(2))
+			if err := ps.Activate(id); err != nil {
+				t.Fatal(err)
+			}
+			if !ps.sharedMode {
+				t.Fatalf("%s expected shared mode", id)
+			}
+			if err := ps.Control("start", map[string]any{
+				"live": map[string]any{
+					"1": map[string]any{"totalShotsToFire": 40, "isWarmup": false},
+					"2": map[string]any{"totalShotsToFire": 40, "isWarmup": false},
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if snap := ps.SnapshotRange(1); snap.ViewModel == nil {
+				t.Fatal("nil view model after start")
+			}
+			if snap := ps.SnapshotRange(2); snap.ViewModel == nil {
+				t.Fatal("range 2 missing shared view model")
+			}
+		})
+	}
+}

@@ -2,7 +2,7 @@ window.SRPlugins = window.SRPlugins || {};
 window.SRPluginViews = window.SRPluginViews || {};
 
 (function () {
-  const PLUGIN_ID = 'maedn';
+  const PLUGIN_ID = 'ludo';
   let audioCtx = null;
   let lastEventSig = '';
 
@@ -163,19 +163,19 @@ window.SRPluginViews = window.SRPluginViews || {};
           svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
           svg.removeAttribute('width');
           svg.removeAttribute('height');
-          svg.classList.add('md-scheibe-svg');
+          svg.classList.add('ld-scheibe-svg');
         }
       } catch (e) {
-        host.innerHTML = '<div class="md-muted">Scheibe nicht ladbar</div>';
+        host.innerHTML = '<div class="ld-muted">Scheibe nicht ladbar</div>';
         return;
       }
     }
     const svg = host.querySelector('svg');
     if (!svg) return;
-    let g = svg.querySelector('#md-shots');
+    let g = svg.querySelector('#ld-shots');
     if (!g) {
       g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.setAttribute('id', 'md-shots');
+      g.setAttribute('id', 'ld-shots');
       svg.appendChild(g);
     }
     g.innerHTML = '';
@@ -213,11 +213,11 @@ window.SRPluginViews = window.SRPluginViews || {};
 
   function shotBlock(title, shot) {
     if (!shot) {
-      return '<div class="md-panel"><h3>' + esc(title) + '</h3><div class="md-muted">—</div></div>';
+      return '<div class="ld-panel"><h3>' + esc(title) + '</h3><div class="ld-muted">—</div></div>';
     }
-    return '<div class="md-panel"><h3>' + esc(title) + '</h3>' +
-      '<div class="md-shot-val">' + esc(fmt1(shot.raw)) + '</div>' +
-      '<div class="md-muted">' + esc(resultLabel(shot)) +
+    return '<div class="ld-panel"><h3>' + esc(title) + '</h3>' +
+      '<div class="ld-shot-val">' + esc(fmt1(shot.raw)) + '</div>' +
+      '<div class="ld-muted">' + esc(resultLabel(shot)) +
       (shot.rangeNum != null ? ' · Stand ' + esc(shot.rangeNum) : '') +
       '</div></div>';
   }
@@ -225,17 +225,17 @@ window.SRPluginViews = window.SRPluginViews || {};
   function recentHtml(game, focusRange) {
     const shots = (game && game.recentShots) || [];
     if (!shots.length) {
-      return '<div class="md-panel"><h3>Letzte Schüsse</h3><div class="md-muted">Noch keine</div></div>';
+      return '<div class="ld-panel"><h3>Letzte Schüsse</h3><div class="ld-muted">Noch keine</div></div>';
     }
     const items = shots.slice().reverse().map(function (s) {
       const mine = Number(s.rangeNum) === Number(focusRange);
       return '<li class="' + (mine ? 'is-me' : '') + '">' +
-        '<span class="md-swatch" style="background:' + esc(s.color || '#888') + '"></span>' +
+        '<span class="ld-swatch" style="background:' + esc(s.color || '#888') + '"></span>' +
         '<span>S' + esc(s.rangeNum) + ' · ' + esc(resultLabel(s)) + '</span>' +
         '<strong>' + esc(fmt1(s.raw)) + '</strong>' +
         '<span></span></li>';
     }).join('');
-    return '<div class="md-panel"><h3>Letzte Schüsse</h3><ul class="md-recent">' + items + '</ul></div>';
+    return '<div class="ld-panel"><h3>Letzte Schüsse</h3><ul class="ld-recent">' + items + '</ul></div>';
   }
 
   function visiblePlayers(game) {
@@ -253,7 +253,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       const bs = b.inYard ? -1 : (b.home > 0 ? 1000 + b.home : (b.lapProgress || 0));
       return bs - as;
     });
-    return '<ul class="md-standings">' + list.map(function (p) {
+    return '<ul class="ld-standings">' + list.map(function (p) {
       const cls = [].concat(Number(p.rangeNum) === Number(focusRange) ? ['is-me'] : [])
         .concat(p.finished ? ['is-done'] : []).join(' ');
       let pos = 'Hof';
@@ -261,7 +261,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       else if (p.home > 0) pos = 'Heim ' + p.home + '/' + homeLen;
       else if (!p.inYard) pos = 'Feld ' + (p.ringCell != null ? p.ringCell : '—');
       return '<li class="' + cls + '">' +
-        '<span class="md-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
+        '<span class="ld-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
         '<span>' + esc(p.label) + '</span>' +
         '<strong>' + esc(pos) + '</strong>' +
         '<span>' + esc(p.hint || '') + '</span></li>';
@@ -307,7 +307,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     const mid = color || '#8b2e1f';
     const dark = hexMix(mid, -0.38);
     const light = hexMix(mid, 0.28);
-    return '<g class="md-hat' + (mine ? ' is-me' : '') + (done ? ' is-done' : '') +
+    return '<g class="ld-hat' + (mine ? ' is-me' : '') + (done ? ' is-done' : '') +
       '" transform="translate(' + f1(x) + ',' + f1(y) + ') scale(' + s + ')">' +
       '<ellipse cx="0" cy="7.2" rx="9.2" ry="3.1" fill="rgba(40,18,8,0.28)"/>' +
       '<path d="M0,-12 L8,3.2 Q0,6.4 -8,3.2 Z" fill="' + dark + '"/>' +
@@ -370,54 +370,44 @@ window.SRPluginViews = window.SRPluginViews || {};
     const a0 = Math.PI / 2;
     const rTip = (homeLen + 1.15) * gap;
     const rCrotch = n <= 2 ? rTip * 0.62 : (n === 3 ? gap * 2.15 : gap * (0.9 + n * 0.32));
-    const tipSpread = Math.asin(Math.min(0.92, gap / Math.max(rTip, 1)));
+    const tipSpread = Math.asin(Math.min(0.92, (gap * 0.55) / Math.max(rTip, 1)));
     const pts = [];
     for (let arm = 0; arm < n; arm++) {
       const a = a0 + arm * (2 * Math.PI / n);
       const aNext = a0 + ((arm + 1) % n) * (2 * Math.PI / n);
-      const cap0 = polar(cx, cy, rTip, a - tipSpread);
-      const cap1 = polar(cx, cy, rTip, a);
-      const cap2 = polar(cx, cy, rTip, a + tipSpread);
+      const tip = polar(cx, cy, rTip, a);
       const crotch = polar(cx, cy, rCrotch, a + Math.PI / n);
-      const nextStart = polar(cx, cy, rTip, aNext - tipSpread);
-      const remain = Math.max(0, cpp - 3);
-      const inner = remain >= 3 ? 1 : 0;
-      const rest = remain - inner;
-      const outN = Math.ceil(rest / 2);
-      const inN = Math.floor(rest / 2);
-      const armPts = [cap0, cap1, cap2];
-      for (let k = 1; k <= outN; k++) {
-        const t = k / (outN + inner + 0.0001);
-        armPts.push({
-          x: cap2.x + (crotch.x - cap2.x) * t,
-          y: cap2.y + (crotch.y - cap2.y) * t
-        });
+      const nextTip = polar(cx, cy, rTip, aNext);
+      // Even spacing along tip → crotch → next tip so the track isn't 3
+      // stacked cells at the point and two lonely whites in between.
+      for (let i = 0; i < cpp; i++) {
+        const t = i / cpp;
+        if (t < 0.5) {
+          const u = t * 2;
+          pts.push({
+            x: tip.x + (crotch.x - tip.x) * u,
+            y: tip.y + (crotch.y - tip.y) * u
+          });
+        } else {
+          const u = (t - 0.5) * 2;
+          pts.push({
+            x: crotch.x + (nextTip.x - crotch.x) * u,
+            y: crotch.y + (nextTip.y - crotch.y) * u
+          });
+        }
       }
-      if (inner) armPts.push(crotch);
-      const from = inner ? crotch : cap2;
-      for (let k = 1; k <= inN; k++) {
-        const t = k / (inN + 1);
-        armPts.push({
-          x: from.x + (nextStart.x - from.x) * t,
-          y: from.y + (nextStart.y - from.y) * t
-        });
-      }
-      while (armPts.length < cpp) {
-        const last = armPts[armPts.length - 1];
-        armPts.push({
-          x: last.x + (nextStart.x - last.x) * 0.35,
-          y: last.y + (nextStart.y - last.y) * 0.35
-        });
-      }
-      for (let i = 0; i < cpp; i++) pts.push(armPts[i]);
     }
     return { pts: pts, rTip: rTip, a0: a0, tipSpread: tipSpread, rCrotch: rCrotch };
   }
 
   function boardSvg(game, focusRange) {
     const players = visiblePlayers(game);
-    const n = Math.max(2, players.length);
-    const per = Math.max(4, Number(game && game.cellsPerPlayer) || 8);
+    const seatedN = Math.max(1, players.length);
+    let n = Number(game && game.boardArms) || 0;
+    if (n < 2) {
+      n = seatedN <= 3 ? 4 : Math.max(2, seatedN);
+    }
+    const per = Math.max(4, Number(game && game.cellsPerPlayer) || 10);
     const homeLen = Math.max(1, Number(game && game.homeLength) || 4);
     let ringSize = Number(game && game.ringSize) || 0;
     if (ringSize < n * 4) ringSize = per * n;
@@ -535,23 +525,23 @@ window.SRPluginViews = window.SRPluginViews || {};
 
     const defs =
       '<defs>' +
-      '<linearGradient id="md-wood" x1="0" y1="0" x2="1" y2="1">' +
+      '<linearGradient id="ld-wood" x1="0" y1="0" x2="1" y2="1">' +
       '<stop offset="0%" stop-color="#9a6844"/><stop offset="42%" stop-color="#734830"/>' +
       '<stop offset="100%" stop-color="#4a2c1a"/></linearGradient>' +
-      '<pattern id="md-grain" width="18" height="18" patternUnits="userSpaceOnUse">' +
+      '<pattern id="ld-grain" width="18" height="18" patternUnits="userSpaceOnUse">' +
       '<path d="M0 4h18 M0 11h18 M0 16h18" stroke="#5a3520" stroke-width="0.7" opacity="0.28"/></pattern>' +
-      '<radialGradient id="md-felt" cx="50%" cy="42%" r="68%">' +
+      '<radialGradient id="ld-felt" cx="50%" cy="42%" r="68%">' +
       '<stop offset="0%" stop-color="#f7ecd4"/><stop offset="100%" stop-color="#e2cc9e"/></radialGradient>' +
-      '<filter id="md-board-shadow" x="-8%" y="-8%" width="116%" height="120%">' +
+      '<filter id="ld-board-shadow" x="-8%" y="-8%" width="116%" height="120%">' +
       '<feDropShadow dx="0" dy="5" stdDeviation="4.5" flood-color="#000" flood-opacity="0.32"/></filter>' +
       '</defs>';
 
     const wood =
-      '<g filter="url(#md-board-shadow)">' +
-      '<rect x="12" y="12" width="476" height="476" rx="40" fill="url(#md-wood)"/>' +
-      '<rect x="12" y="12" width="476" height="476" rx="40" fill="url(#md-grain)" opacity="0.45"/>' +
+      '<g filter="url(#ld-board-shadow)">' +
+      '<rect x="12" y="12" width="476" height="476" rx="40" fill="url(#ld-wood)"/>' +
+      '<rect x="12" y="12" width="476" height="476" rx="40" fill="url(#ld-grain)" opacity="0.45"/>' +
       '</g>' +
-      '<rect x="46" y="46" width="408" height="408" rx="22" fill="url(#md-felt)" stroke="#c4a56a" stroke-width="2.4"/>' +
+      '<rect x="46" y="46" width="408" height="408" rx="22" fill="url(#ld-felt)" stroke="#c4a56a" stroke-width="2.4"/>' +
       '<rect x="54" y="54" width="392" height="392" rx="16" fill="none" stroke="#8a5a32" stroke-width="1.15" opacity="0.4"/>';
 
     const figure = classic
@@ -670,8 +660,8 @@ window.SRPluginViews = window.SRPluginViews || {};
       pawns += hatMarkup(pos.x, pos.y, pl.color || armColor(arm), String(pl.rangeNum || ''), mine, !!pl.finished);
     });
 
-    return '<svg class="md-board-svg" viewBox="0 0 ' + VB + ' ' + VB +
-      '" preserveAspectRatio="xMidYMid meet" aria-label="Mensch ärgere dich nicht" ' +
+    return '<svg class="ld-board-svg" viewBox="0 0 ' + VB + ' ' + VB +
+      '" preserveAspectRatio="xMidYMid meet" aria-label="Ludo" ' +
       'font-family="Segoe UI, system-ui, sans-serif">' +
       defs + wood + figure + pads + lanes + ribbon + yards + homes + track + center + labels + pawns +
       '</svg>';
@@ -688,30 +678,30 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
-  /** Keep #f1-race-master-host identity; never wipe host className to only md-view. */
-  function setMdSurfaceClasses(container, mode) {
+  /** Keep #shared-master-host identity; never wipe host className to only ld-view. */
+  function setLdSurfaceClasses(container, mode) {
     if (!container) return;
-    container.classList.add('range-plugin-view', 'md-view');
-    if (container.id === 'f1-race-master-host') {
-      container.classList.add('f1-race-master-host');
+    container.classList.add('range-plugin-view', 'ld-view');
+    if (container.id === 'shared-master-host') {
+      container.classList.add('shared-master-host');
     }
     if (mode === 'master') {
-      container.classList.add('md-race-master');
-      container.classList.remove('md-race-shooter');
+      container.classList.add('ld-race-master');
+      container.classList.remove('ld-race-shooter');
     } else {
-      container.classList.add('md-race-shooter');
-      container.classList.remove('md-race-master');
+      container.classList.add('ld-race-shooter');
+      container.classList.remove('ld-race-master');
     }
   }
 
   function beginPaint(container) {
-    const gen = (container._mdPaintGen || 0) + 1;
-    container._mdPaintGen = gen;
+    const gen = (container._ldPaintGen || 0) + 1;
+    container._ldPaintGen = gen;
     return gen;
   }
 
-  function mdPaintStale(container, gen) {
-    return !container || container._mdPaintGen !== gen;
+  function ldPaintStale(container, gen) {
+    return !container || container._ldPaintGen !== gen;
   }
 
   async function render(container, viewModel, assetsBase) {
@@ -725,49 +715,49 @@ window.SRPluginViews = window.SRPluginViews || {};
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setMdSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setLdSurfaceClasses(container, isMaster ? 'master' : 'shooter');
 
-    const layoutCls = isMaster ? 'md-master-layout' : 'md-shooter-layout';
-    const otherCls = isMaster ? 'md-shooter-layout' : 'md-master-layout';
+    const layoutCls = isMaster ? 'ld-master-layout' : 'ld-shooter-layout';
+    const otherCls = isMaster ? 'ld-shooter-layout' : 'ld-master-layout';
     if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
-        '<header class="md-header" data-header></header>' +
-        '<div class="md-main">' +
-        '<div class="md-target-col">' +
-        '<div class="md-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="md-shot-hud" data-shothud></div>') +
+        '<header class="ld-header" data-header></header>' +
+        '<div class="ld-main">' +
+        '<div class="ld-target-col">' +
+        '<div class="ld-scheibe-wrap" data-scheibe></div>' +
+        (isMaster ? '' : '<div class="ld-shot-hud" data-shothud></div>') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '</div>' +
-        '<div class="md-board-col">' +
-        '<div class="md-board-host" data-board></div>' +
+        '<div class="ld-board-col">' +
+        '<div class="ld-board-host" data-board></div>' +
         '</div></div>' +
-        '<footer class="md-footer" data-footer></footer></div>';
+        '<footer class="ld-footer" data-footer></footer></div>';
     }
 
     await ensureTargetRegistry(assetsBase);
-    if (mdPaintStale(container, paintGen)) return;
+    if (ldPaintStale(container, paintGen)) return;
     const core = window.SRCore;
     if (core && core.setTargetAssetBase && assetsBase) core.setTargetAssetBase(assetsBase);
 
     const header = container.querySelector('[data-header]');
     if (!header) return;
     header.innerHTML =
-      '<span class="md-title">Mensch ärgere dich nicht</span>' +
-      '<span class="md-badge">' + esc(PHASE_LABEL[game.phase] || game.phase || '') + '</span>' +
+      '<span class="ld-title">Ludo</span>' +
+      '<span class="ld-badge">' + esc(PHASE_LABEL[game.phase] || game.phase || '') + '</span>' +
       (isShooter
-        ? '<span class="md-meta">Stand ' + esc(focusRange) +
+        ? '<span class="ld-meta">Stand ' + esc(focusRange) +
           (me && me.shooterName ? ' · ' + esc(me.shooterName) : '') + '</span>'
         : '') +
-      '<span class="md-status">' + esc(game.statusLine || '') + '</span>';
+      '<span class="ld-status">' + esc(game.statusLine || '') + '</span>';
 
     await renderScheibe(
       container.querySelector('[data-scheibe]'),
       assetsBase, game, isMaster ? null : focusRange,
       isMaster ? null : rangeDataFor(vm, focusRange), me
     );
-    if (mdPaintStale(container, paintGen)) return;
+    if (ldPaintStale(container, paintGen)) return;
 
     if (!isMaster) {
       const hud = container.querySelector('[data-shothud]');
@@ -778,15 +768,15 @@ window.SRPluginViews = window.SRPluginViews || {};
     }
     container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="md-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="ld-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
     container.querySelector('[data-board]').innerHTML =
-      (game.startBlockedReason ? '<div class="md-block">' + esc(game.startBlockedReason) + '</div>' : '') +
+      (game.startBlockedReason ? '<div class="ld-block">' + esc(game.startBlockedReason) + '</div>' : '') +
       boardSvg(game, isMaster ? null : focusRange);
     const footer = container.querySelector('[data-footer]');
     if (footer) {
-      footer.innerHTML = '<span class="md-meta">10.0 setzt ein · 9+ ein Feld · 10.5 zwei · landen schickt in den Hof · 6–7 tun nichts</span>';
+      footer.innerHTML = '<span class="ld-meta">10.0 setzt ein · 9+ ein Feld · 10.5 zwei · landen schickt in den Hof · 6–7 tun nichts</span>';
     }
-    if (container.id === 'f1-race-master-host') {
+    if (container.id === 'shared-master-host') {
       container._sharedReady = true;
     }
   }

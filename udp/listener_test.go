@@ -1,6 +1,7 @@
 package udp
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,8 +19,12 @@ func TestHandlePacketShotDateTime(t *testing.T) {
 		got = shot
 	})
 
-	payload := `{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":1,"Y":2,"Distance":0.5,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"ShotDateTime":"2018-08-15 18:25:43.511"}]}`
-	l.handlePacket([]byte(payload))
+	at := time.Date(2018, 8, 15, 18, 25, 43, 511000000, time.Local)
+	data, err := BuildShotPacket(ShotPacketOpts{Range: 1, DecValue: 10.1, ShotAt: at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.handlePacket(data)
 
 	if got.At.IsZero() {
 		t.Fatal("expected shot At from ShotDateTime")
@@ -43,10 +48,14 @@ func TestHandlePacketShotTimestampLegacyISO(t *testing.T) {
 		got = shot
 	})
 
-	payload := `{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":1,"Y":2,"Distance":0.5,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"Timestamp":"2018-08-15T18:25:43.511Z"}]}`
+	x, y, d := PlaceShot(10.1, 1)
+	payload := fmt.Sprintf(
+		`{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":%d,"Y":%d,"Distance":%.1f,"FullValue":10,"DecValue":10.1,"Range":1,"IsWarmup":false,"Timestamp":"2018-08-15T18:25:43.511Z"}]}`,
+		x, y, d,
+	)
 	l.handlePacket([]byte(payload))
 
 	if got.At.UTC().Format(time.RFC3339Nano) != "2018-08-15T18:25:43.511Z" {
-		t.Fatalf("At=%s", got.At.UTC().Format(time.RFC3339Nano))
+		t.Fatalf("At=%s shots=%d", got.At.UTC().Format(time.RFC3339Nano), len(st.Snapshot()[0].Shots))
 	}
 }

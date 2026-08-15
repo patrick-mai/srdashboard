@@ -1,4 +1,4 @@
-package malefiz
+package barrikade
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	loader.RegisterBuiltin("malefiz", func(m *loader.Manifest) logicapi.Logic {
+	loader.RegisterBuiltin("barrikade", func(m *loader.Manifest) logicapi.Logic {
 		return New(m)
 	})
 }
@@ -29,13 +29,13 @@ func (l *Logic) ID() string {
 	if l.manifest != nil && l.manifest.ID != "" {
 		return l.manifest.ID
 	}
-	return "malefiz"
+	return "barrikade"
 }
 func (l *Logic) Label() string {
 	if l.manifest != nil && l.manifest.Label != "" {
 		return l.manifest.Label
 	}
-	return "Malefiz"
+	return "Barrikade"
 }
 func (l *Logic) Version() string {
 	if l.manifest != nil && l.manifest.Version != "" {
@@ -131,7 +131,7 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 		Citadel:    gameutil.CfgInt(merged, "citadel", 25),
 		Slots:      gameutil.CfgIntList(merged, "barricadeSlots", []int{4, 8, 14, 19, 22}),
 		Barricades: gameutil.CfgIntList(merged, "initialBarricades", []int{8, 14, 22}),
-		StatusLine: "Einschießen — danach Malefiz",
+		StatusLine: "Einschießen — danach Barrikade",
 	}
 	gs.ensure()
 	return marshalState(gs)
@@ -171,7 +171,7 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
 		if gs.Phase == gameutil.PhaseWarmup {
 			gs.Phase = gameutil.PhaseArming
-			gs.StatusLine = "Bereit — Malefiz starten"
+			gs.StatusLine = "Bereit — Barrikade starten"
 		}
 		if gs.Phase == gameutil.PhaseArming && gameutil.CfgBool(gs.Config, "autoStartWhenAllReady", true) && gs.allSeatedReady() {
 			events = append(events, gs.beginPlay()...)
@@ -501,7 +501,7 @@ func (gs *GameState) beginPlay() []logicapi.PluginEvent {
 	gs.WinnerRange = 0
 	gs.Shots = nil
 	gs.StartBlockedReason = ""
-	gs.StatusLine = "Malefiz — 9+ geht, 10.0 hebt die Mauer"
+	gs.StatusLine = "Barrikade — 9+ geht, 10.0 hebt die Mauer"
 	for _, p := range gs.Players {
 		if p == nil {
 			continue

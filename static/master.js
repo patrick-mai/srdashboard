@@ -33,17 +33,17 @@
     }
     const installed = installedPlugins.find(function (p) { return p.id === id; });
     if (installed) return installed.mode === 'shared';
-    return id === 'f1-race' || id === 'fox-on-the-run' ||
-      id === 'zehner-bingo' || id === 'malefiz' || id === 'maedn';
+    return id === 'autorennen' || id === 'fox-on-the-run' ||
+      id === 'zehner-bingo' || id === 'barrikade' || id === 'ludo';
   }
 
   function teardownSharedHost() {
-    const host = document.getElementById('f1-race-master-host');
+    const host = document.getElementById('shared-master-host');
     if (host) {
       host.innerHTML = '';
       host.hidden = true;
       delete host._sharedReady;
-      delete host._f1LastVM;
+      delete host._arLastVM;
       host.removeAttribute('style');
       if (host.parentNode) host.parentNode.removeChild(host);
     }
@@ -54,9 +54,9 @@
     }
   }
 
-  /** Shared host is ready for in-place live updates (any shared plugin, not F1-only). */
+  /** Shared host is ready for in-place live updates (any shared plugin, not Autorennen-only). */
   function sharedHostReady(host) {
-    return !!(host && !host.hidden && (host._sharedReady || host._f1LastVM));
+    return !!(host && !host.hidden && (host._sharedReady || host._arLastVM));
   }
 
   function clearRangePluginMounts() {
@@ -247,11 +247,11 @@
       clearRangePluginMounts();
       const grid = document.getElementById('ranges-grid');
       if (!grid || !activePlugin) return;
-      let host = document.getElementById('f1-race-master-host');
+      let host = document.getElementById('shared-master-host');
       if (!host) {
         host = document.createElement('div');
-        host.id = 'f1-race-master-host';
-        host.className = 'f1-race-master-host';
+        host.id = 'shared-master-host';
+        host.className = 'shared-master-host';
         grid.parentNode.insertBefore(host, grid);
       }
       grid.hidden = true;
@@ -271,7 +271,7 @@
         activePlugin.themeUrl || ''
       );
       // Stale mount must NOT tear down a newer host — that unhides #ranges-grid
-      // under/through the absolute fox/F1 surface (meadow + Scheibe ghosting).
+      // under/through the absolute fox/Autorennen surface (meadow + Scheibe ghosting).
       if (gen !== mountGen) return;
       host._sharedReady = true;
       return;
@@ -322,7 +322,7 @@
   /** In-place shared update — never tear down the track SVG. */
   function updateSharedPluginView(session) {
     if (!activePlugin || !window.SRPluginShell) return;
-    const host = document.getElementById('f1-race-master-host');
+    const host = document.getElementById('shared-master-host');
     if (!host || host.hidden) {
       mountAllPluginViews();
       return;
@@ -411,7 +411,7 @@
           if (isSharedPlugin()) {
             // Live scores update in place; remounting every shot races mountGen
             // and can briefly expose the classic range grid under the shared host.
-            const host = document.getElementById('f1-race-master-host');
+            const host = document.getElementById('shared-master-host');
             if (sharedHostReady(host)) {
               updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
             } else {
@@ -657,7 +657,7 @@
       const startBtn = document.getElementById('race-start-btn');
       const punctureBtn = document.getElementById('race-puncture-btn');
       const oilBtn = document.getElementById('race-oil-btn');
-      if (id === 'f1-race') {
+      if (id === 'autorennen') {
         if (startBtn) startBtn.textContent = 'Rennen starten';
         if (punctureBtn) punctureBtn.hidden = false;
         if (oilBtn) oilBtn.hidden = false;
@@ -673,12 +673,12 @@
         if (startBtn) startBtn.textContent = 'Bingo starten';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
-      } else if (id === 'malefiz') {
-        if (startBtn) startBtn.textContent = 'Malefiz starten';
+      } else if (id === 'barrikade') {
+        if (startBtn) startBtn.textContent = 'Barrikade starten';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
-      } else if (id === 'maedn') {
-        if (startBtn) startBtn.textContent = 'Spiel starten';
+      } else if (id === 'ludo') {
+        if (startBtn) startBtn.textContent = 'Ludo starten';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
       } else {
@@ -731,7 +731,7 @@
       }
     } else if (!wsOpen) {
       if (isSharedPlugin()) {
-        const host = document.getElementById('f1-race-master-host');
+        const host = document.getElementById('shared-master-host');
         if (host && !host.hidden) {
           updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
           return;

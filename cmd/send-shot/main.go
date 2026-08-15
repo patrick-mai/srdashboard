@@ -31,17 +31,17 @@ func main() {
 	rangeNum := flag.Int("range", 0, "Single range number (1..N)")
 	rangesFlag := flag.String("ranges", "", "Comma-separated ranges (e.g. 1,2,3); overrides -range")
 	dec := flag.Float64("dec", 9.0, "Shot DecValue (ring score)")
-	x := flag.Int("x", 80, "Shot X (−9000..9000)")
-	y := flag.Int("y", 120, "Shot Y (−9000..9000)")
-	distance := flag.Float64("distance", 0, "Teiler Distance (0 = auto for ring tens)")
+	x := flag.Int("x", 80, "Shot X (−9000..9000); ignored when it does not match -dec (hole is placed on the teiler band)")
+	y := flag.Int("y", 0, "Shot Y (−9000..9000)")
+	distance := flag.Float64("distance", 0, "Teiler Distance (0 = hypot(X,Y), or auto-place from -dec)")
 	shooter := flag.String("shooter", "UDP Test", "Shooter first name in payload")
 	atFlag := flag.String("at", "", "ShotDateTime (yyyy-MM-dd HH:mm:ss.fff); default now when -offset-ms set, else server receive time")
 	offsetMs := flag.Int("offset-ms", 0, "ShotDateTime = now + this many ms (for reaction tests)")
 	interval := flag.Duration("interval", 500*time.Millisecond, "Delay between shots in multi-range / scenario mode")
-	delay := flag.Duration("delay", 0, "Wait before first shot (e.g. 8s for F1 lights)")
+	delay := flag.Duration("delay", 0, "Wait before first shot (e.g. 8s for Autorennen lights)")
 	rounds := flag.Int("rounds", 1, "Repeat the full sequence this many times")
 	warmup := flag.Bool("warmup", false, "Set IsWarmup on shots")
-	scenario := flag.String("scenario", "", "Preset: f1-party (one shot per range after -delay)")
+	scenario := flag.String("scenario", "", "Preset: ar-party (one shot per range after -delay)")
 	dryRun := flag.Bool("dry-run", false, "Print JSON only; do not send UDP")
 	flag.Parse()
 
@@ -54,9 +54,9 @@ func main() {
 		log.Fatal("no ranges: use -range N or -ranges 1,2,3")
 	}
 
-	if *scenario == "f1-party" && *delay == 0 {
+	if *scenario == "ar-party" && *delay == 0 {
 		*delay = 8 * time.Second
-		log.Printf("scenario f1-party: default -delay 8s (wait for lights out)")
+		log.Printf("scenario ar-party: default -delay 8s (wait for lights out)")
 	}
 
 	if *delay > 0 {
@@ -110,7 +110,7 @@ func resolveRanges(single int, list, scenario string) ([]int, error) {
 	if single > 0 {
 		return []int{single}, nil
 	}
-	if scenario == "f1-party" {
+	if scenario == "ar-party" {
 		return []int{1, 2, 3}, nil
 	}
 	return nil, nil

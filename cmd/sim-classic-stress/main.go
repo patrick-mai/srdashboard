@@ -137,7 +137,7 @@ const (
 
 func sample(rng *rand.Rand, mean float64) float64 {
 	// Capability mean → score floor: strong shooters still spray into the 9s.
-	// Uniform on [lo, 10.9] matches cmd/sim-f1-match pickDec (not a top-clipped normal).
+	// Uniform on [lo, 10.9] matches cmd/sim-autorennen-match pickDec (not a top-clipped normal).
 	lo := mean - 1.8
 	if mean < 8.5 {
 		lo = mean - 2.5

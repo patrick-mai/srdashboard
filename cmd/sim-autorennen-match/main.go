@@ -1,4 +1,4 @@
-// sim-f1-match sends a warmup + 40-shot F1 race simulation over UDP.
+// sim-autorennen-match sends a warmup + 40-shot Autorennen race simulation over UDP.
 //
 // Ranges 1–2: advanced  (DecValue 7.5–10.9)
 // Ranges 3–4: midrange  (DecValue 4.5–10.9)
@@ -118,7 +118,7 @@ func main() {
 	nWarmup := flag.Int("warmup", warmupShots, "Warmup shots per range before race start")
 	interval := flag.Duration("interval", roundSpacing, "Target spacing between round opens")
 	seed := flag.Int64("seed", 0, "RNG seed (0 = time-based)")
-	skipStart := flag.Bool("skip-start", false, "Do not reset/start the F1 plugin session")
+	skipStart := flag.Bool("skip-start", false, "Do not reset/start the Autorennen plugin session")
 	flag.Parse()
 
 	s := *seed
@@ -139,7 +139,7 @@ func main() {
 	ranges := []int{1, 2, 3, 4, 5, 6}
 
 	if !*skipStart {
-		log.Printf("resetting live ranges + F1 session…")
+		log.Printf("resetting live ranges + Autorennen session…")
 		for _, r := range ranges {
 			u := fmt.Sprintf("%s/api/live/reset?range=%d", *httpBase, r)
 			resp, err := http.Post(u, "application/json", nil)

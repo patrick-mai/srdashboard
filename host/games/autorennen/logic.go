@@ -1,4 +1,4 @@
-package f1race
+package autorennen
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	loader.RegisterBuiltin("f1-race", func(m *loader.Manifest) logicapi.Logic {
+	loader.RegisterBuiltin("autorennen", func(m *loader.Manifest) logicapi.Logic {
 		return New(m)
 	})
 }
@@ -48,13 +48,13 @@ func (l *Logic) ID() string {
 	if l.manifest != nil {
 		return l.manifest.ID
 	}
-	return "f1-race"
+	return "autorennen"
 }
 func (l *Logic) Label() string {
 	if l.manifest != nil && l.manifest.Label != "" {
 		return l.manifest.Label
 	}
-	return "F1 Race"
+	return "Autorennen"
 }
 func (l *Logic) Version() string {
 	if l.manifest != nil && l.manifest.Version != "" {
@@ -71,7 +71,7 @@ func (l *Logic) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"circuitId":                map[string]any{"type": "string", "enum": []string{"spa", "nuerburgring", "melbourne", "nordschleife"}},
+			"circuitId":                map[string]any{"type": "string", "enum": []string{"bergsee", "steinring", "hafenpark", "langring"}},
 			"motionMode":               map[string]any{"type": "string", "enum": []string{"push", "cruise"}},
 			"stintSize":                map[string]any{"type": "integer"},
 			"roundDurationSec":         map[string]any{"type": "integer"},
@@ -106,7 +106,7 @@ func (l *Logic) ConfigSchema() map[string]any {
 // wide DRS sections, and position-scaled DRS chase aid.
 func defaultConfig() map[string]any {
 	return map[string]any{
-		"circuitId":              "spa",
+		"circuitId":              "bergsee",
 		"motionMode":             MotionPush,
 		"stintSize":              10,
 		"roundDurationSec":       120,
@@ -209,10 +209,10 @@ var defaultColors = []string{
 }
 
 var circuitDRS = map[string][]DRSZone{
-	"spa":           {{Start: 0.72, End: 0.88}, {Start: 0.18, End: 0.28}},
-	"nuerburgring":  {{Start: 0.65, End: 0.82}, {Start: 0.30, End: 0.40}},
-	"melbourne":     {{Start: 0.70, End: 0.85}, {Start: 0.10, End: 0.22}},
-	"nordschleife":  {{Start: 0.82, End: 0.96}, {Start: 0.08, End: 0.18}}, // Döttinger Höhe + Flugplatz
+	"bergsee":   {{Start: 0.72, End: 0.88}, {Start: 0.18, End: 0.28}},
+	"steinring": {{Start: 0.65, End: 0.82}, {Start: 0.30, End: 0.40}},
+	"hafenpark": {{Start: 0.70, End: 0.85}, {Start: 0.10, End: 0.22}},
+	"langring":  {{Start: 0.82, End: 0.96}, {Start: 0.08, End: 0.18}},
 }
 
 func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
@@ -221,7 +221,7 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 		merged[k] = v
 	}
 	numRanges := cfgInt(merged, "numRanges", 6)
-	circuit := cfgString(merged, "circuitId", "spa")
+	circuit := cfgString(merged, "circuitId", "bergsee")
 	stint := cfgInt(merged, "stintSize", 10)
 	if stint < 2 {
 		stint = 10
@@ -1848,7 +1848,7 @@ func resolveDRSZones(cfg map[string]any, circuit string, stint int) []DRSZone {
 	if z := circuitDRS[circuit]; z != nil {
 		return z
 	}
-	return circuitDRS["spa"]
+	return circuitDRS["bergsee"]
 }
 
 func zonesFromSections(sections []int, stint int) []DRSZone {

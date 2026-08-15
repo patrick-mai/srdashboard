@@ -9,14 +9,14 @@ import (
 
 func TestSavePluginConfigPreservesComments(t *testing.T) {
 	dir := t.TempDir()
-	pluginID := "maedn-party"
+	pluginID := "test-plugin"
 	pluginDir := filepath.Join(dir, pluginID)
 	if err := os.MkdirAll(pluginDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(pluginDir, "config.xml")
 	original := `<?xml version="1.0" encoding="UTF-8"?>
-<pluginConfig id="maedn-party">
+<pluginConfig id="test-plugin">
   <shotsPerPlayer>40</shotsPerPlayer>
   <!-- Per-range difficulty (range num = DISAG range number): easy, normal, or hard -->
   <!--

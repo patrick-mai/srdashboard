@@ -3,7 +3,7 @@
   "properties": {
     "circuitId": {
       "type": "string",
-      "enum": ["spa", "nuerburgring", "melbourne", "nordschleife"],
+      "enum": ["bergsee", "steinring", "hafenpark", "langring"],
       "title": "Circuit"
     },
     "motionMode": {

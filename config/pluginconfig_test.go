@@ -4,7 +4,7 @@ import "testing"
 
 func TestParsePluginConfigXML(t *testing.T) {
 	data := []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<pluginConfig id="maedn-party">
+<pluginConfig id="test-plugin">
   <shotsPerPlayer>40</shotsPerPlayer>
   <chainRadius>1500</chainRadius>
   <defaultDifficulty>normal</defaultDifficulty>

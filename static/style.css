@@ -42,9 +42,9 @@
   --race-ok: rgba(15, 122, 74, 0.28);
   --target-mat-inner: rgba(255, 255, 255, 0.9);
   --target-mat-outer: rgba(232, 238, 242, 0.55);
-  --maedn-center: rgba(10, 122, 140, 0.08);
-  --maedn-shadow: rgba(0, 0, 0, 0.25);
-  --maedn-stroke: rgba(0, 0, 0, 0.28);
+  --ludo-center: rgba(10, 122, 140, 0.08);
+  --ludo-shadow: rgba(0, 0, 0, 0.25);
+  --ludo-stroke: rgba(0, 0, 0, 0.28);
   --mini-target-bg: rgba(21, 32, 43, 0.04);
   --shooter-glow: rgba(10, 122, 140, 0.12);
   /* System UI only — webfonts (e.g. Barlow) render with stepped curves on Windows ClearType */
@@ -84,9 +84,9 @@ html[data-theme="dark"] {
   --race-ok: rgba(60, 184, 122, 0.28);
   --target-mat-inner: rgba(60, 66, 74, 0.95);
   --target-mat-outer: rgba(34, 38, 43, 0.7);
-  --maedn-center: rgba(42, 159, 175, 0.12);
-  --maedn-shadow: rgba(0, 0, 0, 0.45);
-  --maedn-stroke: rgba(0, 0, 0, 0.4);
+  --ludo-center: rgba(42, 159, 175, 0.12);
+  --ludo-shadow: rgba(0, 0, 0, 0.45);
+  --ludo-stroke: rgba(0, 0, 0, 0.4);
   --mini-target-bg: rgba(232, 236, 239, 0.06);
   --shooter-glow: rgba(42, 159, 175, 0.1);
 }
@@ -95,7 +95,9 @@ html[data-theme="dark"] {
 
 html, body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -110,8 +112,8 @@ body {
     radial-gradient(900px 500px at 88% 0%, var(--glow-2), transparent 50%),
     linear-gradient(165deg, var(--bg-0) 0%, var(--bg-1) 48%, var(--bg-2) 100%);
   background-attachment: fixed;
-  height: 100vh;
-  max-height: 100vh;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -136,14 +138,23 @@ body::before {
 #shooter-app {
   position: relative;
   z-index: 1;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+#master-chrome[hidden],
+#shooter-app[hidden],
+#config-app[hidden] {
+  display: none !important;
 }
 
 #master-chrome {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  height: 100vh;
-  max-height: 100vh;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -178,8 +189,8 @@ body::before {
   position: sticky;
   top: 0;
   align-self: flex-start;
-  height: 100vh;
-  max-height: 100vh;
+  height: 100%;
+  max-height: 100%;
   z-index: 40;
   overflow: hidden;
   transition: width 0.18s ease;
@@ -631,7 +642,7 @@ body::before {
   min-width: 0;
 }
 
-.shared-match-split #match-pluginboard .maedn-star-svg {
+.shared-match-split #match-pluginboard .ludo-star-svg {
   min-height: min(68vh, 720px);
   max-height: min(75vh, 820px);
 }
@@ -647,7 +658,7 @@ body::before {
   #shared-range-focus .range-target {
     max-height: min(42vh, 360px);
   }
-  .shared-match-split #match-pluginboard .maedn-star-svg {
+  .shared-match-split #match-pluginboard .ludo-star-svg {
     min-height: 360px;
     max-height: 520px;
   }
@@ -916,8 +927,8 @@ body::before {
   line-height: 16px;
 }
 .plugin-race-piece-shared.own-range { border-color: #fff; }
-.plugin-race-piece-shared.bumped { animation: maedn-bump 0.6s ease; }
-@keyframes maedn-bump {
+.plugin-race-piece-shared.bumped { animation: ludo-bump 0.6s ease; }
+@keyframes ludo-bump {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.35); }
 }
@@ -928,12 +939,12 @@ body::before {
   border: none;
   background: transparent;
 }
-#match-pluginboard .maedn-party-view { max-width: 100%; }
-#match-pluginboard .maedn-star-board {
+#match-pluginboard .test-plugin-view { max-width: 100%; }
+#match-pluginboard .ludo-star-board {
   max-width: none;
   width: 100%;
 }
-#match-pluginboard .maedn-star-svg {
+#match-pluginboard .ludo-star-svg {
   width: 100%;
   min-height: min(72vh, 820px);
   max-height: min(82vh, 960px);
@@ -950,25 +961,25 @@ body::before {
   background: color-mix(in srgb, var(--panel) 80%, transparent);
 }
 
-.maedn-star-board {
+.ludo-star-board {
   width: 100%;
   max-width: min(1100px, 98vw);
   margin: 0 auto;
 }
-.maedn-star-svg {
+.ludo-star-svg {
   width: 100%;
   height: auto;
   display: block;
   min-height: 360px;
 }
-.maedn-star-legend {
+.ludo-star-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   justify-content: center;
   margin-bottom: 0.5rem;
 }
-.maedn-star-legend-item {
+.ludo-star-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -978,63 +989,63 @@ body::before {
   border-radius: 4px;
   background: var(--panel);
 }
-.maedn-star-legend-item.active-player {
+.ludo-star-legend-item.active-player {
   border-width: 2px;
   border-color: var(--accent);
   font-weight: 600;
 }
-.maedn-star-swatch {
+.ludo-star-swatch {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   display: inline-block;
 }
-.maedn-star-track-cell:not(.maedn-star-track-start):not(.maedn-star-track-entrance) {
+.ludo-star-track-cell:not(.ludo-star-track-start):not(.ludo-star-track-entrance) {
   fill: var(--panel-strong);
   stroke: var(--line);
   stroke-width: 1.2;
 }
-.maedn-star-track-start {
-  filter: drop-shadow(0 1px 3px var(--maedn-shadow));
+.ludo-star-track-start {
+  filter: drop-shadow(0 1px 3px var(--ludo-shadow));
 }
-.maedn-star-track-entrance {
+.ludo-star-track-entrance {
   fill: var(--panel-strong);
-  filter: drop-shadow(0 0 2px var(--maedn-shadow));
+  filter: drop-shadow(0 0 2px var(--ludo-shadow));
 }
-.maedn-star-home-cell {
-  stroke: var(--maedn-stroke);
+.ludo-star-home-cell {
+  stroke: var(--ludo-stroke);
   stroke-width: 1;
 }
-.maedn-star-base-cell {
-  stroke: var(--maedn-stroke);
+.ludo-star-base-cell {
+  stroke: var(--ludo-stroke);
   stroke-width: 1;
 }
-.maedn-star-center {
-  fill: var(--maedn-center);
+.ludo-star-center {
+  fill: var(--ludo-center);
   stroke: var(--line);
   stroke-width: 2;
 }
-.maedn-star-piece {
+.ludo-star-piece {
   transition: cx 0.3s ease, cy 0.3s ease;
 }
-.maedn-star-piece.highlight {
+.ludo-star-piece.highlight {
   filter: drop-shadow(0 0 3px var(--accent));
 }
-.maedn-star-piece.bumped { animation: maedn-bump 0.6s ease; }
-.maedn-star-piece-label {
+.ludo-star-piece.bumped { animation: ludo-bump 0.6s ease; }
+.ludo-star-piece-label {
   font-size: 8px;
   font-weight: 700;
   fill: #fff;
   pointer-events: none;
 }
-.maedn-star-goal-label {
+.ludo-star-goal-label {
   font-size: 9px;
   font-weight: 700;
   fill: var(--muted);
   pointer-events: none;
   text-transform: uppercase;
 }
-.maedn-star-note {
+.ludo-star-note {
   margin-top: 0.35rem;
   font-size: 0.7rem;
   color: var(--muted);
@@ -1096,8 +1107,8 @@ body::before {
 }
 
 .shooter-shell {
-  min-height: 100vh;
-  height: 100vh;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.65rem;
@@ -1226,7 +1237,7 @@ body::before {
 }
 
 #shooter-plugin-view > .range-plugin-view,
-#shooter-plugin-view > .f1-race-view {
+#shooter-plugin-view > .autorennen-view {
   flex: 1;
   min-height: 0;
   height: 100%;
@@ -1313,8 +1324,8 @@ body::before {
 }
 
 .plugin-active-label .range-reset-list {
-  max-height: 12.5rem;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
   padding: 0.25rem 0.35rem;
   background: var(--panel-strong);
   border: 1px solid var(--line);
@@ -1458,6 +1469,11 @@ body::before {
 .config-add-pin { margin-top: 0.15rem; }
 
 /* ——— Full-page config (/config) ——— */
+html:has(body.config-display) {
+  overflow: auto;
+  height: auto;
+  max-height: none;
+}
 body.config-display {
   margin: 0;
   height: auto;
@@ -1553,36 +1569,41 @@ body.config-display {
   gap: 0.85rem 1rem;
 }
 
-#f1-race-master-host {
+#shared-master-host {
   position: absolute;
   inset: 0;
   z-index: 2;
   background: #0a0e12;
 }
 
-/* Fox paints meadow on the host itself — keep it opaque so the classic
+/* Shared games paint on the host itself — keep it opaque so the classic
    range grid never ghosts through during remounts. */
-#f1-race-master-host.fox-view,
-#f1-race-master-host:has(.fox-view) {
+#shared-master-host.autorennen-view,
+#shared-master-host:has(.autorennen-view) {
+  background: #0a0e12;
+}
+
+#shared-master-host.fox-view,
+#shared-master-host:has(.fox-view) {
   background: #343a28;
 }
 
-#f1-race-master-host.zb-view,
-#f1-race-master-host:has(.zb-view) {
+#shared-master-host.zb-view,
+#shared-master-host:has(.zb-view) {
   background: #3d6b4a;
 }
 
-#f1-race-master-host.mz-view,
-#f1-race-master-host:has(.mz-view) {
+#shared-master-host.br-view,
+#shared-master-host:has(.br-view) {
   background: #4a3228;
 }
 
-#f1-race-master-host.md-view,
-#f1-race-master-host:has(.md-view) {
+#shared-master-host.ld-view,
+#shared-master-host:has(.ld-view) {
   background: #5a3224;
 }
 
-#f1-race-master-host[hidden] {
+#shared-master-host[hidden] {
   display: none !important;
 }
 
@@ -1594,7 +1615,7 @@ body.config-display {
   display: none !important;
 }
 
-.stage:has(#f1-race-master-host:not([hidden])) {
+.stage:has(#shared-master-host:not([hidden])) {
   position: relative;
   min-height: calc(100vh - 3rem);
 }

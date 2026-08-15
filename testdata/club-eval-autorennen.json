@@ -1,7 +1,7 @@
 {
   "games": [
     {
-      "plugin": "f1-race",
+      "plugin": "autorennen",
       "startedAt": "2026-08-10T20:54:22.5575148+02:00",
       "finishedAt": "0001-01-01T00:00:00Z",
       "durationMs": 0,
@@ -12,24 +12,24 @@
         "active": {
           "active": true,
           "kind": "game",
-          "label": "F1 Race",
+          "label": "Autorennen",
           "mode": "shared",
-          "pluginId": "f1-race"
+          "pluginId": "autorennen"
         },
         "match": {
           "active": true,
-          "pluginId": "f1-race"
+          "pluginId": "autorennen"
         },
         "sessions": [
           {
             "phase": "active",
-            "pluginId": "f1-race",
+            "pluginId": "autorennen",
             "rangeNum": 1,
             "shotCount": 5,
             "updatedAt": "2026-08-10T20:54:35.7467679+02:00",
             "viewModel": {
               "kind": "game",
-              "label": "F1 Race",
+              "label": "Autorennen",
               "me": {
                 "color": "#e10600",
                 "discipline": "LG 10 Schuss",
@@ -58,7 +58,7 @@
                 "totalShots": 10
               },
               "mode": "shared",
-              "pluginId": "f1-race",
+              "pluginId": "autorennen",
               "race": {
                 "cars": [
                   {
@@ -224,7 +224,7 @@
                     "totalShots": 10
                   }
                 ],
-                "circuitId": "melbourne",
+                "circuitId": "hafenpark",
                 "currentRound": 2,
                 "currentSection": 2,
                 "drsZones": [
@@ -273,13 +273,13 @@
           },
           {
             "phase": "active",
-            "pluginId": "f1-race",
+            "pluginId": "autorennen",
             "rangeNum": 2,
             "shotCount": 4,
             "updatedAt": "2026-08-10T20:54:35.7467679+02:00",
             "viewModel": {
               "kind": "game",
-              "label": "F1 Race",
+              "label": "Autorennen",
               "me": {
                 "color": "#1e5bc6",
                 "discipline": "LG 10 Schuss",
@@ -308,7 +308,7 @@
                 "totalShots": 10
               },
               "mode": "shared",
-              "pluginId": "f1-race",
+              "pluginId": "autorennen",
               "race": {
                 "cars": [
                   {
@@ -474,7 +474,7 @@
                     "totalShots": 10
                   }
                 ],
-                "circuitId": "melbourne",
+                "circuitId": "hafenpark",
                 "currentRound": 2,
                 "currentSection": 2,
                 "drsZones": [
@@ -523,13 +523,13 @@
           },
           {
             "phase": "active",
-            "pluginId": "f1-race",
+            "pluginId": "autorennen",
             "rangeNum": 3,
             "shotCount": 5,
             "updatedAt": "2026-08-10T20:54:35.7467679+02:00",
             "viewModel": {
               "kind": "game",
-              "label": "F1 Race",
+              "label": "Autorennen",
               "me": {
                 "color": "#00d2be",
                 "discipline": "LG 10 Schuss",
@@ -558,7 +558,7 @@
                 "totalShots": 10
               },
               "mode": "shared",
-              "pluginId": "f1-race",
+              "pluginId": "autorennen",
               "race": {
                 "cars": [
                   {
@@ -724,7 +724,7 @@
                     "totalShots": 10
                   }
                 ],
-                "circuitId": "melbourne",
+                "circuitId": "hafenpark",
                 "currentRound": 2,
                 "currentSection": 2,
                 "drsZones": [
@@ -773,13 +773,13 @@
           },
           {
             "phase": "active",
-            "pluginId": "f1-race",
+            "pluginId": "autorennen",
             "rangeNum": 4,
             "shotCount": 4,
             "updatedAt": "2026-08-10T20:54:35.7467679+02:00",
             "viewModel": {
               "kind": "game",
-              "label": "F1 Race",
+              "label": "Autorennen",
               "me": {
                 "color": "#ff8700",
                 "discipline": "LG 10 Schuss",
@@ -808,7 +808,7 @@
                 "totalShots": 10
               },
               "mode": "shared",
-              "pluginId": "f1-race",
+              "pluginId": "autorennen",
               "race": {
                 "cars": [
                   {
@@ -974,7 +974,7 @@
                     "totalShots": 10
                   }
                 ],
-                "circuitId": "melbourne",
+                "circuitId": "hafenpark",
                 "currentRound": 2,
                 "currentSection": 2,
                 "drsZones": [
@@ -1023,13 +1023,13 @@
           },
           {
             "phase": "active",
-            "pluginId": "f1-race",
+            "pluginId": "autorennen",
             "rangeNum": 5,
             "shotCount": 5,
             "updatedAt": "2026-08-10T20:54:35.7467679+02:00",
             "viewModel": {
               "kind": "game",
-              "label": "F1 Race",
+              "label": "Autorennen",
               "me": {
                 "color": "#f596c8",
                 "discipline": "LG 10 Schuss",
@@ -1058,7 +1058,7 @@
                 "totalShots": 10
               },
               "mode": "shared",
-              "pluginId": "f1-race",
+              "pluginId": "autorennen",
               "race": {
                 "cars": [
                   {
@@ -1224,7 +1224,7 @@
                     "totalShots": 10
                   }
                 ],
-                "circuitId": "melbourne",
+                "circuitId": "hafenpark",
                 "currentRound": 2,
                 "currentSection": 2,
                 "drsZones": [
@@ -1273,13 +1273,13 @@
           },
           {
             "phase": "active",
-            "pluginId": "f1-race",
+            "pluginId": "autorennen",
             "rangeNum": 6,
             "shotCount": 5,
             "updatedAt": "2026-08-10T20:54:35.7467679+02:00",
             "viewModel": {
               "kind": "game",
-              "label": "F1 Race",
+              "label": "Autorennen",
               "me": {
                 "color": "#239971",
                 "discipline": "LG 10 Schuss",
@@ -1308,7 +1308,7 @@
                 "totalShots": 10
               },
               "mode": "shared",
-              "pluginId": "f1-race",
+              "pluginId": "autorennen",
               "race": {
                 "cars": [
                   {
@@ -1474,7 +1474,7 @@
                     "totalShots": 10
                   }
                 ],
-                "circuitId": "melbourne",
+                "circuitId": "hafenpark",
                 "currentRound": 2,
                 "currentSection": 2,
                 "drsZones": [

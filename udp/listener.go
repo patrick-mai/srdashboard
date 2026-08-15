@@ -31,12 +31,11 @@ func (m Message) EventTime() (time.Time, bool) {
 // ShotNotifier is called after a shot is applied to live state.
 type ShotNotifier func(rng int, shot state.Shot, shotIndex int)
 
-// Listener reads DISAG OpticScore UDP messages and forwards shots to the state
+// Listener reads DISAG OpticScore UDP datagrams and runs them through Pipeline.
 type Listener struct {
-	conn     *net.UDPConn
-	state    *state.LiveState
-	onShot   ShotNotifier
-	done     chan struct{}
+	conn *net.UDPConn
+	pipe Pipeline
+	done chan struct{}
 }
 
 // NewListener creates a UDP listener on the given port
@@ -47,15 +46,15 @@ func NewListener(port int, st *state.LiveState) (*Listener, error) {
 		return nil, err
 	}
 	return &Listener{
-		conn:  conn,
-		state: st,
-		done:  make(chan struct{}),
+		conn: conn,
+		pipe: Pipeline{State: st},
+		done: make(chan struct{}),
 	}, nil
 }
 
 // SetShotNotifier registers a callback invoked after each shot is applied.
 func (l *Listener) SetShotNotifier(fn ShotNotifier) {
-	l.onShot = fn
+	l.pipe.OnShot = fn
 }
 
 // Start begins reading UDP packets
@@ -91,63 +90,7 @@ func (l *Listener) readLoop() {
 }
 
 func (l *Listener) handlePacket(data []byte) {
-	var msg Message
-	if err := decodeOpticScoreJSON(data, &msg); err != nil {
-		log.Printf("UDP: invalid JSON (len=%d): %v", len(data), err)
-		return
-	}
-	if msg.MessageType != "Event" || msg.MessageVerb != "Shot" {
-		log.Printf("UDP: ignored message MessageType=%q MessageVerb=%q (expected Event/Shot)", msg.MessageType, msg.MessageVerb)
-		return
-	}
-	if len(msg.Objects) == 0 {
-		log.Printf("UDP: Shot message has no Objects")
-		return
-	}
-	receivedAt := time.Now()
-	for oi, raw := range msg.Objects {
-		// Object slices are already UTF-8 if the envelope was normalized as a whole.
-		// Re-normalize each object in case a future multiplexer mixes encodings.
-		var shot state.ShotPayload
-		if err := decodeOpticScoreJSON(raw, &shot); err != nil {
-			log.Printf("UDP: failed to parse shot object[%d]: %v", oi, err)
-			continue
-		}
-		if shot.Shooter != nil {
-			warnIfReplacementInName(shot.Shooter.Firstname, shot.Shooter.Lastname)
-		}
-		rng := shot.Range
-		if rng == 0 {
-			rng = msg.Ranges
-		}
-		if rng == 0 {
-			rng = 1
-		}
-		shotAt, hasShotAt := shot.EventTime()
-		if !hasShotAt {
-			shotAt, hasShotAt = msg.EventTime()
-		}
-		if !l.state.ApplyShotAt(rng, &shot, shotAt, receivedAt) {
-			log.Printf("UDP: dropped shot for unknown range=%d (check <ranges> in config.xml)", rng)
-			continue
-		}
-		log.Printf("UDP: shot applied range=%d X=%d Y=%d DecValue=%.1f at=%v", rng, shot.X, shot.Y, shot.DecValue, shotAtOrDash(shotAt, hasShotAt))
-		if l.onShot != nil {
-			s := state.Shot{
-				X:          shot.X,
-				Y:          shot.Y,
-				Distance:   shot.Distance,
-				FullValue:  shot.FullValue,
-				DecValue:   shot.DecValue,
-				IsWarmup:   shot.IsWarmup,
-				ReceivedAt: receivedAt,
-			}
-			if hasShotAt {
-				s.At = shotAt
-			}
-			l.onShot(rng, s, l.state.ShotNumber(rng))
-		}
-	}
+	l.pipe.Ingest(data)
 }
 
 func warnIfReplacementInName(first, last string) {

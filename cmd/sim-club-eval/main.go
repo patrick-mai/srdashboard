@@ -57,14 +57,14 @@ func main() {
 	udpPort := flag.Int("udp-port", 30169, "UDP port")
 	outPath := flag.String("out", "testdata/club-eval-results.json", "results JSON path")
 	seed := flag.Int64("seed", 42, "RNG seed")
-	only := flag.String("only", "", "comma list: classic-range,f1-race,fox-on-the-run,tannebaum-einzel,tannebaum-team")
+	only := flag.String("only", "", "comma list: classic-range,autorennen,fox-on-the-run,tannebaum-einzel,tannebaum-team")
 	flag.Parse()
 
 	rng := rand.New(rand.NewSource(*seed))
 	addr := fmt.Sprintf("%s:%d", *udpHost, *udpPort)
 	base := strings.TrimRight(*httpBase, "/")
 
-	games := []string{"classic-range", "f1-race", "fox-on-the-run", "tannebaum-einzel", "tannebaum-team"}
+	games := []string{"classic-range", "autorennen", "fox-on-the-run", "tannebaum-einzel", "tannebaum-team"}
 	if *only != "" {
 		games = nil
 		for _, p := range strings.Split(*only, ",") {
@@ -124,8 +124,8 @@ func runGame(base, addr, plugin string, rng *rand.Rand) gameResult {
 	switch plugin {
 	case "classic-range":
 		res.ShotsSent, res.Phase, res.Error = runClassic(base, addr, rng)
-	case "f1-race":
-		res.ShotsSent, res.Phase, res.Error = runF1(base, addr, rng)
+	case "autorennen":
+		res.ShotsSent, res.Phase, res.Error = runAutorennen(base, addr, rng)
 	case "fox-on-the-run":
 		_ = putPluginConfig(base, plugin, map[string]any{
 			"calibrateShots": 2,
@@ -189,7 +189,7 @@ func runClassic(base, addr string, rng *rand.Rand) (shots int, phase string, err
 	return shots, "classic-live", ""
 }
 
-func runF1(base, addr string, rng *rand.Rand) (shots int, phase string, errMsg string) {
+func runAutorennen(base, addr string, rng *rand.Rand) (shots int, phase string, errMsg string) {
 	resetAll(base)
 	_ = postJSON(base+"/api/plugins/control", map[string]any{"action": "reset"})
 	nShots := 10

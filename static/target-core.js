@@ -694,7 +694,7 @@ function renderTarget(container, rangeData, isWarmup, opts) {
       zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     }
   } else if (!userZoomedByRange[rangeNum]) {
-    // Game plugins (F1) keep classic Scheibe fidelity: full scoring disk, never ring-8 auto-zoom.
+    // Game plugins (Autorennen) keep classic Scheibe fidelity: full scoring disk, never ring-8 auto-zoom.
     // Only widen when a shot falls outside the scoring disk.
     if (pinFullDisk) {
       let z = fullDiskZoom(rangeNum);
@@ -1338,9 +1338,9 @@ function stripLegacyPanelChrome(panel) {
 function renderClassicRangeView(container, rangeData, opts) {
   if (!container || !rangeData) return;
 
-  // Drop leftover markup from another plugin (e.g. f1-race) before painting.
+  // Drop leftover markup from another plugin (e.g. autorennen) before painting.
   if (
-    container.querySelector('.f1-master-layout, .f1-shooter-layout, .plugin-fallback, .plugin-error') ||
+    container.querySelector('.ar-master-layout, .ar-shooter-layout, .plugin-fallback, .plugin-error') ||
     (container.dataset.pluginId && container.dataset.pluginId !== 'classic-range')
   ) {
     container.innerHTML = '';

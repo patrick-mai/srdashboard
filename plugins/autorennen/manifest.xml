@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<plugin id="f1-race" label="F1 Race" version="1.0.0" mode="shared" kind="game">
-  <description>Multi-range F1 race on real circuits — Spa, Nürburgring, Melbourne. Timed pits, field events, DRS overtaking.</description>
+<plugin id="autorennen" label="Autorennen" version="1.0.0" mode="shared" kind="game">
+  <description>Mehrbahn-Autorennen. Zeitgesteuerte Boxenstopps, Feldereignisse, Überholzonen.</description>
   <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
   <assetsDir>assets</assetsDir>
   <config>
-    <circuitId>spa</circuitId>
+    <circuitId>bergsee</circuitId>
     <motionMode>push</motionMode>
     <stintSize>10</stintSize>
     <roundDurationSec>120</roundDurationSec>

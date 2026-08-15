@@ -3,10 +3,10 @@ window.SRPluginViews = window.SRPluginViews || {};
 
 (function () {
   const CIRCUIT_FILES = {
-    spa: 'circuits/spa.svg',
-    nuerburgring: 'circuits/nuerburgring.svg',
-    melbourne: 'circuits/melbourne.svg',
-    nordschleife: 'circuits/nordschleife.svg'
+    bergsee: 'circuits/bergsee.svg',
+    steinring: 'circuits/steinring.svg',
+    hafenpark: 'circuits/hafenpark.svg',
+    langring: 'circuits/langring.svg'
   };
 
   // Last displayed progress keyed by container+range so master and shooter
@@ -124,7 +124,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     const sec = pitCountdownSec(race);
     if (sec == null) return '';
     const label = sec > 0 ? ('PIT — ' + sec) : 'PIT — JETZT';
-    return '<div class="f1-event-banner f1-pit-banner" data-pit-count="' + sec + '">' +
+    return '<div class="ar-event-banner ar-pit-banner" data-pit-count="' + sec + '">' +
       esc(label) + '</div>';
   }
 
@@ -191,12 +191,12 @@ window.SRPluginViews = window.SRPluginViews || {};
         const label = field.type === 'puncture'
           ? 'Reifenplatzer — nächster Schuss PIT'
           : (field.type === 'oil_leak' ? 'Ölverlust — nächster Schuss PIT' : fieldLabel(field.type, field));
-        return '<div class="f1-event-banner">' + esc(label) + '</div>';
+        return '<div class="ar-event-banner">' + esc(label) + '</div>';
       }
       // Non-targets keep racing; no wait banner for puncture on another lane.
       return '';
     }
-    return '<div class="f1-event-banner">' + esc(fieldLabel(field.type, field)) + '</div>';
+    return '<div class="ar-event-banner">' + esc(fieldLabel(field.type, field)) + '</div>';
   }
 
   function outcomeHtml(me) {
@@ -207,10 +207,10 @@ window.SRPluginViews = window.SRPluginViews || {};
     if (!hint && !note && !place) return '';
     const hintKind = me.nextHintKind || '';
     const kind = me.lastNoteKind || '';
-    return '<div class="f1-explain">' +
-      (hint ? '<div class="f1-next-hint kind-' + esc(hintKind) + '">' + esc(hint) + '</div>' : '') +
-      (note ? '<div class="f1-outcome kind-' + esc(kind) + '">' + esc(note) + '</div>' : '') +
-      (place ? '<div class="f1-place-reason">' + esc(place) + '</div>' : '') +
+    return '<div class="ar-explain">' +
+      (hint ? '<div class="ar-next-hint kind-' + esc(hintKind) + '">' + esc(hint) + '</div>' : '') +
+      (note ? '<div class="ar-outcome kind-' + esc(kind) + '">' + esc(note) + '</div>' : '') +
+      (place ? '<div class="ar-place-reason">' + esc(place) + '</div>' : '') +
       '</div>';
   }
 
@@ -230,7 +230,7 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   async function fetchCircuit(assetsBase, circuitId) {
-    const file = CIRCUIT_FILES[circuitId] || CIRCUIT_FILES.spa;
+    const file = CIRCUIT_FILES[circuitId] || CIRCUIT_FILES.bergsee;
     const base = (assetsBase || '').replace(/\/?$/, '/');
     const bust = Date.now();
     const res = await fetch(base + file + '?t=' + bust);
@@ -255,26 +255,26 @@ window.SRPluginViews = window.SRPluginViews || {};
   function carMarkup(color, num) {
     color = safeColor(color);
     return (
-      '<g class="f1-car-visual" filter="url(#f1-car-shadow)">' +
+      '<g class="ar-car-visual" filter="url(#ar-car-shadow)">' +
       '<ellipse cx="0" cy="5" rx="26" ry="6" fill="#000" opacity="0.4"/>' +
       // rear wing
-      '<rect class="f1-paint" x="-28" y="-9" width="5" height="18" rx="1" fill="' + color + '"/>' +
-      '<rect class="f1-paint" x="-30" y="-11" width="9" height="2.5" rx="0.4" fill="' + color + '"/>' +
-      '<rect class="f1-paint" x="-30" y="8.5" width="9" height="2.5" rx="0.4" fill="' + color + '"/>' +
+      '<rect class="ar-paint" x="-28" y="-9" width="5" height="18" rx="1" fill="' + color + '"/>' +
+      '<rect class="ar-paint" x="-30" y="-11" width="9" height="2.5" rx="0.4" fill="' + color + '"/>' +
+      '<rect class="ar-paint" x="-30" y="8.5" width="9" height="2.5" rx="0.4" fill="' + color + '"/>' +
       // rear tires
       '<rect x="-20" y="-13" width="9" height="4.5" rx="1" fill="#0d0d0f"/>' +
       '<rect x="-20" y="8.5" width="9" height="4.5" rx="1" fill="#0d0d0f"/>' +
       // body / sidepods
-      '<path class="f1-paint" d="M-22,-6.5 L7,-7.5 L13,-3.5 L13,3.5 L7,7.5 L-22,6.5 Z" fill="' + color + '"/>' +
+      '<path class="ar-paint" d="M-22,-6.5 L7,-7.5 L13,-3.5 L13,3.5 L7,7.5 L-22,6.5 Z" fill="' + color + '"/>' +
       // cockpit
       '<ellipse cx="-2" cy="0" rx="6.5" ry="4" fill="#0a0a10"/>' +
       '<ellipse cx="-1" cy="0" rx="3.5" ry="2.2" fill="#4af" opacity="0.4"/>' +
       // nose
-      '<path class="f1-paint" d="M11,-3 L30,0 L11,3 Z" fill="' + color + '"/>' +
+      '<path class="ar-paint" d="M11,-3 L30,0 L11,3 Z" fill="' + color + '"/>' +
       // front wing
-      '<rect class="f1-paint" x="26" y="-10" width="4.5" height="20" rx="1" fill="' + color + '"/>' +
-      '<rect class="f1-paint" x="28" y="-12" width="7" height="2.2" rx="0.4" fill="' + color + '"/>' +
-      '<rect class="f1-paint" x="28" y="9.8" width="7" height="2.2" rx="0.4" fill="' + color + '"/>' +
+      '<rect class="ar-paint" x="26" y="-10" width="4.5" height="20" rx="1" fill="' + color + '"/>' +
+      '<rect class="ar-paint" x="28" y="-12" width="7" height="2.2" rx="0.4" fill="' + color + '"/>' +
+      '<rect class="ar-paint" x="28" y="9.8" width="7" height="2.2" rx="0.4" fill="' + color + '"/>' +
       // front tires
       '<rect x="16" y="-12" width="8" height="4" rx="1" fill="#0d0d0f"/>' +
       '<rect x="16" y="8" width="8" height="4" rx="1" fill="#0d0d0f"/>' +
@@ -282,10 +282,10 @@ window.SRPluginViews = window.SRPluginViews || {};
       '<path d="M-18,-1.2 L9,-1.2 L11,0 L9,1.2 L-18,1.2 Z" fill="#fff" opacity="0.22"/>' +
       // number disc
       '<circle cx="3" cy="0" r="5.2" fill="#fff"/>' +
-      '<text class="f1-car-num" x="3" y="3.2" text-anchor="middle" fill="#111" font-size="7" font-weight="700" font-family="Oswald,sans-serif">' +
+      '<text class="ar-car-num" x="3" y="3.2" text-anchor="middle" fill="#111" font-size="7" font-weight="700" font-family="Oswald,sans-serif">' +
       num + '</text>' +
       '</g>' +
-      '<circle class="f1-car-crash" cx="0" cy="0" r="18" fill="none" stroke="#ff6b35" stroke-width="2.5" opacity="0"/>'
+      '<circle class="ar-car-crash" cx="0" cy="0" r="18" fill="none" stroke="#ff6b35" stroke-width="2.5" opacity="0"/>'
     );
   }
 
@@ -295,9 +295,9 @@ window.SRPluginViews = window.SRPluginViews || {};
       defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
       svgRoot.insertBefore(defs, svgRoot.firstChild);
     }
-    if (!defs.querySelector('#f1-car-shadow')) {
+    if (!defs.querySelector('#ar-car-shadow')) {
       const f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-      f.setAttribute('id', 'f1-car-shadow');
+      f.setAttribute('id', 'ar-car-shadow');
       f.setAttribute('x', '-50%');
       f.setAttribute('y', '-50%');
       f.setAttribute('width', '200%');
@@ -314,10 +314,10 @@ window.SRPluginViews = window.SRPluginViews || {};
     ensureCarShadow(svgRoot);
     const len = path.getTotalLength();
     if (!(len > 0)) return;
-    let layer = svgRoot.querySelector('#f1-cars-layer');
+    let layer = svgRoot.querySelector('#ar-cars-layer');
     if (!layer) {
       layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      layer.setAttribute('id', 'f1-cars-layer');
+      layer.setAttribute('id', 'ar-cars-layer');
       svgRoot.appendChild(layer);
     }
     const carProgCache = progCacheFor(svgRoot);
@@ -357,13 +357,13 @@ window.SRPluginViews = window.SRPluginViews || {};
         g.innerHTML = carMarkup(color, String(car.rangeNum));
         layer.appendChild(g);
       } else {
-        Array.prototype.forEach.call(g.querySelectorAll('.f1-paint'), function (el) {
+        Array.prototype.forEach.call(g.querySelectorAll('.ar-paint'), function (el) {
           el.setAttribute('fill', color);
         });
-        const num = g.querySelector('.f1-car-num');
+        const num = g.querySelector('.ar-car-num');
         if (num) num.textContent = String(car.rangeNum);
       }
-      const crash = g.querySelector('.f1-car-crash');
+      const crash = g.querySelector('.ar-car-crash');
       if (crash) crash.setAttribute('opacity', car.status === 'crashed' ? '1' : '0');
 
       let target = Number(car.progress);
@@ -458,12 +458,12 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function renderTrackHost(host, svgText, race, focusRange, mini) {
-    host.className = 'f1-track-host' + (mini ? ' f1-track-mini' : '');
+    host.className = 'ar-track-host' + (mini ? ' ar-track-mini' : '');
     // Reparse the circuit only when it actually changes; placeCars updates the
     // existing car nodes in place, so a rebuild here would undo that work.
-    if (host.__f1TrackSvg !== svgText) {
+    if (host.__arTrackSvg !== svgText) {
       host.innerHTML = svgText;
-      host.__f1TrackSvg = svgText;
+      host.__arTrackSvg = svgText;
       // Drop eased positions so cars don't animate across circuit changes.
       const svg = host.querySelector('svg');
       if (svg) {
@@ -476,7 +476,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
       if (mini) svg.setAttribute('viewBox', svg.getAttribute('viewBox') || '0 0 1000 667');
       placeCars(svg, race && race.cars, !mini);
-      svg.querySelectorAll('.f1-focus-ring').forEach(function (el) { el.remove(); });
+      svg.querySelectorAll('.ar-focus-ring').forEach(function (el) { el.remove(); });
       if (focusRange != null) {
         const el = svg.querySelector('#car-' + focusRange);
         if (el) {
@@ -485,7 +485,7 @@ window.SRPluginViews = window.SRPluginViews || {};
           pulse.setAttribute('fill', 'none');
           pulse.setAttribute('stroke', '#fff');
           pulse.setAttribute('stroke-width', '2');
-          pulse.setAttribute('class', 'f1-focus-ring');
+          pulse.setAttribute('class', 'ar-focus-ring');
           el.insertBefore(pulse, el.firstChild);
         }
       }
@@ -497,8 +497,8 @@ window.SRPluginViews = window.SRPluginViews || {};
     const cars = (race && race.cars ? race.cars.slice() : []).sort(function (a, b) {
       return (a.position || 99) - (b.position || 99);
     });
-    return '<ol class="f1-standings f1-standings-slim">' + cars.map(function (c) {
-      const cls = 'f1-standings-row' +
+    return '<ol class="ar-standings ar-standings-slim">' + cars.map(function (c) {
+      const cls = 'ar-standings-row' +
         (c.rangeNum === focusRange ? ' is-me' : '') +
         (c.status === 'crashed' ? ' is-crash' : '');
       const name = c.shooterName || ('Bahn ' + c.rangeNum);
@@ -506,7 +506,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         ? (Math.round(c.lastShotValue * 10) / 10).toFixed(1)
         : (c.lastBoostKind === 'miss' ? '0' : '—');
       const reason = (c.rangeNum === focusRange && c.placeReason)
-        ? '<div class="f1-standings-reason">' + esc(c.placeReason) + '</div>'
+        ? '<div class="ar-standings-reason">' + esc(c.placeReason) + '</div>'
         : '';
       return '<li class="' + cls + '">' +
         '<span class="swatch" style="background:' + esc(c.color) + '"></span>' +
@@ -521,40 +521,40 @@ window.SRPluginViews = window.SRPluginViews || {};
     const rem = race && race.roundRemainingSec != null ? Math.ceil(race.roundRemainingSec) : null;
     const pit = pitBannerHtml(race);
     const fieldHtml = fieldBannerHtml(race, focusRange != null ? focusRange : null);
-    return '<div class="f1-hud f1-hud-compact">' +
-      '<div class="f1-hud-row">' +
-      '<span class="f1-badge">' + esc(phaseLabel(race && race.phase)) + '</span>' +
-      '<span class="f1-circuit">' + esc((race && race.circuitId) || '') + '</span>' +
-      '<span class="f1-round">R' + esc(race && race.currentRound) +
+    return '<div class="ar-hud ar-hud-compact">' +
+      '<div class="ar-hud-row">' +
+      '<span class="ar-badge">' + esc(phaseLabel(race && race.phase)) + '</span>' +
+      '<span class="ar-circuit">' + esc((race && race.circuitId) || '') + '</span>' +
+      '<span class="ar-round">R' + esc(race && race.currentRound) +
       (race && race.shotTotal ? '/' + esc(race.shotTotal) : '') +
       (race && race.currentSection
         ? (race.isPitRound ? ' · PIT' : ' · S' + esc(race.currentSection) + '/' + esc((race.powerSections || 9)))
         : (race && race.isPitRound ? ' · PIT' : '')) + '</span>' +
-      (rem != null ? '<span class="f1-timer">' + rem + 's</span>' : '') +
+      (rem != null ? '<span class="ar-timer">' + rem + 's</span>' : '') +
       '</div>' +
       (fieldHtml || pit) +
-      (blocked ? '<div class="f1-block">' + esc(blocked) + '</div>' : '') +
+      (blocked ? '<div class="ar-block">' + esc(blocked) + '</div>' : '') +
       '</div>';
   }
 
   function ensureTargetRegistry(assetsBase) {
     return new Promise(function (resolve) {
-      if (window.SRTargetRegistry && window.SRTargetRegistry.ownerPluginId === 'f1-race') {
+      if (window.SRTargetRegistry && window.SRTargetRegistry.ownerPluginId === 'autorennen') {
         resolve();
         return;
       }
-      // assetsBase is /plugins/f1-race/assets → registry at /plugins/f1-race/target-registry.js
-      const root = (assetsBase || '/plugins/f1-race/assets').replace(/\/assets\/?$/, '/');
+      // assetsBase is /plugins/autorennen/assets → registry at /plugins/autorennen/target-registry.js
+      const root = (assetsBase || '/plugins/autorennen/assets').replace(/\/assets\/?$/, '/');
       const s = document.createElement('script');
       s.src = root + 'target-registry.js?t=' + Date.now();
       s.onload = function () {
-        if (window.SRTargetRegistry) window.SRTargetRegistry.ownerPluginId = 'f1-race';
+        if (window.SRTargetRegistry) window.SRTargetRegistry.ownerPluginId = 'autorennen';
         resolve();
       };
       s.onerror = function () {
         // target-core falls back to built-in geometry, which can misplace shots
         // for anything but the default profile.
-        console.warn('f1-race: target-registry.js failed to load from ' + s.src);
+        console.warn('autorennen: target-registry.js failed to load from ' + s.src);
         resolve();
       };
       document.head.appendChild(s);
@@ -563,22 +563,26 @@ window.SRPluginViews = window.SRPluginViews || {};
 
   async function renderMaster(container, viewModel, assetsBase) {
     const race = (viewModel && viewModel.race) || {};
-    const circuitId = race.circuitId || 'spa';
-    container.className = 'range-plugin-view f1-race-view f1-race-master';
+    const circuitId = race.circuitId || 'bergsee';
+    container.classList.add('range-plugin-view', 'autorennen-view', 'autorennen-master');
+    container.classList.remove('autorennen-shooter');
+    if (container.id === 'shared-master-host') {
+      container.classList.add('shared-master-host');
+    }
 
-    const needsShell = !container.querySelector('.f1-master-layout');
+    const needsShell = !container.querySelector('.ar-master-layout');
     const circuitChanged = container.dataset.circuit !== circuitId;
 
     if (needsShell) {
       container.innerHTML =
-        '<div class="f1-master-layout">' +
-        '<div class="f1-master-track" data-track>' +
-        '<div class="f1-track-host" data-host></div>' +
-        '<div class="f1-track-overlay" data-overlay></div>' +
+        '<div class="ar-master-layout">' +
+        '<div class="ar-master-track" data-track>' +
+        '<div class="ar-track-host" data-host></div>' +
+        '<div class="ar-track-overlay" data-overlay></div>' +
         '</div>' +
-        '<aside class="f1-master-side">' +
+        '<aside class="ar-master-side">' +
         '<div data-hud></div>' +
-        '<div class="f1-side-label">Fahrer</div>' +
+        '<div class="ar-side-label">Fahrer</div>' +
         '<div data-standings></div>' +
         '</aside></div>';
     }
@@ -594,28 +598,28 @@ window.SRPluginViews = window.SRPluginViews || {};
         const svg = await loadCircuit(assetsBase, circuitId);
         renderTrackHost(host, svg, race, null, false);
       } catch (e) {
-        host.innerHTML = '<div class="f1-error">Circuit konnte nicht geladen werden</div>';
+        host.innerHTML = '<div class="ar-error">Circuit konnte nicht geladen werden</div>';
       }
-      container._f1Anim = false;
+      container._arAnim = false;
     }
 
     hudEl.innerHTML = hudHtml(race, race.startBlockedReason, null);
     stEl.innerHTML = standingsHtml(race, null);
     updatePitOverlay(overlayEl, race);
 
-    container._f1LastVM = viewModel;
+    container._arLastVM = viewModel;
     container._sharedReady = true;
     const svgRoot = host && host.querySelector('svg');
     if (svgRoot) {
       placeCars(svgRoot, race.cars, true);
-      if (!container._f1Anim) {
-        container._f1Anim = true;
+      if (!container._arAnim) {
+        container._arAnim = true;
         (function tick() {
           if (!container.isConnected || container.hidden) {
-            container._f1Anim = false;
+            container._arAnim = false;
             return;
           }
-          const vm = container._f1LastVM || viewModel;
+          const vm = container._arLastVM || viewModel;
           const raceNow = (vm && vm.race) || {};
           const svg = container.querySelector('[data-host] svg');
           if (svg) placeCars(svg, raceNow.cars, true);
@@ -640,25 +644,26 @@ window.SRPluginViews = window.SRPluginViews || {};
     }
     if (!rangeData && viewModel) rangeData = viewModel.range;
 
-    container.className = 'range-plugin-view f1-race-view f1-race-shooter';
+    container.classList.add('range-plugin-view', 'autorennen-view', 'autorennen-shooter');
+    container.classList.remove('autorennen-master');
     await ensureTargetRegistry(assetsBase);
     if (core && core.setTargetAssetBase && assetsBase) core.setTargetAssetBase(assetsBase);
 
     // Build the shell once. Wiping it on every live message threw away the
     // target SVG and forced a full re-render per shot.
-    if (!container.querySelector('.f1-shooter-layout')) {
+    if (!container.querySelector('.ar-shooter-layout')) {
       container.innerHTML =
-        '<div class="f1-shooter-layout">' +
-        '<header class="f1-shooter-header" data-header></header>' +
-        '<div class="f1-shooter-main">' +
-        '<div class="f1-shooter-target range-plugin-view classic-range-view" data-target></div>' +
-        '<div class="f1-shooter-race">' +
+        '<div class="ar-shooter-layout">' +
+        '<header class="ar-shooter-header" data-header></header>' +
+        '<div class="ar-shooter-main">' +
+        '<div class="ar-shooter-target range-plugin-view classic-range-view" data-target></div>' +
+        '<div class="ar-shooter-race">' +
         '<div data-hud></div>' +
         '<div data-hint></div>' +
-        '<div class="f1-track-mini-wrap" data-track></div>' +
+        '<div class="ar-track-mini-wrap" data-track></div>' +
         '<div data-standings></div>' +
         '</div></div>' +
-        '<footer class="f1-shooter-footer" data-footer></footer>' +
+        '<footer class="ar-shooter-footer" data-footer></footer>' +
         '</div>';
     }
 
@@ -673,13 +678,13 @@ window.SRPluginViews = window.SRPluginViews || {};
     const field = race.fieldEvent;
     const pitHtml = (!field || field.cleared || !field.pending) ? pitBannerHtml(race) : '';
     header.innerHTML =
-      '<div class="f1-sh-top">' +
+      '<div class="ar-sh-top">' +
       '<strong>Bahn ' + esc(rangeNum) + '</strong>' +
       '<span>' + esc((rangeData && rangeData.shooterName) || (me && me.shooterName) || '') + '</span>' +
-      '<span class="f1-badge">' + esc(phaseLabel(race.phase)) + '</span>' +
+      '<span class="ar-badge">' + esc(phaseLabel(race.phase)) + '</span>' +
       '</div>' +
       (fieldBannerHtml(race, rangeNum) || pitHtml) +
-      '<div class="f1-sh-meta">Runde ' + esc(race.currentRound) +
+      '<div class="ar-sh-meta">Runde ' + esc(race.currentRound) +
       (race.isPitRound ? ' · PIT' : '') +
       (me && me.totalShots ? ' · Schuss ' + esc(me.shotsFired) + '/' + esc(me.totalShots) : '') +
       (race.roundRemainingSec != null ? ' · ' + Math.ceil(race.roundRemainingSec) + 's' : '') +
@@ -698,28 +703,28 @@ window.SRPluginViews = window.SRPluginViews || {};
       const hint = me && me.nextHint;
       const kind = (me && me.nextHintKind) || '';
       hintEl.innerHTML = hint
-        ? '<div class="f1-next-hint kind-' + esc(kind) + '">' + esc(hint) + '</div>'
+        ? '<div class="ar-next-hint kind-' + esc(kind) + '">' + esc(hint) + '</div>'
         : '';
     }
     stEl.innerHTML = standingsHtml(race, rangeNum);
     syncPitCountdownAudio(race);
-    container._f1LastRace = race;
-    if (!container._f1PitTick) {
-      container._f1PitTick = true;
+    container._arLastRace = race;
+    if (!container._arPitTick) {
+      container._arPitTick = true;
       (function pitTick() {
         if (!container.isConnected || container.hidden) {
-          container._f1PitTick = false;
+          container._arPitTick = false;
           return;
         }
-        const r = container._f1LastRace;
+        const r = container._arLastRace;
         if (r) {
           syncPitCountdownAudio(r);
           const headerEl = container.querySelector('[data-header]');
-          const existing = headerEl && headerEl.querySelector('.f1-pit-banner, .f1-event-banner');
+          const existing = headerEl && headerEl.querySelector('.ar-pit-banner, .ar-event-banner');
           const fieldNow = r.fieldEvent;
           if (headerEl && (!fieldNow || fieldNow.cleared)) {
             const next = pitBannerHtml(r);
-            if (existing && existing.classList.contains('f1-pit-banner')) {
+            if (existing && existing.classList.contains('ar-pit-banner')) {
               if (next) {
                 const sec = pitCountdownSec(r);
                 const label = sec > 0 ? ('PIT — ' + sec) : 'PIT — JETZT';
@@ -730,7 +735,7 @@ window.SRPluginViews = window.SRPluginViews || {};
             } else if (!existing && next) {
               const wrap = document.createElement('div');
               wrap.innerHTML = next;
-              const shMeta = headerEl.querySelector('.f1-sh-meta');
+              const shMeta = headerEl.querySelector('.ar-sh-meta');
               if (shMeta) headerEl.insertBefore(wrap.firstChild, shMeta);
               else headerEl.appendChild(wrap.firstChild);
             }
@@ -740,14 +745,14 @@ window.SRPluginViews = window.SRPluginViews || {};
       })();
     }
     try {
-      const svg = await loadCircuit(assetsBase, race.circuitId || 'spa');
+      const svg = await loadCircuit(assetsBase, race.circuitId || 'bergsee');
       renderTrackHost(trackEl, svg, race, rangeNum, true);
     } catch (e) {
       trackEl.innerHTML = '';
     }
 
     footer.innerHTML =
-      '<div class="f1-footer-grid">' +
+      '<div class="ar-footer-grid">' +
       '<div><span class="lbl">Position</span><span class="val">P' + esc(me && me.position) + '</span></div>' +
       '<div><span class="lbl">Tempo</span><span class="val">' + esc(me && me.lastSpeed != null ? me.lastSpeed.toFixed(1) : '—') + '</span></div>' +
       '<div><span class="lbl">Streak</span><span class="val">' + esc(me && me.highStreak) + '</span></div>' +
@@ -756,7 +761,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       outcomeHtml(me);
   }
 
-  window.SRPluginViews['f1-race'] = function render(container, viewModel, assetsBase) {
+  window.SRPluginViews['autorennen'] = function render(container, viewModel, assetsBase) {
     if (!container) return;
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<plugin id="malefiz" label="Malefiz" version="1.0.0" mode="shared" kind="game">
+<plugin id="barrikade" label="Barrikade" version="1.0.0" mode="shared" kind="game">
   <description>Rennen zur Burg. 9+ geht ein Feld, 10.5 zwei. Eine Mauer blockiert; 10.0 hebt sie und legt sie hinter dich. 6–7 bleiben stehen.</description>
   <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
   <assetsDir>assets</assetsDir>

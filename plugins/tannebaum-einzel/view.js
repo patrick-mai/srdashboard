@@ -18,7 +18,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     C: { fill: '#d4a017', stroke: '#8a6a0a', text: '#1e2f24' }
   };
 
-  // Fixed ornament seats on the Tannebaum (viewBox 0 0 220 300), tip → base.
+  // Ornament seats on the Tannebaum (drawing coords; SVG viewBox has padding).
   const BUBBLE_SEATS = [
     { stage: 'C', value: 10.9, x: 110, y: 42, r: 16 },
     { stage: 'C', value: 10.8, x: 86, y: 68, r: 14 },
@@ -286,7 +286,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         '</text>');
 
     return '<svg class="tb-tree-svg' + (mini ? ' is-mini' : '') + (finished ? ' is-finished' : '') +
-      '" viewBox="0 0 220 ' + (mini ? '272' : '308') + '" preserveAspectRatio="xMidYMid meet" aria-label="Tannebaum">' +
+      '" viewBox="-10 -8 240 ' + (mini ? '292' : '324') + '" preserveAspectRatio="xMidYMid meet" aria-label="Tannebaum">' +
       '<defs>' +
       '<linearGradient id="tb-needles-' + esc(contender && contender.id || 'x') + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0%" stop-color="#3f8f4a"/><stop offset="55%" stop-color="#246334"/><stop offset="100%" stop-color="#1a4726"/>' +
@@ -412,7 +412,18 @@ window.SRPluginViews = window.SRPluginViews || {};
       return;
     }
 
-    // Einzel with many stands: own tree large, others as compact row.
+    // Hall has no "own" stand — show every tree at the same size. The old
+    // primary + mini row left Stands 2–6 tiny and clipped at the bottom-left.
+    if (!focusContenderId) {
+      const cols = contenders.length <= 4 ? 2 : 3;
+      host.innerHTML = '<div class="tb-trees-gallery tb-trees-gallery-' + cols + '">' +
+        contenders.map(function (c) {
+          return treeFrameHtml(c, tree, null, false);
+        }).join('') + '</div>';
+      return;
+    }
+
+    // Shooter: own tree large, others as a readable row that is not clipped.
     let primary = contenders.find(function (c) { return c.id === focusContenderId; }) || contenders[0];
     const others = contenders.filter(function (c) { return c.id !== primary.id; });
     host.innerHTML =
