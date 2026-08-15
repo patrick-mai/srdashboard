@@ -1,0 +1,34 @@
+{
+  "title": "Tannebaum Team",
+  "summary": "Zwei Mannschaften, ein Baum je Seite. Alle Schützen eines Teams räumen denselben Baum. Wer seinen Baum zuerst leer hat, gewinnt.",
+  "sections": [
+    {
+      "heading": "Teams",
+      "paragraphs": [
+        "Standard: ungerade Bahnen Team A, gerade Bahnen Team B. Die Zuordnung lässt sich vor dem Start ändern. Jedes Team hat einen gemeinsamen Baum."
+      ]
+    },
+    {
+      "heading": "Der Baum",
+      "items": [
+        "Stufe A: ganze Ringe 5 bis 10.",
+        "Stufe B: halbe Ringe 8.0 bis 10.0.",
+        "Stufe C: Zehntel 10.5 bis 10.9."
+      ]
+    },
+    {
+      "heading": "Treffer und Geschenk",
+      "items": [
+        "Ein Schuss fällt zuerst die präziseste noch offene Nadel des eigenen Teams (C vor B vor A).",
+        "Ist der eigene Wert schon weg, fällt dieselbe Nadel beim gegnerischen Baum — ein Geschenk.",
+        "Unter 5 oder ohne offene Nadel: Fehl."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "paragraphs": [
+        "Das Team, das seinen Baum zuerst vollständig räumt, gewinnt. Nach dem Einschießen startet das Spiel, sobald alle Stände bereit sind."
+      ]
+    }
+  ]
+}

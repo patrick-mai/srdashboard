@@ -324,12 +324,12 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
-  /** Keep #f1-race-master-host identity; never wipe host className to only zb-view. */
+  /** Keep #shared-master-host identity; never wipe host className to only zb-view. */
   function setZbSurfaceClasses(container, mode) {
     if (!container) return;
     container.classList.add('range-plugin-view', 'zb-view');
-    if (container.id === 'f1-race-master-host') {
-      container.classList.add('f1-race-master-host');
+    if (container.id === 'shared-master-host') {
+      container.classList.add('shared-master-host');
     }
     if (mode === 'master') {
       container.classList.add('zb-race-master');
@@ -424,7 +424,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         (game.winMode === 'blackout' ? 'Vollkarte gewinnt' : 'Erste Linie gewinnt') +
         ' · höchste offene Zelle ≤ Schuss · 6–7 zählen nicht</span>';
     }
-    if (container.id === 'f1-race-master-host') {
+    if (container.id === 'shared-master-host') {
       container._sharedReady = true;
     }
   }

@@ -1,0 +1,36 @@
+{
+  "title": "Fox on the Run",
+  "summary": "Fuchsjagd: jeder Stand ist einmal Fuchs. Die Meute jagt den Vorsprung — wer den Bau erreicht, ist entkommen.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Einschießen: fünf Kalibrierschüsse pro Stand (setzen den Ausgleich).",
+        "Dann reihum: jeder Stand einmal Fuchs, die anderen sind Meute.",
+        "Der Fuchs legt mit zwei Vorwürfen vor — daraus entsteht der Startvorsprung (plus Startbonus nach Kalibrierung)."
+      ]
+    },
+    {
+      "heading": "Jagd",
+      "items": [
+        "Danach schießt immer erst ein Jäger, dann der Fuchs, dann der nächste Jäger.",
+        "Jäger-Schüsse verkürzen den Vorsprung, Fuchs-Schüsse vergrößern ihn.",
+        "Nur der Stand, der am Zug ist, zählt."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Vorsprung 30 oder mehr: Fuchs entkommen.",
+        "Vorsprung 0 oder darunter: Fuchs gestellt.",
+        "Am Ende zählt, wie oft jeder als Fuchs entkommen ist — und wie knapp die Jagden waren."
+      ]
+    },
+    {
+      "heading": "Revier",
+      "paragraphs": [
+        "Gelände kann Schüsse dämpfen oder die Fährte erschweren. Der Ausgleich aus der Kalibrierung hält starke und schwächere Schützen im selben Revier."
+      ]
+    }
+  ]
+}

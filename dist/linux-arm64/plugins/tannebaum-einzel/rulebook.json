@@ -1,0 +1,32 @@
+{
+  "title": "Tannebaum Einzel",
+  "summary": "Jeder Stand räumt seinen eigenen Kegel-Baum. Wer zuerst alle Nadeln hat, gewinnt — Treffer auf schon geräumte Werte gehen als Geschenk an den Gegner.",
+  "sections": [
+    {
+      "heading": "Der Baum",
+      "items": [
+        "Stufe A: ganze Ringe 5 bis 10.",
+        "Stufe B: halbe Ringe 8.0, 8.5, 9.0, 9.5, 10.0.",
+        "Stufe C: Zehntel 10.5 bis 10.9."
+      ]
+    },
+    {
+      "heading": "Treffer",
+      "paragraphs": [
+        "Ein Schuss sucht zuerst die präziseste noch offene Nadel, die er erreichen kann (C vor B vor A). Trifft er eine eigene offene Nadel, fällt sie."
+      ]
+    },
+    {
+      "heading": "Geschenk",
+      "paragraphs": [
+        "Ist der eigene passende Wert schon weg, fällt dieselbe Nadel beim Gegner, der sie noch braucht. Liegt der Schuss unter 5 oder trifft nichts Offenes mehr, zählt er als Fehl."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "paragraphs": [
+        "Wer seinen Baum zuerst vollständig räumt, gewinnt. Nach dem Einschießen startet das Spiel, sobald alle Stände bereit sind."
+      ]
+    }
+  ]
+}

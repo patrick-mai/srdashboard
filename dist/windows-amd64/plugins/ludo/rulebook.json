@@ -1,0 +1,34 @@
+{
+  "title": "Ludo",
+  "summary": "Ein Hut pro Bahn. 10.0 setzt ein, 9+ geht ein Feld, 10.5 zwei. Wer auf einem anderen landet, schickt ihn in den Hof.",
+  "sections": [
+    {
+      "heading": "Einsetzen",
+      "items": [
+        "Jeder startet im Hof.",
+        "Erst ein 10.0 (oder besser) setzt den Hut auf das eigene Startfeld.",
+        "Landet dabei jemand auf dem Startfeld, geht der zurück in den Hof."
+      ]
+    },
+    {
+      "heading": "Ziehen",
+      "items": [
+        "9.0 bis 10.4: ein Feld.",
+        "10.5 und besser: zwei Felder.",
+        "6 und 7 (unter 9): kein Zug."
+      ]
+    },
+    {
+      "heading": "Ärgern",
+      "paragraphs": [
+        "Wer auf einem besetzten Feld landet, schickt den anderen zurück in den Hof. Überspringen ohne Landen ärgert nicht. Im Zielhaus gibt es kein Schlagen."
+      ]
+    },
+    {
+      "heading": "Ziel",
+      "paragraphs": [
+        "Nach einer Runde um das Brett folgen vier Zielfelder. Es gibt kein Exact-Count: zu große Züge werden im Haus gekappt. Wer zuerst alle Zielfelder voll hat, gewinnt."
+      ]
+    }
+  ]
+}

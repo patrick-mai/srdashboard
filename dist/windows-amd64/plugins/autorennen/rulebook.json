@@ -1,0 +1,41 @@
+{
+  "title": "Autorennen",
+  "summary": "Mehrbahn-Rennen auf der Scheibe. Jeder Wertungsschuss treibt das Auto voran — Tempo, Boxen und Überholzonen entscheiden.",
+  "sections": [
+    {
+      "heading": "Ziel",
+      "paragraphs": [
+        "Alle Bahnen fahren dieselbe Strecke. Wer am Ende vorn liegt, gewinnt. Nach dem Einschießen startet das Rennen, sobald alle Stände bereit sind (gleiche Schusszahl im Programm)."
+      ]
+    },
+    {
+      "heading": "Tempo",
+      "items": [
+        "Jeder Wertungsschuss ist ein Rundenschub: höhere Ringe = mehr Pace.",
+        "Neuner und Zehner können eine Serie aufbauen und kurz extra Schub geben.",
+        "Wer eine Runde auslässt, bleibt stehen. Zwei Runden ohne Schuss: Ausfall."
+      ]
+    },
+    {
+      "heading": "Boxenstopp",
+      "items": [
+        "Alle zehn Schüsse kommt ein Boxenstopp (5-Sekunden-Fenster).",
+        "Der Stopp-Schuss zählt extra: Wert und Reaktion entscheiden, ob du Plätze gewinnst oder verlierst.",
+        "Ein Nuller in der Box kostet Platz."
+      ]
+    },
+    {
+      "heading": "Überholen (DRS)",
+      "paragraphs": [
+        "Auf markierten Streckenabschnitten (DRS) ist Überholen leichter. Wer weiter hinten liegt, bekommt dort extra Hilfe. Außerhalb der Zonen braucht es einen klaren Tempouvorsprung."
+      ]
+    },
+    {
+      "heading": "Feldereignisse",
+      "items": [
+        "Zufällig: Reifenplatzer oder Ölverlust — betroffene Autos müssen in die Box.",
+        "Loch-in-Loch (Treffer über dem letzten Schuss) gibt einen kleinen Bonusschub."
+      ]
+    }
+  ]
+}

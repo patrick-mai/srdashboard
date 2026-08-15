@@ -2,7 +2,7 @@
  * Hardcoded target geometry profiles. This is the canonical copy.
  * Scoring values come from OpticScore; profiles control face SVG and zoom/scale only.
  *
- * Plugins ship as self-contained zips, so plugins/f1-race/target-registry.js is
+ * Plugins ship as self-contained zips, so plugins/autorennen/target-registry.js is
  * a verbatim copy. Keep the two identical or the same shot plots differently on
  * master and tablet.
  */

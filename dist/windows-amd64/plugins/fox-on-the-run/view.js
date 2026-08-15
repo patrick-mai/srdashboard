@@ -141,7 +141,7 @@ window.SRPluginViews = window.SRPluginViews || {};
   /** Zoom to scoring disk (LG face is tiny in the 200 mm DISAG frame). */
   function scheibeViewBox(profileId, shots) {
     const m = profileMeta(profileId);
-    const pad = 1.5;
+    const pad = 4;
     let half = m.targetDiameterMm / 2 + pad;
     if (shots && shots.length) {
       let maxDist = 0;
@@ -150,7 +150,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         const dist = Math.hypot(pt.x - m.center, pt.y - m.center) + m.shotRadiusSvg;
         if (dist > maxDist) maxDist = dist;
       });
-      half = Math.max(half, maxDist + pad * 0.5, m.ring8RadiusMm);
+      half = Math.max(half, maxDist + pad * 0.5, m.ring8RadiusMm + pad);
     }
     half = Math.min(half, m.svgSize / 2);
     return {
@@ -165,18 +165,22 @@ window.SRPluginViews = window.SRPluginViews || {};
     const profileId = resolveProfileId(hunt, rangeData, me);
     const file = profileFile(profileId);
     const url = (assetsBase || '/plugins/fox-on-the-run/assets').replace(/\/?$/, '/') + file;
-    if (host.dataset.profile !== profileId || !host.querySelector('svg')) {
+    if (host.dataset.profile !== profileId || !host.querySelector('.fox-scheibe-frame svg')) {
       host.dataset.profile = profileId;
       try {
         const res = await fetch(url);
         const svgText = await res.text();
-        host.innerHTML = svgText;
+        host.innerHTML = '<div class="fox-scheibe-frame">' + svgText + '</div>';
         const svg = host.querySelector('svg');
         if (svg) {
           svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-          svg.removeAttribute('width');
-          svg.removeAttribute('height');
+          svg.setAttribute('width', '200');
+          svg.setAttribute('height', '200');
+          svg.removeAttribute('shape-rendering');
           svg.classList.add('fox-scheibe-svg');
+          svg.querySelectorAll('[shape-rendering]').forEach(function (el) {
+            el.setAttribute('shape-rendering', 'auto');
+          });
           let g = svg.querySelector('#fox-shots');
           if (!g) {
             g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -201,6 +205,8 @@ window.SRPluginViews = window.SRPluginViews || {};
     const shots = (hunt && hunt.recentShots) || [];
     const vb = scheibeViewBox(profileId, shots);
     svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+    svg.setAttribute('width', String(vb.w));
+    svg.setAttribute('height', String(vb.h));
     const meta = profileMeta(profileId);
     const shotR = meta.shotRadiusSvg;
     shots.forEach(function (s) {
@@ -269,13 +275,16 @@ window.SRPluginViews = window.SRPluginViews || {};
       return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
     }
 
+    let packIndex = 0;
     players.forEach(function (p) {
       if (!p || !p.active) return;
-      const isFox = Number(p.rangeNum) === Number(foxRange);
-      let t = 0.08;
-      if (isFox) {
+      const live = huntIsLive(hunt);
+      const isFox = live && Number(p.rangeNum) === Number(foxRange) && Number(foxRange) > 0;
+      let t = 0.04 + (packIndex % 6) * 0.016;
+      packIndex += 1;
+      if (live && isFox) {
         t = 0.12 + foxProg * 0.78;
-      } else {
+      } else if (live) {
         t = 0.08 + Math.max(0, foxProg - 0.12 - (p.rangeNum % 5) * 0.02) * 0.7;
       }
       t = Math.max(0.02, Math.min(0.98, t));
@@ -434,15 +443,31 @@ window.SRPluginViews = window.SRPluginViews || {};
       '</span>';
   }
 
+  function huntIsLive(hunt) {
+    const p = hunt && hunt.phase;
+    return p === 'opening' || p === 'chase' || p === 'round_result' || p === 'finished';
+  }
+
   function hudHtml(hunt) {
+    const badge = PHASE_LABEL[hunt && hunt.phase] || (hunt && hunt.phase) || '';
+    if (!huntIsLive(hunt)) {
+      return '<div class="fox-panel fox-hud-row">' +
+        '<span class="fox-badge">' + esc(badge) + '</span>' +
+        '<span class="fox-meta">' + esc((hunt && hunt.statusLine) || 'Einschießen') + '</span>' +
+        '</div>';
+    }
     const lead = hunt && hunt.lead;
     const escT = hunt && hunt.escapeTarget;
     const pct = hunt && hunt.foxProgress != null ? Math.round(Number(hunt.foxProgress) * 100) : 0;
+    const fox = Number(hunt && hunt.currentFox) || 0;
+    const turn = Number(hunt && hunt.turnRange) || 0;
+    const who = (fox > 0 ? 'Fuchs S' + fox : 'Fuchs —') +
+      ' · dran ' + (turn > 0 ? 'S' + turn : '—');
     return '<div class="fox-panel fox-hud-row">' +
-      '<span class="fox-badge">' + esc(PHASE_LABEL[hunt && hunt.phase] || (hunt && hunt.phase) || '') + '</span>' +
+      '<span class="fox-badge">' + esc(badge) + '</span>' +
       '<span class="fox-lead">Vorsprung ' + esc(fmt1(lead)) + ' / ' + esc(fmt1(escT)) + '</span>' +
       '<div class="fox-lead-bar"><div class="fox-lead-fill" style="width:' + pct + '%"></div></div>' +
-      '<span class="fox-meta">Fuchs S' + esc(hunt && hunt.currentFox) + ' · dran S' + esc(hunt && hunt.turnRange) + '</span>' +
+      '<span class="fox-meta">' + esc(who) + '</span>' +
       '</div>';
   }
 
@@ -459,12 +484,12 @@ window.SRPluginViews = window.SRPluginViews || {};
     el.style.backgroundRepeat = 'no-repeat';
   }
 
-  /** Keep #f1-race-master-host identity; never wipe host className to only fox-view. */
+  /** Keep #shared-master-host identity; never wipe host className to only fox-view. */
   function setFoxSurfaceClasses(container, mode) {
     if (!container) return;
     container.classList.add('range-plugin-view', 'fox-view');
-    if (container.id === 'f1-race-master-host') {
-      container.classList.add('f1-race-master-host');
+    if (container.id === 'shared-master-host') {
+      container.classList.add('shared-master-host');
     }
     if (mode === 'master') {
       container.classList.add('fox-race-master');
@@ -617,7 +642,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
     if (isShooter) return renderShooter(container, viewModel, assetsBase);
-    // Master / shared host: Scheibe left (same as F1/classic), chase map right.
+    // Master / shared host: Scheibe left (same as Autorennen/classic), chase map right.
     return renderMaster(container, viewModel, assetsBase);
   }
 

@@ -29,7 +29,7 @@
   overflow: hidden;
 }
 
-#f1-race-master-host > .tb-view {
+#shared-master-host > .tb-view {
   position: absolute;
   inset: 0;
   height: auto;
@@ -240,6 +240,25 @@
   align-items: stretch;
 }
 
+.tb-trees-gallery {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  gap: 0.4rem;
+  grid-auto-rows: minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.tb-trees-gallery-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tb-trees-gallery-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.tb-trees-gallery .tb-tree-frame {
+  overflow: hidden;
+  padding: 0.15rem;
+}
+
 .tb-tree-frame {
   min-width: 0;
   min-height: 0;
@@ -299,13 +318,13 @@
 }
 
 .tb-trees-mini {
-  flex: 0 0 auto;
+  flex: 1 1 46%;
+  min-height: 11rem;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.45rem;
-  max-height: 36%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
+  align-items: stretch;
 }
 
 .tb-tree-frame.is-mini {
@@ -315,10 +334,10 @@
   background: rgba(255, 253, 248, 0.45);
   border: 1px solid rgba(28, 46, 34, 0.12);
   height: 100%;
-  max-height: 220px;
-  min-height: 140px;
-  aspect-ratio: 3 / 4;
-  padding: 0.3rem 0.35rem 0.4rem;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
+  padding: 0.3rem 0.35rem 0.35rem;
   overflow: hidden;
 }
 
@@ -326,7 +345,9 @@
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
 }
 
 .tb-tree-caption-ext {
