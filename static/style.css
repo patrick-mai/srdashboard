@@ -2025,6 +2025,7 @@ body.config-display {
 }
 
 .range-target {
+  --target-zoom: 1;
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
@@ -2066,6 +2067,7 @@ body.config-display {
   position: absolute;
   top: 0;
   right: 0;
+  z-index: 2;
   width: 0;
   height: 0;
   border-style: solid;
@@ -2073,6 +2075,12 @@ body.config-display {
   border-color: transparent var(--warmup-accent) transparent transparent;
   pointer-events: none;
   opacity: 0.95;
+}
+@supports (width: 1cqmin) {
+  .range-target.warmup::after {
+    --_warmup-tri: min(calc(52px * var(--target-zoom, 1)), 34cqmin);
+    border-width: 0 var(--_warmup-tri) var(--_warmup-tri) 0;
+  }
 }
 
 .last10-chart-wrap {
@@ -2230,6 +2238,15 @@ body.config-display {
   color: var(--muted);
   text-align: center;
   align-self: center;
+}
+.range-footer .serien-col.serien-warmup {
+  color: var(--muted);
+}
+.range-footer .serien-col.serien-warmup .serien-idx,
+.range-footer .serien-col.serien-warmup .serien-ints,
+.range-footer .serien-col.serien-warmup .serien-decs {
+  color: var(--muted);
+  font-weight: 400;
 }
 .range-footer .serien-frac-slot {
   visibility: hidden;

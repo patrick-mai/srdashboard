@@ -473,9 +473,17 @@ function shotOutsideView(pt, state, rangeNum) {
   );
 }
 
-function applyViewBox(svg, state) {
+function applyViewBox(svg, state, rangeNum) {
   if (!svg || !state) return;
   svg.setAttribute('viewBox', `${state.x} ${state.y} ${state.w} ${state.h}`);
+  const n = rangeNum != null ? rangeNum : Number(svg.dataset.rangeNum);
+  const host = svg.closest('.range-target');
+  if (!host || !Number.isFinite(n)) return;
+  const ts = getTargetScale(n);
+  const full = ts.targetDiameterMm + 2 * SCORING_DISK_PAD_MM;
+  const cur = viewSpan(state, n);
+  const zoom = cur > 0 ? full / cur : 1;
+  host.style.setProperty('--target-zoom', String(zoom));
 }
 
 function setupZoomHandlers(viewport, rangeNum) {
@@ -504,14 +512,14 @@ function setupZoomHandlers(viewport, rangeNum) {
       ts.centerX - half, ts.centerX + half,
       ts.centerY - half, ts.centerY + half
     );
-    applyViewBox(getSvg(), zoomStateByRange[rangeNum]);
+    applyViewBox(getSvg(), zoomStateByRange[rangeNum], rangeNum);
   }, { passive: false });
 
   viewport.addEventListener('dblclick', () => {
     zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
     userZoomedByRange[rangeNum] = false;
     pinFullUntilNewShotByRange[rangeNum] = true;
-    applyViewBox(getSvg(), zoomStateByRange[rangeNum]);
+    applyViewBox(getSvg(), zoomStateByRange[rangeNum], rangeNum);
   });
 }
 
@@ -533,6 +541,7 @@ function ensureTargetSvg(container, rangeNum) {
     svg = null;
   }
   if (svg && svg.querySelector('.target-face') && svg.querySelector('.target-shots')) {
+    svg.dataset.rangeNum = String(rangeNum);
     return svg;
   }
   if (svg) svg.remove();
@@ -540,6 +549,7 @@ function ensureTargetSvg(container, rangeNum) {
   svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'target-svg-root');
   svg.dataset.profileId = ts.profileId || '';
+  svg.dataset.rangeNum = String(rangeNum);
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('viewBox', `0 0 ${ts.svgSize} ${ts.svgSize}`);
 
@@ -727,10 +737,11 @@ function renderTarget(container, rangeData, isWarmup, opts) {
   if (!zoomStateByRange[rangeNum] || zoomStateByRange[rangeNum].w == null) {
     zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
   }
-  applyViewBox(svg, zoomStateByRange[rangeNum]);
+  applyViewBox(svg, zoomStateByRange[rangeNum], rangeNum);
   setupZoomHandlers(container, rangeNum);
   upsertShotCircles(shotsGroup, shots, rangeNum);
   container.classList.toggle('series-focus', focusingSeries);
+  container.classList.toggle('warmup', displayIsWarmup(rangeData));
 }
 
 const DEFAULT_CHART_COLORS = {
@@ -846,12 +857,36 @@ function footerItemTwoLines(label, line1, line2, visible) {
 
 const SERIES_LEN = 10;
 
+function chunkSeries(shots, size) {
+  const out = [];
+  if (!shots || !shots.length || size <= 0) return out;
+  for (let i = 0; i < shots.length; i += size) {
+    out.push(shots.slice(i, i + size));
+  }
+  return out;
+}
+
+function seriesShotsForFocus(rangeData, focus) {
+  if (!focus) return null;
+  if (focus.live) return rangeData.shots || [];
+  if ((focus.kind || 'comp') === 'warmup') {
+    return chunkSeries(rangeData.warmupShots || [], SERIES_LEN)[focus.index] || [];
+  }
+  return (rangeData.seriesShots || [])[focus.index] || [];
+}
+
+/** Triangle follows the series on the target: Probe review or live warmup. */
+function displayIsWarmup(rangeData) {
+  const focus = rangeData && seriesFocusByRange[rangeData.rangeNum];
+  if (focus != null) return (focus.kind || 'comp') === 'warmup';
+  return !!(rangeData && rangeData.isWarmup);
+}
+
 /** Shots currently drawn on the target (live or a reviewed completed series). */
 function shotsForDisplay(rangeData) {
   const focus = seriesFocusByRange[rangeData.rangeNum];
   if (focus != null) {
-    if (focus.live) return rangeData.shots || [];
-    const series = (rangeData.seriesShots || [])[focus.index];
+    const series = seriesShotsForFocus(rangeData, focus);
     if (series && series.length) return series;
   }
   return rangeData.shots || [];
@@ -861,10 +896,7 @@ function shotsForDisplay(rangeData) {
 function last10ForDisplay(rangeData) {
   const focus = seriesFocusByRange[rangeData.rangeNum];
   if (focus != null) {
-    if (focus.live) {
-      return (rangeData.shots || []).map(function (s) { return Number(s.decValue); });
-    }
-    const series = (rangeData.seriesShots || [])[focus.index];
+    const series = seriesShotsForFocus(rangeData, focus);
     if (series && series.length) {
       return series.map(function (s) { return Number(s.decValue); });
     }
@@ -885,7 +917,6 @@ function syncSeriesFocus(rangeData) {
     resetRangeZoom(n);
     return;
   }
-  const series = rangeData.seriesShots || [];
   if (focus.live) {
     if (!((rangeData.shots || []).length)) {
       delete seriesFocusByRange[n];
@@ -894,20 +925,23 @@ function syncSeriesFocus(rangeData) {
     }
     return;
   }
-  if (focus.index < 0 || focus.index >= series.length || !(series[focus.index] || []).length) {
+  const series = seriesShotsForFocus(rangeData, focus);
+  if (focus.index < 0 || !(series || []).length) {
     delete seriesFocusByRange[n];
     userZoomedByRange[n] = false;
     resetRangeZoom(n);
   }
 }
 
-function setSeriesFocus(rangeNum, index, rangeData, live) {
+function setSeriesFocus(rangeNum, index, rangeData, live, kind) {
+  const k = kind || 'comp';
   const cur = seriesFocusByRange[rangeNum];
-  if (cur && cur.index === index && !!cur.live === !!live) {
+  if (cur && cur.index === index && !!cur.live === !!live && (cur.kind || 'comp') === k) {
     delete seriesFocusByRange[rangeNum];
   } else {
     seriesFocusByRange[rangeNum] = {
       index: index,
+      kind: k,
       live: !!live,
       atShotNumber: rangeData.shotNumber || 0
     };
@@ -923,7 +957,9 @@ function paintSeriesFocusActive(footerEl, rangeNum) {
   const focus = seriesFocusByRange[rangeNum];
   footerEl.querySelectorAll('.serien-col').forEach(function (btn) {
     const idx = parseInt(btn.dataset.seriesIdx, 10);
+    const kind = btn.getAttribute('data-series-kind') || 'comp';
     const on = focus != null && idx === focus.index &&
+      (focus.kind || 'comp') === kind &&
       !!focus.live === (btn.getAttribute('data-series-live') === '1');
     btn.classList.toggle('is-active', on);
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -938,9 +974,10 @@ function wireSeriesClicks(footerEl, rangeData) {
     const idx = parseInt(btn.dataset.seriesIdx, 10);
     if (!Number.isFinite(idx)) return;
     const isLive = btn.getAttribute('data-series-live') === '1';
-    const series = isLive ? (rangeData.shots || []) : (rangeData.seriesShots || [])[idx];
+    const kind = btn.getAttribute('data-series-kind') || 'comp';
+    const series = seriesShotsForFocus(rangeData, { index: idx, live: isLive, kind: kind });
     if (!series || !series.length) return;
-    setSeriesFocus(rangeData.rangeNum, idx, rangeData, isLive);
+    setSeriesFocus(rangeData.rangeNum, idx, rangeData, isLive, kind);
     // Re-paint this stand from the latest live payload (keeps header/footer in sync).
     const live = lastLiveData && (lastLiveData.ranges || []).find(function (r) {
       return r.rangeNum === rangeData.rangeNum;
@@ -974,8 +1011,32 @@ function sumShots(shots) {
   return { sumInt: sumInt, sumDec: sumDec };
 }
 
-/** Series columns: running totals as shots land; pad to the program length. */
-function seriesDisplayColumns(rangeData) {
+function seriesCol(kind, index, label, intV, decV, shots, live) {
+  return {
+    kind: kind,
+    index: index,
+    label: label,
+    intV: intV,
+    decV: decV,
+    shots: shots || [],
+    live: !!live
+  };
+}
+
+/** Probe series from retained warmupShots (10-shot chunks; last may be short). */
+function warmupSeriesColumns(rangeData) {
+  const chunks = chunkSeries(rangeData.warmupShots || [], SERIES_LEN);
+  const inWarmup = !!rangeData.isWarmup;
+  return chunks.map(function (chunk, i) {
+    const s = sumShots(chunk);
+    const live = inWarmup && i === chunks.length - 1 && chunk.length > 0 && chunk.length < SERIES_LEN;
+    return seriesCol('warmup', i, 'P' + (i + 1), s.sumInt, s.sumDec, chunk, live);
+  });
+}
+
+/** Competition series only — during Probe these live in warmupShots instead. */
+function competitionSeriesColumns(rangeData) {
+  if (rangeData.isWarmup) return [];
   const ints = (rangeData.seriesSumsInt || []).slice();
   const decs = (rangeData.seriesSums || []).slice();
   const seriesShots = rangeData.seriesShots || [];
@@ -988,10 +1049,41 @@ function seriesDisplayColumns(rangeData) {
     decs.push(s.sumDec);
   }
   const n = Math.max(ints.length, decs.length, seriesShots.length, plannedSeriesCount(rangeData));
-  const currentIdx = liveOpen
-    ? ints.length - 1
-    : (shots.length === SERIES_LEN ? seriesShots.length - 1 : -1);
-  return { ints: ints, decs: decs, seriesShots: seriesShots, n: n, currentIdx: currentIdx, liveOpen: liveOpen };
+  const cols = [];
+  for (let i = 0; i < n; i++) {
+    const live = liveOpen && i === (ints.length - 1);
+    const shotList = live ? shots : (seriesShots[i] || []);
+    cols.push(seriesCol(
+      'comp',
+      i,
+      String(i + 1),
+      ints[i] != null ? ints[i] : null,
+      decs[i] != null ? decs[i] : null,
+      shotList,
+      live
+    ));
+  }
+  return cols;
+}
+
+/** Series columns: Probe (P1…) first, then Wertung (1…); pad Wertung to the program length. */
+function seriesDisplayColumns(rangeData) {
+  const cols = warmupSeriesColumns(rangeData).concat(competitionSeriesColumns(rangeData));
+  const shots = rangeData.shots || [];
+  let currentIdx = -1;
+  for (let i = 0; i < cols.length; i++) {
+    if (cols[i].live) currentIdx = i;
+  }
+  if (currentIdx < 0 && shots.length === SERIES_LEN) {
+    const kind = rangeData.isWarmup ? 'warmup' : 'comp';
+    for (let i = cols.length - 1; i >= 0; i--) {
+      if (cols[i].kind === kind && (cols[i].shots || []).length === SERIES_LEN) {
+        currentIdx = i;
+        break;
+      }
+    }
+  }
+  return { cols: cols, n: cols.length, currentIdx: currentIdx };
 }
 
 function seriesOverviewCount(rangeData) {
@@ -1023,9 +1115,6 @@ function renderFooter(rangeData) {
   let serienHtml = '';
   if (f.seriesSumsInt || f.seriesSumsDecimal) {
     const colsModel = seriesDisplayColumns(rangeData);
-    const ints = colsModel.ints;
-    const decs = colsModel.decs;
-    const seriesShots = colsModel.seriesShots;
     const n = colsModel.n;
     const showInt = !!f.seriesSumsInt;
     const showDec = !!f.seriesSumsDecimal;
@@ -1034,22 +1123,25 @@ function renderFooter(rangeData) {
       cols = '<span class="serien-col serien-empty"><span class="serien-cell">–</span></span>';
     } else {
       for (let i = 0; i < n; i++) {
-        const intV = ints[i] != null ? String(ints[i]) : '';
-        const decV = decs[i] != null ? Number(decs[i]).toFixed(1) : '';
-        const archived = !!(seriesShots[i] && seriesShots[i].length);
-        const liveCol = colsModel.liveOpen && i === colsModel.currentIdx;
-        const hasShots = archived || liveCol;
+        const col = colsModel.cols[i];
+        const intV = col.intV != null ? String(col.intV) : '';
+        const decV = col.decV != null ? Number(col.decV).toFixed(1) : '';
+        const hasShots = (col.shots && col.shots.length) || col.live;
         const pad = showDec && intV !== '' ? '<span class="serien-frac-slot" aria-hidden="true">.0</span>' : '';
         const tag = hasShots ? 'button' : 'span';
         const reviewing = seriesFocusByRange[rangeData.rangeNum] != null;
         const current = !reviewing && i === colsModel.currentIdx;
+        const warmupCls = col.kind === 'warmup' ? ' serien-warmup' : '';
+        const titleKind = col.kind === 'warmup' ? 'Probeserie ' : 'Serie ';
+        const titleNum = col.kind === 'warmup' ? (col.index + 1) : col.label;
         const attrs = hasShots
-          ? ' type="button" class="serien-col' + (current ? ' serien-current' : '') + '" data-series-idx="' + i + '"' +
-            (liveCol ? ' data-series-live="1"' : '') +
-            ' title="Serie ' + (i + 1) + ' auf Scheibe anzeigen"'
-          : ' class="serien-col serien-unavailable"';
+          ? ' type="button" class="serien-col' + warmupCls + (current ? ' serien-current' : '') + '" data-series-idx="' + col.index + '"' +
+            ' data-series-kind="' + col.kind + '"' +
+            (col.live ? ' data-series-live="1"' : '') +
+            ' title="' + titleKind + titleNum + ' auf Scheibe anzeigen"'
+          : ' class="serien-col serien-unavailable' + warmupCls + '"';
         cols += '<' + tag + attrs + '>' +
-          '<span class="serien-cell serien-idx">' + (i + 1) + '</span>';
+          '<span class="serien-cell serien-idx">' + col.label + '</span>';
         if (showInt) cols += '<span class="serien-cell serien-ints">' + intV + pad + '</span>';
         if (showDec) cols += '<span class="serien-cell serien-decs">' + decV + '</span>';
         cols += '</' + tag + '>';
@@ -1112,6 +1204,11 @@ function rangeChromeSignature(r) {
     r.predictionInt,
     r.predictionDecimal,
     r.isWarmup ? 1 : 0,
+    (r.warmupShots || []).length,
+    (function () {
+      const f = seriesFocusByRange[r.rangeNum];
+      return f ? ((f.kind || 'comp') + ':' + f.index + ':' + (f.live ? 1 : 0)) : '';
+    })(),
     r.shooterName || '',
     r.clubName || '',
     r.discipline || '',
@@ -1288,7 +1385,7 @@ function renderRangePanel(rangeData) {
   panel.appendChild(header);
 
   const targetContainer = document.createElement('div');
-  targetContainer.className = 'range-target' + (rangeData.isWarmup ? ' warmup' : '');
+  targetContainer.className = 'range-target' + (displayIsWarmup(rangeData) ? ' warmup' : '');
   panel.appendChild(targetContainer);
 
   const f = config.footer || {};
@@ -1359,7 +1456,7 @@ function renderClassicRangeView(container, rangeData, opts) {
     targetEl.className = 'range-target';
     container.appendChild(targetEl);
   }
-  targetEl.classList.toggle('warmup', rangeData.isWarmup);
+  targetEl.classList.toggle('warmup', displayIsWarmup(rangeData));
 
   const f = config.footer || {};
   const showLast10 = f.last10Int || f.last10Decimal;
@@ -1411,7 +1508,7 @@ function syncRangePanel(panel, r) {
   const f = config.footer || {};
   const showLast10 = f.last10Int || f.last10Decimal;
   if (header) fillRangeHeader(header, r);
-  if (targetEl) targetEl.classList.toggle('warmup', r.isWarmup);
+  if (targetEl) targetEl.classList.toggle('warmup', displayIsWarmup(r));
 
   const seriesN = seriesOverviewCount(r);
   syncSeriesFocus(r);
