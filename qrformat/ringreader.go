@@ -59,10 +59,10 @@ func (RingReader) EncodeURL(snap ResultInput) (string, error) {
 }
 
 type rrEnvelope struct {
-	V       int             `json:"v"`
-	Src     string          `json:"src"`
-	Fmt     string          `json:"fmt"`
-	Payload rrPayload       `json:"payload"`
+	V       int       `json:"v"`
+	Src     string    `json:"src"`
+	Fmt     string    `json:"fmt"`
+	Payload rrPayload `json:"payload"`
 }
 
 type rrPayload struct {
@@ -87,9 +87,9 @@ type rrShot struct {
 
 func buildRingReaderEnvelope(snap ResultInput) rrEnvelope {
 	date := resultDate(snap)
-	day := date.Format("2006-01-02")
 	disc := dsbDiscipline(snap.DiscType, snap.Discipline)
 	slug := discSlug(snap.DiscType, snap.Discipline)
+	base := ringReaderSeriesBase(date, slug, snap.RangeNum)
 
 	series := make([]rrSeries, 0, 1+len(snap.Series)+1)
 	scale := dsgPerMm(snap.DiscType)
@@ -97,7 +97,7 @@ func buildRingReaderEnvelope(snap ResultInput) rrEnvelope {
 	// Probe/warmup: same 10-shot series split as Wertung (Ring Reader keeps series boundaries).
 	for i, chunk := range chunkShots(snap.WarmupShots, 10) {
 		series = append(series, rrSeries{
-			ID:    fmt.Sprintf("%s-%s-bahn%d-probe%d", day, slug, snap.RangeNum, i+1),
+			ID:    fmt.Sprintf("%s-probe%d", base, i+1),
 			Trial: true,
 			Shots: mapRRShots(chunk, scale),
 		})
@@ -105,14 +105,14 @@ func buildRingReaderEnvelope(snap ResultInput) rrEnvelope {
 
 	for i, ser := range snap.Series {
 		series = append(series, rrSeries{
-			ID:    fmt.Sprintf("%s-%s-bahn%d-s%d", day, slug, snap.RangeNum, i+1),
+			ID:    fmt.Sprintf("%s-s%d", base, i+1),
 			Shots: mapRRShots(ser, scale),
 		})
 	}
 	if len(snap.OpenShots) > 0 {
 		n := len(snap.Series) + 1
 		series = append(series, rrSeries{
-			ID:    fmt.Sprintf("%s-%s-bahn%d-s%d", day, slug, snap.RangeNum, n),
+			ID:    fmt.Sprintf("%s-s%d", base, n),
 			Shots: mapRRShots(snap.OpenShots, scale),
 		})
 	}
@@ -176,6 +176,18 @@ func chunkShots(shots []ShotInput, n int) [][]ShotInput {
 		out = append(out, shots[i:end])
 	}
 	return out
+}
+
+// ringReaderSeriesBase is {date}-{hh:mm}-{slug}-bahn{n}.
+// Date and clock come from the earliest shot of this start (first Probe hole,
+// else first Wertung). A later start the same day is at least ~10 minutes later,
+// so hh:mm distinguishes competitions without a program counter.
+func ringReaderSeriesBase(start time.Time, slug string, rangeNum int) string {
+	return fmt.Sprintf("%s-%s-%s-bahn%d",
+		start.Format("2006-01-02"),
+		start.Format("15:04"),
+		slug,
+		rangeNum)
 }
 
 func resultDate(snap ResultInput) time.Time {

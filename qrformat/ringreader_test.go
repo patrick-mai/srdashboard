@@ -124,10 +124,10 @@ func TestRingReaderWarmupSplitEvery10(t *testing.T) {
 		n     int
 		idSub string
 	}{
-		{true, 10, "probe1"},
-		{true, 10, "probe2"},
-		{true, 2, "probe3"},
-		{false, 10, "-s1"},
+		{true, 10, "2026-04-28-18:00-lg-bahn1-probe1"},
+		{true, 10, "2026-04-28-18:00-lg-bahn1-probe2"},
+		{true, 2, "2026-04-28-18:00-lg-bahn1-probe3"},
+		{false, 10, "2026-04-28-18:00-lg-bahn1-s1"},
 	}
 	for i, w := range want {
 		s := env.Payload.Series[i]
@@ -137,7 +137,6 @@ func TestRingReaderWarmupSplitEvery10(t *testing.T) {
 		}
 	}
 }
-
 
 func TestRingReaderDSBDisciplineCodes(t *testing.T) {
 	cases := []struct {
@@ -188,3 +187,69 @@ func TestRingReaderDSBDisciplineCodes(t *testing.T) {
 	}
 }
 
+func TestRingReaderSeriesIDUsesEarliestShotClock(t *testing.T) {
+	loc := time.FixedZone("CEST", 2*3600)
+	pe, ok := qrformat.MustGet("rr").(qrformat.PayloadJSONExporter)
+	if !ok {
+		t.Fatal("rr encoder does not export payload JSON")
+	}
+	decodeIDs := func(in qrformat.ResultInput) []string {
+		t.Helper()
+		raw, err := pe.EncodePayloadJSON(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var env struct {
+			Payload struct {
+				Series []struct {
+					ID string `json:"id"`
+				} `json:"series"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(raw, &env); err != nil {
+			t.Fatal(err)
+		}
+		out := make([]string, len(env.Payload.Series))
+		for i, s := range env.Payload.Series {
+			out[i] = s.ID
+		}
+		return out
+	}
+
+	probeAt := time.Date(2026, 8, 18, 19, 27, 44, 0, loc)
+	compAt := time.Date(2026, 8, 18, 19, 34, 19, 0, loc)
+	ids := decodeIDs(qrformat.ResultInput{
+		RangeNum: 1,
+		DiscType: "LG",
+		WarmupShots: []qrformat.ShotInput{
+			{DecValue: 10.4, At: probeAt, IsWarmup: true},
+		},
+		Series: [][]qrformat.ShotInput{
+			{{DecValue: 10.8, At: compAt}},
+		},
+	})
+	want := []string{
+		"2026-08-18-19:27-lg-bahn1-probe1",
+		"2026-08-18-19:27-lg-bahn1-s1",
+	}
+	if len(ids) != len(want) {
+		t.Fatalf("ids=%v want %v", ids, want)
+	}
+	for i := range want {
+		if ids[i] != want[i] {
+			t.Fatalf("ids[%d]=%q want %q", i, ids[i], want[i])
+		}
+	}
+
+	firstStart := time.Date(2026, 8, 18, 18, 34, 56, 0, loc)
+	ids = decodeIDs(qrformat.ResultInput{
+		RangeNum: 1,
+		DiscType: "LG",
+		Series: [][]qrformat.ShotInput{
+			{{DecValue: 10.4, At: firstStart}},
+		},
+	})
+	if len(ids) != 1 || ids[0] != "2026-08-18-18:34-lg-bahn1-s1" {
+		t.Fatalf("competition-only id=%v want 2026-08-18-18:34-lg-bahn1-s1", ids)
+	}
+}
