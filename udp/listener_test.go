@@ -1,7 +1,9 @@
 package udp
 
 import (
+	"bytes"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -11,7 +13,7 @@ import (
 func TestHandlePacketShotDateTime(t *testing.T) {
 	st := state.NewLiveState(1)
 	var got state.Shot
-	l, err := NewListener(0, st)
+	l, err := NewListener(0, st, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestHandlePacketShotDateTime(t *testing.T) {
 func TestHandlePacketShotTimestampLegacyISO(t *testing.T) {
 	st := state.NewLiveState(1)
 	var got state.Shot
-	l, err := NewListener(0, st)
+	l, err := NewListener(0, st, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,5 +59,48 @@ func TestHandlePacketShotTimestampLegacyISO(t *testing.T) {
 
 	if got.At.UTC().Format(time.RFC3339Nano) != "2018-08-15T18:25:43.511Z" {
 		t.Fatalf("At=%s shots=%d", got.At.UTC().Format(time.RFC3339Nano), len(st.Snapshot()[0].Shots))
+	}
+}
+
+type denyAll struct{}
+
+func (denyAll) AllowShot(int) bool { return false }
+
+func TestForwardSendsRawBeforeFilter(t *testing.T) {
+	recv, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recv.Close()
+	_ = recv.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+	st := state.NewLiveState(2)
+	src, err := NewListener(0, st, recv.LocalAddr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	src.SetShotFilter(denyAll{})
+	src.Start()
+	defer src.Stop()
+	time.Sleep(50 * time.Millisecond)
+
+	data, err := BuildShotPacket(ShotPacketOpts{Range: 1, DecValue: 10.1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SendRawPacket(src.LocalAddr().String(), data); err != nil {
+		t.Fatal(err)
+	}
+
+	buf := make([]byte, 65535)
+	n, _, err := recv.ReadFromUDP(buf)
+	if err != nil {
+		t.Fatalf("downstream did not receive forwarded datagram: %v", err)
+	}
+	if !bytes.Equal(buf[:n], data) {
+		t.Fatalf("forwarded %q, want original %q", buf[:n], data)
+	}
+	if n := st.ShotNumber(1); n != 0 {
+		t.Fatalf("filter should drop locally, shotNumber=%d", n)
 	}
 }

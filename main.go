@@ -18,9 +18,9 @@ import (
 	"srdashboard/api"
 	"srdashboard/config"
 	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/barrikade"
 	_ "srdashboard/host/games/foxontherun"
 	_ "srdashboard/host/games/ludo"
-	_ "srdashboard/host/games/barrikade"
 	_ "srdashboard/host/games/tannebaum"
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
@@ -60,10 +60,27 @@ func main() {
 		log.Printf("activate plugin %q: %v", cfg.Plugins.Active, err)
 	}
 
-	udpListener, err := udp.NewListener(cfg.UDPPort, st)
+	udpListener, err := udp.NewListener(cfg.UDPPort, st, cfg.UDPForward)
 	if err != nil {
 		log.Fatalf("UDP listener: %v", err)
 	}
+
+	rt, err := config.LoadRuntime(config.RuntimePath(configPath))
+	if err != nil {
+		log.Fatalf("load runtime: %v", err)
+	}
+	rt.Prune(cfg.Ranges)
+
+	handlers := &api.Handlers{
+		State:       st,
+		Cfg:         cfg,
+		ConfigPath:  configPath,
+		Runtime:     rt,
+		Plugins:     pm,
+		PluginState: ps,
+		Hub:         hub,
+	}
+	udpListener.SetShotFilter(handlers)
 	udpListener.SetShotNotifier(func(rng int, shot state.Shot, shotIndex int) {
 		ps.OnShot(rng, shot, shotIndex)
 		// Only re-sync ready flags on warmup transitions — every shot used to
@@ -85,17 +102,9 @@ func main() {
 	udpListener.Start()
 	defer udpListener.Stop()
 
-	handlers := &api.Handlers{
-		State:       st,
-		Cfg:         cfg,
-		ConfigPath:  configPath,
-		Plugins:     pm,
-		PluginState: ps,
-		Hub:         hub,
-	}
-
 	http.HandleFunc("/api/live", handlers.Live)
 	http.HandleFunc("/api/live/reset", handlers.LiveReset)
+	http.HandleFunc("/api/runtime", handlers.ServeRuntime)
 	http.HandleFunc("/api/qr", handlers.QR)
 	http.HandleFunc("/api/qr.png", handlers.QR)
 	http.HandleFunc("/api/qr/formats", handlers.QRFormats)

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"srdashboard/config"
+	"srdashboard/udp"
 )
 
 // ConfigResponse is the JSON body for GET and PUT /api/config.
@@ -19,6 +20,7 @@ import (
 // configured. Sending an explicit empty string clears the token.
 type ConfigResponse struct {
 	UDPPort         int                `json:"udpPort"`
+	UDPForward      string             `json:"udpForward"`
 	ODBCName        string             `json:"odbcName"`
 	Ranges          int                `json:"ranges"`
 	LayoutColumns   int                `json:"layoutColumns"`
@@ -30,6 +32,7 @@ type ConfigResponse struct {
 	ControlTokenSet bool               `json:"controlTokenSet"`
 	DefaultMode     string             `json:"defaultDisplayMode"`
 	ShotStrokeWidth float64            `json:"shotStrokeWidth"`
+	InactiveRanges  []int              `json:"inactiveRanges"`
 }
 
 type configSaveResponse struct {
@@ -49,8 +52,13 @@ func (h *Handlers) configResponse() ConfigResponse {
 	if stroke <= 0 {
 		stroke = 0.1
 	}
+	inactive := h.inactiveRangeList()
+	if inactive == nil {
+		inactive = []int{}
+	}
 	return ConfigResponse{
 		UDPPort:         cfg.UDPPort,
+		UDPForward:      cfg.UDPForward,
 		ODBCName:        cfg.ODBCName,
 		Ranges:          cfg.Ranges,
 		LayoutColumns:   cfg.LayoutColumns,
@@ -61,6 +69,7 @@ func (h *Handlers) configResponse() ConfigResponse {
 		ControlTokenSet: cfg.Display.ControlToken != "",
 		DefaultMode:     cfg.Display.DefaultMode,
 		ShotStrokeWidth: stroke,
+		InactiveRanges:  inactive,
 	}
 }
 
@@ -83,6 +92,7 @@ func (h *Handlers) responseToConfig(resp ConfigResponse, old *config.Config) *co
 	}
 	return &config.Config{
 		UDPPort:       resp.UDPPort,
+		UDPForward:    strings.TrimSpace(resp.UDPForward),
 		ODBCName:      resp.ODBCName,
 		Ranges:        resp.Ranges,
 		LayoutColumns: resp.LayoutColumns,
@@ -114,6 +124,13 @@ func validateConfig(c *config.Config) error {
 	case strings.TrimSpace(c.Plugins.Dir) == "":
 		return fmt.Errorf("pluginsDir must not be empty")
 	}
+	fwd, err := udp.ParseForwardAddr(c.UDPForward)
+	if err != nil {
+		return err
+	}
+	if udp.TargetsOwnListener(fwd, c.UDPPort) {
+		return fmt.Errorf("udpForward %s targets this process's UDP port %d — use another host or port", c.UDPForward, c.UDPPort)
+	}
 	return nil
 }
 
@@ -124,6 +141,9 @@ func restartFieldsForConfig(old, new *config.Config) []string {
 	var fields []string
 	if old.UDPPort != new.UDPPort {
 		fields = append(fields, "udpPort")
+	}
+	if strings.TrimSpace(old.UDPForward) != strings.TrimSpace(new.UDPForward) {
+		fields = append(fields, "udpForward")
 	}
 	if old.ODBCName != new.ODBCName {
 		fields = append(fields, "odbcName")
@@ -140,6 +160,7 @@ func restartFieldsForConfig(old, new *config.Config) []string {
 func (h *Handlers) applyConfigHotReload(newCfg *config.Config) {
 	h.mutateCfg(func(c *config.Config) {
 		c.UDPPort = newCfg.UDPPort
+		c.UDPForward = newCfg.UDPForward
 		c.ODBCName = newCfg.ODBCName
 		c.Ranges = newCfg.Ranges
 		c.LayoutColumns = newCfg.LayoutColumns
@@ -148,6 +169,7 @@ func (h *Handlers) applyConfigHotReload(newCfg *config.Config) {
 		c.Display = newCfg.Display
 	})
 	h.syncRangeCount(newCfg.Ranges)
+	h.pruneRuntime(newCfg.Ranges)
 	if h.PluginState != nil && newCfg.Plugins.Active != "" &&
 		h.PluginState.ActivePluginID() != newCfg.Plugins.Active {
 		if err := h.PluginState.Activate(newCfg.Plugins.Active); err != nil {
@@ -229,11 +251,11 @@ func (h *Handlers) Config(w http.ResponseWriter, r *http.Request) {
 }
 
 type pluginConfigResponse struct {
-	ID                string         `json:"id"`
-	Overrides         map[string]any `json:"overrides"`
-	ManifestDefaults  map[string]any `json:"manifestDefaults"`
-	Merged            map[string]any `json:"merged"`
-	ConfigSchema      map[string]any `json:"configSchema"`
+	ID               string         `json:"id"`
+	Overrides        map[string]any `json:"overrides"`
+	ManifestDefaults map[string]any `json:"manifestDefaults"`
+	Merged           map[string]any `json:"merged"`
+	ConfigSchema     map[string]any `json:"configSchema"`
 }
 
 type pluginConfigSaveRequest struct {

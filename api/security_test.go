@@ -42,6 +42,7 @@ func testHandlers(t *testing.T, token string) (*Handlers, string) {
 		State:      state.NewLiveState(2),
 		Cfg:        cfg,
 		ConfigPath: cfgPath,
+		Runtime:    &config.Runtime{},
 		Plugins:    loader.NewManager(filepath.Join(dir, "plugins")),
 	}, dir
 }
@@ -87,6 +88,37 @@ func TestConfigPutKeepsTokenWhenOmitted(t *testing.T) {
 	}
 }
 
+func TestConfigPutUdpForwardRequiresRestart(t *testing.T) {
+	h, _ := testHandlers(t, "s3cret")
+	body := `{"udpPort":30169,"udpForward":"192.168.10.5:30169","ranges":2,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range","shotStrokeWidth":0.1}`
+	req := httptest.NewRequest(http.MethodPut, "/api/config", strings.NewReader(body))
+	req.Header.Set("X-SR-Control-Token", "s3cret")
+	rec := httptest.NewRecorder()
+	h.Config(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var resp configSaveResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.RestartRequired {
+		t.Fatalf("restart = %+v", resp)
+	}
+	found := false
+	for _, f := range resp.RestartFields {
+		if f == "udpForward" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("restartFields = %v, want udpForward", resp.RestartFields)
+	}
+	if got := h.cfgSnapshot().UDPForward; got != "192.168.10.5:30169" {
+		t.Fatalf("udpForward = %q", got)
+	}
+}
+
 func TestConfigPutSetsAndClearsToken(t *testing.T) {
 	h, _ := testHandlers(t, "s3cret")
 	base := `"udpPort":30169,"ranges":2,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range","shotStrokeWidth":0.1`
@@ -118,6 +150,8 @@ func TestConfigPutRejectsInvalidValues(t *testing.T) {
 		"zero ranges":       `{"udpPort":30169,"ranges":0,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range"}`,
 		"negative ranges":   `{"udpPort":30169,"ranges":-4,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range"}`,
 		"bad udp port":      `{"udpPort":70000,"ranges":2,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range"}`,
+		"self udp forward":  `{"udpPort":30169,"udpForward":"127.0.0.1:30169","ranges":2,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range"}`,
+		"bad udp forward":   `{"udpPort":30169,"udpForward":"not-a-port","ranges":2,"layoutColumns":2,"pluginsDir":"plugins","activePlugin":"classic-range"}`,
 		"zero columns":      `{"udpPort":30169,"ranges":2,"layoutColumns":0,"pluginsDir":"plugins","activePlugin":"classic-range"}`,
 		"empty plugins dir": `{"udpPort":30169,"ranges":2,"layoutColumns":2,"pluginsDir":"","activePlugin":"classic-range"}`,
 	}

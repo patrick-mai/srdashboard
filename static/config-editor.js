@@ -286,6 +286,7 @@
     });
     const body = {
       udpPort: parseInt(panel.querySelector('#g-udpPort').value, 10),
+      udpForward: (panel.querySelector('#g-udpForward').value || '').trim(),
       odbcName: panel.querySelector('#g-odbcName').value,
       ranges: parseInt(panel.querySelector('#g-ranges').value, 10),
       layoutColumns: parseInt(panel.querySelector('#g-layoutColumns').value, 10),
@@ -328,10 +329,12 @@
     return '<section class="config-section">' +
       '<header class="config-section-head">' +
       '<h3>Standort</h3>' +
-      '<p class="config-hint">Globale Einstellungen aus <code>config.xml</code></p>' +
+      '<p class="config-hint">Globale Einstellungen aus <code>config.xml</code>. UDP-Weiterleitung sendet jedes OpticScore-Datagramm an ein zweites Dashboard (Neustart nötig).</p>' +
       '</header>' +
       '<div class="config-grid">' +
       '<label class="config-field">UDP-Port<input type="number" id="g-udpPort" value="' + esc(c.udpPort) + '"></label>' +
+      '<label class="config-field">UDP-Weiterleitung<input type="text" id="g-udpForward" placeholder="127.0.0.1:30170 oder 192.168.1.10:30169" value="' +
+        esc(c.udpForward || '') + '"></label>' +
       '<label class="config-field">ODBC-Name<input type="text" id="g-odbcName" value="' + esc(c.odbcName) + '"></label>' +
       '<label class="config-field">Bahnen<input type="number" id="g-ranges" min="1" value="' + esc(c.ranges) + '"></label>' +
       '<label class="config-field">Layout-Spalten<input type="number" id="g-layoutColumns" min="1" value="' + esc(c.layoutColumns) + '"></label>' +

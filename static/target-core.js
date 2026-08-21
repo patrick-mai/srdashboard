@@ -64,6 +64,7 @@ let seriesFocusByRange = {};
 let config = {
   ranges: 6,
   layoutColumns: 4,
+  inactiveRanges: [],
   shotStrokeWidth: DEFAULT_SHOT_STROKE_SVG,
   footer: {
     currentShotValue: true,
@@ -104,6 +105,17 @@ function setPluginTargetConfig(cfg) {
 function hideIdleRangesEnabled() {
   const cfg = pluginTargetConfig || {};
   return cfg.hideIdleRanges === true || cfg.hideIdleRanges === 'true';
+}
+
+function inactiveRangeSet() {
+  const list = (config && config.inactiveRanges) || [];
+  const set = {};
+  for (let i = 0; i < list.length; i++) set[Number(list[i])] = true;
+  return set;
+}
+
+function isRangeInactive(num) {
+  return !!inactiveRangeSet()[Number(num)];
 }
 
 function resolveTargetProfileId(rangeNum, rangeData) {
@@ -327,7 +339,7 @@ function syncRangeVisibility(data) {
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
     const num = parseInt(panel.dataset.range, 10);
-    const hide = hideIdle && !rangeHasActivity(byNum[num]);
+      const hide = isRangeInactive(num) || (hideIdle && !rangeHasActivity(byNum[num]));
     const wasHidden = panel.hidden;
     if (panel.hidden !== hide) {
       panel.hidden = hide;
@@ -1538,10 +1550,12 @@ function ensurePluginPanels(numRanges) {
   const grid = document.getElementById('ranges-grid');
   if (!grid) return;
   const n = Math.max(1, numRanges || (config && config.ranges) || 1);
+  const inactive = inactiveRangeSet();
   const keep = new Set();
   for (let i = 1; i <= n; i++) {
+    if (inactive[i]) continue;
     keep.add(i);
-    let panel = grid.querySelector(`.range-panel[data-range="${i}"]`);
+    let panel = grid.querySelector('.range-panel[data-range="' + i + '"]');
     if (!panel) {
       panel = document.createElement('div');
       panel.className = 'range-panel plugin-hosted';
@@ -1562,10 +1576,17 @@ function ensurePluginPanels(numRanges) {
     panel.classList.add('plugin-hosted');
     stripLegacyPanelChrome(panel);
   }
-  grid.querySelectorAll('.range-panel').forEach((panel) => {
+  grid.querySelectorAll('.range-panel').forEach(function (panel) {
     const num = parseInt(panel.dataset.range, 10);
     if (!keep.has(num)) panel.remove();
   });
+  // appendChild moves an existing node — rebuild 1…N order so a re-activated
+  // Bahn is not left at the end of the grid.
+  for (let i = 1; i <= n; i++) {
+    if (!keep.has(i)) continue;
+    const panel = grid.querySelector('.range-panel[data-range="' + i + '"]');
+    if (panel) grid.appendChild(panel);
+  }
 }
 
 function updatePluginPanelHeader(rangeNum, rangeData) {
@@ -1582,13 +1603,15 @@ function render(data) {
   const grid = document.getElementById('ranges-grid');
   if (!grid || !data) return;
 
-  // Prefer config.ranges so empty stands still appear; merge live payloads into them.
-  const configured = Math.max(1, (config && config.ranges) || (data.ranges && data.ranges.length) || 1);
+  // Hall maximum from config.ranges only — never grow the grid from live payloads.
+  const configured = Math.max(1, (config && config.ranges) || 1);
   ensurePluginPanels(configured);
 
   const byNum = {};
   (data.ranges || []).forEach((r) => { byNum[r.rangeNum] = r; });
+  const inactive = inactiveRangeSet();
   for (let i = 1; i <= configured; i++) {
+    if (inactive[i]) continue;
     updatePluginPanelHeader(i, byNum[i] || { rangeNum: i });
   }
   syncRangeVisibility(data);
@@ -1616,6 +1639,7 @@ window.SRCore = {
   applyLayout,
   syncRangeVisibility,
   rangeHasActivity,
+  isRangeInactive,
   render,
   ensurePluginPanels,
   updatePluginPanelHeader,

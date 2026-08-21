@@ -4,18 +4,22 @@ import (
 	"encoding/xml"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds application configuration
 type Config struct {
-	XMLName       xml.Name `xml:"config"`
-	UDPPort       int      `xml:"udpPort"`
-	ODBCName      string   `xml:"odbcName"`
-	Ranges        int      `xml:"ranges"`
-	LayoutColumns int    `xml:"layoutColumns"` // number of panels per row (e.g. 4 → 4 in first row, 2 in second for 6 ranges)
-	Footer        Footer `xml:"footer"`
-	Plugins       Plugins  `xml:"plugins"`
-	Display       Display  `xml:"display"`
+	XMLName xml.Name `xml:"config"`
+	UDPPort int      `xml:"udpPort"`
+	// UDPForward resends each raw OpticScore datagram to host:port (another
+	// dashboard). Empty means off. A bare port is 127.0.0.1:port.
+	UDPForward    string  `xml:"udpForward"`
+	ODBCName      string  `xml:"odbcName"`
+	Ranges        int     `xml:"ranges"`
+	LayoutColumns int     `xml:"layoutColumns"` // number of panels per row (e.g. 4 → 4 in first row, 2 in second for 6 ranges)
+	Footer        Footer  `xml:"footer"`
+	Plugins       Plugins `xml:"plugins"`
+	Display       Display `xml:"display"`
 }
 
 // Plugins holds the plugin directory, site-active plugin, and optional version pins.
@@ -33,9 +37,9 @@ type PluginRef struct {
 
 // Display holds UI defaults and control token for master displays.
 type Display struct {
-	DefaultMode      string  `xml:"defaultMode" json:"defaultMode"`
-	ControlToken     string  `xml:"controlToken" json:"controlToken"`
-	ShotStrokeWidth  float64 `xml:"shotStrokeWidth" json:"shotStrokeWidth"` // pellet outline width in mm (SVG user units)
+	DefaultMode     string  `xml:"defaultMode" json:"defaultMode"`
+	ControlToken    string  `xml:"controlToken" json:"controlToken"`
+	ShotStrokeWidth float64 `xml:"shotStrokeWidth" json:"shotStrokeWidth"` // pellet outline width in mm (SVG user units)
 }
 
 // Footer holds visibility toggles for footer elements
@@ -71,6 +75,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.UDPPort == 0 {
 		cfg.UDPPort = 30169
 	}
+	cfg.UDPForward = strings.TrimSpace(cfg.UDPForward)
 	if cfg.Ranges == 0 {
 		cfg.Ranges = 6
 	}

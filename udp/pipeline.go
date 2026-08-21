@@ -7,11 +7,17 @@ import (
 	"srdashboard/state"
 )
 
+// ShotFilter decides whether a resolved range number may be applied.
+type ShotFilter interface {
+	AllowShot(rng int) bool
+}
+
 // Pipeline is the shot path after the UDP socket: decode, validate, apply, notify.
 // Live OpticScore and every synthetic injector must go through Ingest.
 type Pipeline struct {
 	State  *state.LiveState
 	OnShot ShotNotifier
+	Filter ShotFilter
 }
 
 // Ingest handles one OpticScore Event/Shot datagram (same as the listener read loop).
@@ -48,6 +54,10 @@ func (p *Pipeline) Ingest(data []byte) {
 		}
 		if rng == 0 {
 			rng = 1
+		}
+		if p.Filter != nil && !p.Filter.AllowShot(rng) {
+			log.Printf("UDP: dropped shot for unconfigured or inactive range=%d", rng)
+			continue
 		}
 		if err := ValidateShot(&shot); err != nil {
 			log.Printf("UDP: dropped inconsistent shot range=%d X=%d Y=%d Distance=%.1f FullValue=%d DecValue=%.1f: %v",

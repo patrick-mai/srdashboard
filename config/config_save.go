@@ -24,6 +24,7 @@ func Save(path string, cfg *Config) error {
 	}
 
 	setChildScalar(root, "udpPort", cfg.UDPPort)
+	setChildScalar(root, "udpForward", cfg.UDPForward)
 	setChildScalar(root, "odbcName", cfg.ODBCName)
 	setChildScalar(root, "ranges", cfg.Ranges)
 	setChildScalar(root, "layoutColumns", cfg.LayoutColumns)

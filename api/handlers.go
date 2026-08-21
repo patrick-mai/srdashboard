@@ -22,6 +22,7 @@ type Handlers struct {
 	State       *state.LiveState
 	Cfg         *config.Config
 	ConfigPath  string
+	Runtime     *config.Runtime
 	Plugins     *loader.Manager
 	PluginState *rangestate.Manager
 	Hub         *Hub
@@ -29,6 +30,8 @@ type Handlers struct {
 	// cfgMu guards Cfg, which is mutated by the config editor and the plugin
 	// activate endpoint while other handlers read it concurrently.
 	cfgMu sync.RWMutex
+	// runtimeMu guards Runtime (inactive lanes for this process).
+	runtimeMu sync.RWMutex
 	// saveMu serialises read-modify-write cycles against config.xml.
 	saveMu sync.Mutex
 }
@@ -139,6 +142,10 @@ func (h *Handlers) liveGet(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid range", http.StatusBadRequest)
 			return
 		}
+		if h.isRangeInactive(n) {
+			http.Error(w, "range not found", http.StatusNotFound)
+			return
+		}
 		snap := h.State.Snapshot()
 		for _, rs := range snap {
 			if rs.RangeNum == n {
@@ -157,6 +164,9 @@ func (h *Handlers) liveGet(w http.ResponseWriter, r *http.Request) {
 		Ranges: make([]RangeResponse, 0, len(snap)),
 	}
 	for _, s := range snap {
+		if h.isRangeInactive(s.RangeNum) {
+			continue
+		}
 		resp.Ranges = append(resp.Ranges, rangeSnapshotToResponse(s))
 	}
 	w.Header().Set("Content-Type", "application/json")

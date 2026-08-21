@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config>
   <udpPort>30169</udpPort>
+  <!-- Raw OpticScore resend to another dashboard: host:port or a bare port (127.0.0.1). Empty = off. -->
+  <udpForward/>
   <odbcName>SRDashboard_Access_DSN</odbcName>
   <ranges>6</ranges>
   <layoutColumns>3</layoutColumns>

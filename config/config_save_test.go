@@ -71,6 +71,7 @@ func TestSaveGlobalConfigPreservesComments(t *testing.T) {
 	}
 	cfg.LayoutColumns = 4
 	cfg.Plugins.Active = "classic-range"
+	cfg.UDPForward = "192.168.10.5:30169"
 	if err := Save(path, cfg); err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -88,6 +89,9 @@ func TestSaveGlobalConfigPreservesComments(t *testing.T) {
 	}
 	if !strings.Contains(text, `active="classic-range"`) {
 		t.Fatalf("active attr missing:\n%s", text)
+	}
+	if !strings.Contains(text, "<udpForward>192.168.10.5:30169</udpForward>") {
+		t.Fatalf("udpForward not written:\n%s", text)
 	}
 }
 

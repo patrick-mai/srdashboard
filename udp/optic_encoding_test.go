@@ -26,7 +26,7 @@ func TestNormalizeOpticScoreJSON_CP1252Umlauts(t *testing.T) {
 
 func TestHandlePacket_CP1252ShooterName(t *testing.T) {
 	st := state.NewLiveState(1)
-	l, err := NewListener(0, st)
+	l, err := NewListener(0, st, "")
 	if err != nil {
 		t.Fatal(err)
 	}

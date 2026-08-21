@@ -281,8 +281,12 @@
     if (gen !== mountGen) return;
 
     core.ensurePluginPanels(n);
+    const skip = inactiveRangeSet();
     const tasks = [];
-    for (let i = 1; i <= n; i++) tasks.push(mountRangePlugin(i, gen));
+    for (let i = 1; i <= n; i++) {
+      if (skip[i]) continue;
+      tasks.push(mountRangePlugin(i, gen));
+    }
     await Promise.all(tasks);
   }
 
@@ -401,6 +405,11 @@
           updateStatus();
         }
         if (msg.type === 'live' && msg.range) {
+          const n = msg.range.rangeNum;
+          const max = (core.config && core.config.ranges) || 0;
+          if (n < 1 || (max && n > max) || isRangeInactive(n)) {
+            return;
+          }
           const live = core.lastLiveData || { ranges: [] };
           const ranges = (live.ranges || []).slice();
           const idx = ranges.findIndex(function (r) { return r.rangeNum === msg.range.rangeNum; });
@@ -457,17 +466,146 @@
     await refreshAll();
   }
 
-  function selectedResetRanges() {
-    const list = document.getElementById('range-reset-select');
-    const out = [];
-    if (!list) return out;
-    const boxes = list.querySelectorAll('input[data-range]');
-    for (let i = 0; i < boxes.length; i++) {
-      if (!boxes[i].checked) continue;
-      const n = parseInt(boxes[i].getAttribute('data-range'), 10);
-      if (n >= 1) out.push(n);
+  function inactiveRangeSet() {
+    const list = (core.config && core.config.inactiveRanges) || [];
+    const set = {};
+    for (let i = 0; i < list.length; i++) set[Number(list[i])] = true;
+    return set;
+  }
+
+  function isRangeInactive(n) {
+    return !!inactiveRangeSet()[n];
+  }
+
+  async function putInactiveRanges(inactive) {
+    const res = await controlFetch('/api/runtime', {
+      method: 'PUT',
+      body: JSON.stringify({ inactiveRanges: inactive })
+    });
+    if (!res.ok) {
+      alert('Bahnen: ' + (await res.text()));
+      fillRangeLaneControls();
+      return false;
     }
-    return out;
+    if (core.fetchConfig) await core.fetchConfig();
+    fillRangeLaneControls();
+    if (!isSharedPlugin() && typeof core.ensurePluginPanels === 'function') {
+      const n = (core.config && core.config.ranges) || 1;
+      core.ensurePluginPanels(n);
+      if (core.lastLiveData && typeof core.syncRangeVisibility === 'function') {
+        core.syncRangeVisibility(core.lastLiveData);
+      }
+      const skip = inactiveRangeSet();
+      const tasks = [];
+      for (let i = 1; i <= n; i++) {
+        if (skip[i]) continue;
+        tasks.push(mountRangePlugin(i, mountGen));
+      }
+      await Promise.all(tasks);
+    }
+    return true;
+  }
+
+  let rangeConfirmPending = false;
+  let rangeConfirmResolve = null;
+
+  function putInactiveFromList(rangeList) {
+    const max = Math.max(1, (core.config && core.config.ranges) || 1);
+    const next = [];
+    const boxes = rangeList.querySelectorAll('input[data-range]');
+    for (let i = 0; i < boxes.length; i++) {
+      const rn = parseInt(boxes[i].getAttribute('data-range'), 10);
+      if (rn >= 1 && rn <= max && !boxes[i].checked) next.push(rn);
+    }
+    putInactiveRanges(next);
+  }
+
+  function closeRangeConfirm(ok) {
+    const modal = document.getElementById('range-confirm-modal');
+    if (modal) modal.hidden = true;
+    const resolve = rangeConfirmResolve;
+    rangeConfirmResolve = null;
+    rangeConfirmPending = false;
+    if (resolve) resolve(!!ok);
+  }
+
+  function ensureRangeConfirmModal() {
+    let modal = document.getElementById('range-confirm-modal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'range-confirm-modal';
+    modal.className = 'range-confirm-modal';
+    modal.hidden = true;
+    modal.innerHTML =
+      '<div class="range-confirm-backdrop" data-range-confirm="cancel"></div>' +
+      '<div class="range-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="range-confirm-title" aria-describedby="range-confirm-text">' +
+      '<h2 id="range-confirm-title">Bahn deaktivieren?</h2>' +
+      '<p id="range-confirm-text">Die Bahn wird in dieser Anzeige ausgeblendet. Schütze, Schüsse und Summen werden gelöscht — auch wenn die Bahn leer ist.</p>' +
+      '<div class="range-confirm-actions">' +
+      '<button type="button" class="range-confirm-cancel" data-range-confirm="cancel">Abbrechen</button>' +
+      '<button type="button" class="range-confirm-ok" data-range-confirm="ok">Deaktivieren</button>' +
+      '</div></div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function (ev) {
+      const action = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-range-confirm');
+      if (action === 'ok') closeRangeConfirm(true);
+      else if (action === 'cancel') closeRangeConfirm(false);
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Escape') return;
+      const open = document.getElementById('range-confirm-modal');
+      if (!open || open.hidden) return;
+      ev.preventDefault();
+      closeRangeConfirm(false);
+    });
+    return modal;
+  }
+
+  function confirmDeactivateBahn(n) {
+    const modal = ensureRangeConfirmModal();
+    const title = document.getElementById('range-confirm-title');
+    if (title) title.textContent = formatBahnList([n]) + ' deaktivieren?';
+    modal.hidden = false;
+    const cancel = modal.querySelector('.range-confirm-cancel');
+    if (cancel) cancel.focus();
+    return new Promise(function (resolve) {
+      rangeConfirmResolve = resolve;
+    });
+  }
+
+  function rangeLiveData(n) {
+    const ranges = (core.lastLiveData && core.lastLiveData.ranges) || [];
+    for (let i = 0; i < ranges.length; i++) {
+      if (Number(ranges[i].rangeNum) === n) return ranges[i];
+    }
+    return null;
+  }
+
+  function bahnHasLiveData(n) {
+    const has = core.rangeHasActivity;
+    if (typeof has !== 'function') return true;
+    return has(rangeLiveData(n));
+  }
+
+  function requestDeactivateBahn(box, rangeList) {
+    if (!box || rangeConfirmPending) return;
+    const n = parseInt(box.getAttribute('data-range'), 10);
+    if (n < 1) return;
+    if (!bahnHasLiveData(n)) {
+      box.checked = false;
+      putInactiveFromList(rangeList);
+      return;
+    }
+    rangeConfirmPending = true;
+    box.checked = true;
+    confirmDeactivateBahn(n).then(function (ok) {
+      if (!ok) {
+        box.checked = true;
+        return;
+      }
+      box.checked = false;
+      putInactiveFromList(rangeList);
+    });
   }
 
   function formatBahnList(nums) {
@@ -488,13 +626,6 @@
     return 'Bahnen ' + parts.join(', ');
   }
 
-  function clearRangeResetSelection() {
-    const list = document.getElementById('range-reset-select');
-    if (!list) return;
-    const boxes = list.querySelectorAll('input[data-range]');
-    for (let i = 0; i < boxes.length; i++) boxes[i].checked = false;
-  }
-
   function setSideMenuOpen(open) {
     const toggle = document.getElementById('menu-toggle');
     const menu = document.getElementById('top-bar-menu');
@@ -505,19 +636,21 @@
     if (bar) bar.classList.toggle('is-menu-open', !!open);
   }
 
-  function fillRangeResetSelect() {
-    const list = document.getElementById('range-reset-select');
-    if (!list) return;
+  function fillRangeLaneControls() {
+    const list = document.getElementById('range-lane-select');
+    if (!list || rangeConfirmPending) return;
     const n = Math.max(1, (core.config && core.config.ranges) || 1);
-    const prev = selectedResetRanges();
-    const boxes = list.querySelectorAll('input[data-range]');
-    if (boxes.length === n) return;
+    const inactive = inactiveRangeSet();
+    const sig = n + ':' + Object.keys(inactive).filter(function (k) { return inactive[k]; }).sort().join(',');
+    if (list.dataset.laneSig === sig && list.querySelector('input[data-range]')) return;
     let html = '';
     for (let i = 1; i <= n; i++) {
-      html += '<label class="range-reset-item"><input type="checkbox" data-range="' + i + '"' +
-        (prev.indexOf(i) >= 0 ? ' checked' : '') + '>Bahn ' + i + '</label>';
+      const off = !!inactive[i];
+      html += '<label class="range-lane-item' + (off ? ' is-inactive' : '') + '">' +
+        '<input type="checkbox" data-range="' + i + '"' + (off ? '' : ' checked') + '>Bahn ' + i + '</label>';
     }
     list.innerHTML = html;
+    list.dataset.laneSig = sig;
   }
 
   function buildControls() {
@@ -535,9 +668,8 @@
       '<button type="button" class="btn" id="race-puncture-btn" hidden>Reifenplatzer</button>' +
       '<button type="button" class="btn" id="race-oil-btn" hidden>Ölverlust</button>' +
       '</span>' +
-      '<div class="plugin-active-label">Bahnen zurücksetzen' +
-      '<div id="range-reset-select" class="range-reset-list" role="group" aria-label="Bahnen"></div></div>' +
-      '<button type="button" class="btn btn-danger" id="btn-range-reset">Bahnen zurücksetzen</button>' +
+      '<div class="plugin-active-label">Bahnen' +
+      '<div id="range-lane-select" class="range-lane-list" role="group" aria-label="Bahnen"></div></div>' +
       '<button type="button" class="btn btn-ghost" id="btn-theme-toggle">Dunkelmodus</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
@@ -563,33 +695,37 @@
     document.getElementById('race-reset-btn').onclick = function () { raceControl('reset'); };
     document.getElementById('race-puncture-btn').onclick = function () { raceControl('field_event', 'puncture'); };
     document.getElementById('race-oil-btn').onclick = function () { raceControl('field_event', 'oil_leak'); };
-    const rangeResetBtn = document.getElementById('btn-range-reset');
-    if (rangeResetBtn) {
-      rangeResetBtn.onclick = async function () {
-        const nums = selectedResetRanges();
-        if (!nums.length) {
-          alert('Bitte mindestens eine Bahn wählen.');
+    const rangeList = document.getElementById('range-lane-select');
+    if (rangeList) {
+      function laneCheckbox(ev) {
+        const t = ev.target;
+        if (t && t.type === 'checkbox' && t.getAttribute('data-range')) return t;
+        const item = t && t.closest && t.closest('.range-lane-item');
+        if (!item || !rangeList.contains(item)) return null;
+        return item.querySelector('input[data-range]');
+      }
+      rangeList.addEventListener('pointerdown', function (ev) {
+        const box = laneCheckbox(ev);
+        if (!box || !box.checked) return;
+        ev.preventDefault();
+        requestDeactivateBahn(box, rangeList);
+      }, { capture: true, passive: false });
+      rangeList.addEventListener('keydown', function (ev) {
+        if (ev.key !== ' ' && ev.key !== 'Enter') return;
+        const box = ev.target;
+        if (!box || box.type !== 'checkbox' || !box.getAttribute('data-range') || !box.checked) return;
+        ev.preventDefault();
+        requestDeactivateBahn(box, rangeList);
+      });
+      rangeList.addEventListener('change', function (ev) {
+        const box = ev.target;
+        if (!box || box.type !== 'checkbox' || !box.getAttribute('data-range')) return;
+        if (!box.checked) {
+          requestDeactivateBahn(box, rangeList);
           return;
         }
-        const label = formatBahnList(nums);
-        if (!confirm(label + ' wirklich zurücksetzen? Schütze, Schüsse und Summen werden gelöscht.')) {
-          return;
-        }
-        const failed = [];
-        for (let i = 0; i < nums.length; i++) {
-          const n = nums[i];
-          const res = await controlFetch('/api/live/reset?range=' + encodeURIComponent(n), {
-            method: 'POST',
-            body: '{}'
-          });
-          if (!res.ok) failed.push(n);
-        }
-        if (failed.length) {
-          alert('Zurücksetzen fehlgeschlagen: ' + formatBahnList(failed));
-        }
-        clearRangeResetSelection();
-        setSideMenuOpen(false);
-      };
+        putInactiveFromList(rangeList);
+      });
     }
     const tokenBtn = document.getElementById('btn-control-token');
     if (tokenBtn) {
@@ -687,7 +823,7 @@
         if (oilBtn) oilBtn.hidden = true;
       }
     }
-    fillRangeResetSelect();
+    fillRangeLaneControls();
     syncRulebookButtons();
   }
 

@@ -1323,7 +1323,7 @@ body::before {
   border-color: var(--accent);
 }
 
-.plugin-active-label .range-reset-list {
+.plugin-active-label .range-lane-list {
   max-height: none;
   overflow: visible;
   padding: 0.25rem 0.35rem;
@@ -1335,7 +1335,7 @@ body::before {
   gap: 0.05rem;
 }
 
-.range-reset-item {
+.range-lane-item {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -1348,13 +1348,88 @@ body::before {
   border-radius: calc(var(--radius) - 2px);
 }
 
-.range-reset-item:hover {
+.range-lane-item:hover {
   background: var(--hover-fill);
 }
 
-.range-reset-item input {
+.range-lane-item.is-inactive {
+  opacity: 0.55;
+}
+
+.range-lane-item input {
   margin: 0;
   flex-shrink: 0;
+}
+
+.range-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.range-confirm-modal[hidden] { display: none !important; }
+
+.range-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.range-confirm-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 400px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: 16px 18px 18px;
+}
+
+.range-confirm-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.range-confirm-dialog p {
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.range-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.range-confirm-cancel,
+.range-confirm-ok {
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+}
+
+.range-confirm-cancel {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.range-confirm-ok {
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid transparent;
 }
 
 .config-plugin-fields {
