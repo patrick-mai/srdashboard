@@ -28,12 +28,13 @@ type LiveRangeInfo struct {
 
 // ShotContext enriches OnShot for shared/builtin games.
 type ShotContext struct {
-	RangeNum  int
-	Shot      state.Shot
-	ShotIndex int
-	Live      LiveRangeInfo
-	NumRanges int
-	Now       time.Time
+	RangeNum       int
+	Shot           state.Shot
+	ShotIndex      int
+	Live           LiveRangeInfo
+	NumRanges      int
+	InactiveRanges []int
+	Now            time.Time
 }
 
 // Logic is the host-side contract for WASM (or in-process) plugin scoring logic.

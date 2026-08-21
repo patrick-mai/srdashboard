@@ -1,4 +1,4 @@
-﻿package rangestate
+package rangestate
 
 import (
 	"encoding/json"
@@ -22,17 +22,18 @@ type LiveSource interface {
 }
 
 type Manager struct {
-	mu           sync.RWMutex
-	sessions     map[int]*RangePluginSession
-	sharedState  logicapi.SessionState // used when mode=shared
-	sharedMode   bool
-	plugins      *loader.Manager
-	numRanges    int
-	activeID     string
-	broadcast    Broadcaster
-	live         LiveSource
-	tickStop     chan struct{}
-	tickRunning  bool
+	mu             sync.RWMutex
+	sessions       map[int]*RangePluginSession
+	sharedState    logicapi.SessionState // used when mode=shared
+	sharedMode     bool
+	plugins        *loader.Manager
+	numRanges      int
+	inactiveRanges []int
+	activeID       string
+	broadcast      Broadcaster
+	live           LiveSource
+	tickStop       chan struct{}
+	tickRunning    bool
 }
 
 func NewManager(numRanges int, pm *loader.Manager, activePluginID string) *Manager {
@@ -48,7 +49,7 @@ func NewManager(numRanges int, pm *loader.Manager, activePluginID string) *Manag
 	}
 }
 
-func (m *Manager) SetBroadcaster(b Broadcaster) { m.broadcast = b }
+func (m *Manager) SetBroadcaster(b Broadcaster)  { m.broadcast = b }
 func (m *Manager) SetLiveSource(live LiveSource) { m.live = live }
 
 // SetNumRanges updates how many lanes the manager tracks and re-inits the
@@ -75,6 +76,33 @@ func (m *Manager) NumRanges() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.numRanges
+}
+
+// SetInactiveRanges records side-menu membership and re-syncs the active game
+// so only those lanes take part.
+func (m *Manager) SetInactiveRanges(nums []int) {
+	m.mu.Lock()
+	m.inactiveRanges = append([]int(nil), nums...)
+	active := m.activeID
+	m.mu.Unlock()
+	if active != "" {
+		m.syncLiveReady(false)
+	}
+}
+
+func (m *Manager) InactiveRanges() []int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return append([]int(nil), m.inactiveRanges...)
+}
+
+func (m *Manager) isInactiveLocked(n int) bool {
+	for _, x := range m.inactiveRanges {
+		if x == n {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) ActivePluginID() string {
@@ -123,15 +151,14 @@ func (m *Manager) Activate(pluginID string) error {
 	if cfg == nil {
 		cfg = map[string]any{}
 	}
-	m.mu.RLock()
-	numRanges := m.numRanges
-	m.mu.RUnlock()
-	cfg["numRanges"] = numRanges
 	now := time.Now()
 	shared := ap.Manifest.Mode == loader.ModeShared
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	numRanges := m.numRanges
+	cfg["numRanges"] = numRanges
+	cfg["inactiveRanges"] = append([]int(nil), m.inactiveRanges...)
 
 	// Build every session before touching manager state, so a plugin that
 	// fails to initialise partway through leaves the previous plugin running
@@ -258,15 +285,19 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 	if !ok || s.PluginID != pluginID {
 		return
 	}
+	if m.isInactiveLocked(rangeNum) {
+		return
+	}
 
 	if ap.Manifest.HasLogic() {
 		ctx := logicapi.ShotContext{
-			RangeNum:  rangeNum,
-			Shot:      shot,
-			ShotIndex: shotIndex,
-			Live:      m.liveInfo(rangeNum),
-			NumRanges: m.numRanges,
-			Now:       time.Now(),
+			RangeNum:       rangeNum,
+			Shot:           shot,
+			ShotIndex:      shotIndex,
+			Live:           m.liveInfo(rangeNum),
+			NumRanges:      m.numRanges,
+			InactiveRanges: append([]int(nil), m.inactiveRanges...),
+			Now:            time.Now(),
 		}
 		var newState logicapi.SessionState
 		var events []logicapi.PluginEvent
@@ -407,21 +438,12 @@ func (m *Manager) Control(action string, params map[string]any) error {
 		params = map[string]any{}
 	}
 	params["numRanges"] = m.numRanges
+	params["inactiveRanges"] = append([]int(nil), m.inactiveRanges...)
 	// Attach live totals for start gate
-	lives := map[string]any{}
-	if m.live != nil {
-		for _, rs := range m.live.Snapshot() {
-			lives[fmt.Sprintf("%d", rs.RangeNum)] = map[string]any{
-				"totalShotsToFire": rs.TotalShotsToFire,
-				"discipline":       rs.Discipline,
-				"discType":         rs.DiscType,
-				"isWarmup":         rs.IsWarmup,
-				"shooterName":      rs.ShooterName,
-			}
-		}
-	}
 	if _, has := params["live"]; !has {
-		params["live"] = lives
+		params["live"] = m.liveMapLocked()
+	} else if live, ok := params["live"].(map[string]any); ok {
+		m.stampLiveActiveLocked(live)
 	}
 	if _, has := params["now"]; !has {
 		params["now"] = time.Now().UTC().Format(time.RFC3339Nano)
@@ -619,20 +641,12 @@ func (m *Manager) syncLiveReady(onlyIfArming bool) {
 	if !ok {
 		return
 	}
-	lives := map[string]any{}
-	for _, rs := range m.live.Snapshot() {
-		lives[fmt.Sprintf("%d", rs.RangeNum)] = map[string]any{
-			"totalShotsToFire": rs.TotalShotsToFire,
-			"discipline":       rs.Discipline,
-			"discType":         rs.DiscType,
-			"isWarmup":         rs.IsWarmup,
-			"shooterName":      rs.ShooterName,
-		}
-	}
+	lives := m.liveMapLocked()
 	newState, events, err := ext.Control(m.sharedState, "sync_live", map[string]any{
-		"live":      lives,
-		"numRanges": m.numRanges,
-		"now":       time.Now().UTC().Format(time.RFC3339Nano),
+		"live":           lives,
+		"numRanges":      m.numRanges,
+		"inactiveRanges": append([]int(nil), m.inactiveRanges...),
+		"now":            time.Now().UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil {
 		return
@@ -645,6 +659,56 @@ func (m *Manager) syncLiveReady(onlyIfArming bool) {
 	}
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
+}
+
+func (m *Manager) liveMapLocked() map[string]any {
+	inactive := map[int]bool{}
+	for _, n := range m.inactiveRanges {
+		inactive[n] = true
+	}
+	lives := map[string]any{}
+	for i := 1; i <= m.numRanges; i++ {
+		lives[fmt.Sprintf("%d", i)] = map[string]any{"active": !inactive[i]}
+	}
+	if m.live == nil {
+		return lives
+	}
+	for _, rs := range m.live.Snapshot() {
+		k := fmt.Sprintf("%d", rs.RangeNum)
+		entry, _ := lives[k].(map[string]any)
+		if entry == nil {
+			entry = map[string]any{}
+			lives[k] = entry
+		}
+		entry["totalShotsToFire"] = rs.TotalShotsToFire
+		entry["discipline"] = rs.Discipline
+		entry["discType"] = rs.DiscType
+		entry["isWarmup"] = rs.IsWarmup
+		entry["shooterName"] = rs.ShooterName
+		entry["active"] = !inactive[rs.RangeNum]
+	}
+	return lives
+}
+
+func (m *Manager) stampLiveActiveLocked(live map[string]any) {
+	if live == nil {
+		return
+	}
+	inactive := map[int]bool{}
+	for _, n := range m.inactiveRanges {
+		inactive[n] = true
+	}
+	for i := 1; i <= m.numRanges; i++ {
+		k := fmt.Sprintf("%d", i)
+		entry, _ := live[k].(map[string]any)
+		if entry == nil {
+			live[k] = map[string]any{"active": !inactive[i]}
+			continue
+		}
+		if _, has := entry["active"]; !has {
+			entry["active"] = !inactive[i]
+		}
+	}
 }
 
 func sharedPhase(sess logicapi.SessionState) string {

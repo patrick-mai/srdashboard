@@ -118,6 +118,101 @@ func TestReadyAndStartGate(t *testing.T) {
 	}
 }
 
+func TestInactiveRangeSkippedInStartGate(t *testing.T) {
+	l := New(nil)
+	sess, err := l.Init(map[string]any{
+		"numRanges": 3, "autoStartWhenAllReady": false, "inactiveRanges": []int{3},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs, _ := unmarshalState(sess)
+	if rs.Cars["3"] == nil || rs.Cars["3"].Active {
+		t.Fatal("range 3 must be inactive")
+	}
+	now := time.Now()
+	sess, _, err = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1,
+		Shot:     state.Shot{IsWarmup: false, DecValue: 9, FullValue: 9},
+		Live:     logicapi.LiveRangeInfo{IsWarmup: false, TotalShotsToFire: 40},
+		Now:      now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs, _ = unmarshalState(sess)
+	if !rs.FieldOpen {
+		t.Fatal("competition shot must open the field")
+	}
+	if !rs.Cars["1"].Ready || !rs.Cars["2"].Ready {
+		t.Fatal("active cars leave warmup together")
+	}
+	if rs.Cars["3"].Ready {
+		t.Fatal("inactive car must not be readied")
+	}
+	sess, evs, err := l.Control(sess, "start", map[string]any{
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 40, "isWarmup": false, "active": true},
+			"2": map[string]any{"totalShotsToFire": 40, "isWarmup": false, "active": true},
+			"3": map[string]any{"totalShotsToFire": 0, "isWarmup": true, "active": false},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := false
+	for _, e := range evs {
+		if e.Type == "race_start" {
+			started = true
+		}
+	}
+	if !started {
+		rs, _ = unmarshalState(sess)
+		t.Fatalf("expected start without inactive lane 3, reason=%q events=%#v", rs.StartBlockedReason, evs)
+	}
+	vm, _ := l.ViewModel(sess, 1)
+	race := vm["race"].(map[string]any)
+	cars := race["cars"].([]map[string]any)
+	if len(cars) != 2 {
+		t.Fatalf("view cars=%d want 2 (inactive omitted)", len(cars))
+	}
+}
+
+func TestWarmupShotScoresAfterFieldOpens(t *testing.T) {
+	l := New(nil)
+	sess, _ := l.Init(map[string]any{"numRanges": 2, "autoStartWhenAllReady": false})
+	now := time.Now()
+	sess, _, _ = l.Control(sess, "start", map[string]any{
+		"live": map[string]any{
+			"1": map[string]any{"totalShotsToFire": 40, "isWarmup": false},
+			"2": map[string]any{"totalShotsToFire": 40, "isWarmup": false},
+		},
+		"now": now.UTC().Format(time.RFC3339Nano),
+	})
+	sess, _, err := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1,
+		Shot:     state.Shot{IsWarmup: false, DecValue: 10, FullValue: 10},
+		Live:     logicapi.LiveRangeInfo{IsWarmup: false, TotalShotsToFire: 40},
+		Now:      now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, _, err = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2,
+		Shot:     state.Shot{IsWarmup: true, DecValue: 10, FullValue: 10},
+		Live:     logicapi.LiveRangeInfo{IsWarmup: true, TotalShotsToFire: 40},
+		Now:      now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs, _ := unmarshalState(sess)
+	if rs.Cars["2"].ShotsFired < 1 {
+		t.Fatalf("warmup-flagged shot on lane 2 must count after field open: fired=%d phase=%s", rs.Cars["2"].ShotsFired, rs.Phase)
+	}
+}
+
 func TestSkipRoundCrash(t *testing.T) {
 	l := New(nil)
 	sess, _ := l.Init(map[string]any{"numRanges": 2, "roundDurationSec": 1, "skippedRoundsToCrash": 2, "fieldEventsEnabled": false})
@@ -598,7 +693,6 @@ func TestPitZeroDropsPlace(t *testing.T) {
 	}
 }
 
-
 func TestDRSActiveEvent(t *testing.T) {
 	l := New(nil)
 	sess, err := l.Init(map[string]any{
@@ -895,4 +989,3 @@ func TestNextHintOvertake(t *testing.T) {
 		t.Fatalf("P1 should get defend hint, got %v %q", vm1["me"].(map[string]any)["nextHintKind"], h1)
 	}
 }
-

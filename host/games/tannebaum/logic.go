@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"srdashboard/host/games/gameutil"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -31,9 +32,9 @@ const (
 	PhasePlaying  = "playing"
 	PhaseFinished = "finished"
 
-	ResultOwn   = "own"
-	ResultGift  = "gift"
-	ResultMiss  = "miss"
+	ResultOwn  = "own"
+	ResultGift = "gift"
+	ResultMiss = "miss"
 )
 
 var laneColors = []string{
@@ -113,28 +114,28 @@ type Shooter struct {
 
 // Contender owns one tree (Einzel: one range; Team: one side).
 type Contender struct {
-	ID           string             `json:"id"`
-	Label        string             `json:"label"`
-	Color        string             `json:"color"`
-	RangeNums    []int              `json:"rangeNums"`
+	ID           string                    `json:"id"`
+	Label        string                    `json:"label"`
+	Color        string                    `json:"color"`
+	RangeNums    []int                     `json:"rangeNums"`
 	Stages       map[string]map[string]int `json:"stages"` // stageID → leafKey → remaining
-	CurrentStage string             `json:"currentStage"`
-	Finished     bool               `json:"finished"`
-	FinishOrder  int                `json:"finishOrder"`
+	CurrentStage string                    `json:"currentStage"`
+	Finished     bool                      `json:"finished"`
+	FinishOrder  int                       `json:"finishOrder"`
 }
 
 type ShotMark struct {
-	RangeNum     int     `json:"rangeNum"`
-	ContenderID  string  `json:"contenderId"`
-	TargetID     string  `json:"targetId"`
-	Raw          float64 `json:"raw"`
-	Mapped       float64 `json:"mapped"`
-	StageID      string  `json:"stageId"`
-	Result       string  `json:"result"` // own | gift | miss
-	X            int     `json:"x"`
-	Y            int     `json:"y"`
-	Distance     float64 `json:"distance"`
-	FullValue    int     `json:"fullValue"`
+	RangeNum    int     `json:"rangeNum"`
+	ContenderID string  `json:"contenderId"`
+	TargetID    string  `json:"targetId"`
+	Raw         float64 `json:"raw"`
+	Mapped      float64 `json:"mapped"`
+	StageID     string  `json:"stageId"`
+	Result      string  `json:"result"` // own | gift | miss
+	X           int     `json:"x"`
+	Y           int     `json:"y"`
+	Distance    float64 `json:"distance"`
+	FullValue   int     `json:"fullValue"`
 }
 
 type GameState struct {
@@ -150,6 +151,7 @@ type GameState struct {
 	FinishCount        int                   `json:"finishCount"`
 	StartBlockedReason string                `json:"startBlockedReason"`
 	StatusLine         string                `json:"statusLine"`
+	FieldOpen          bool                  `json:"fieldOpen"`
 }
 
 func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
@@ -178,6 +180,7 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 			Color:     laneColors[(i-1)%len(laneColors)],
 		}
 	}
+	gs.applyMembership(merged)
 	gs.rebuildContenders()
 	return marshalState(gs)
 }
@@ -202,6 +205,9 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	}
 	gs.ensure()
 	var events []logicapi.PluginEvent
+	if ctx.InactiveRanges != nil {
+		gs.applyInactiveList(ctx.InactiveRanges)
+	}
 
 	sh := gs.Shooters[itoa(ctx.RangeNum)]
 	if sh == nil || !sh.Active {
@@ -214,18 +220,14 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		sh.Discipline = ctx.Live.Discipline
 	}
 
-	if ctx.Live.IsWarmup || ctx.Shot.IsWarmup {
+	discard, openNow := gameutil.WarmupDiscard(gs.FieldOpen, gameutil.IsWarmupShot(ctx.Live.IsWarmup, ctx.Shot.IsWarmup))
+	if discard {
 		sh.WasWarmup = true
 		return marshalWithEvents(gs, nil)
 	}
-	if sh.WasWarmup && !ctx.Live.IsWarmup {
-		sh.WasWarmup = false
-		sh.Ready = true
+	if openNow {
+		gs.openCompetitionField()
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
-		if gs.Phase == PhaseWarmup {
-			gs.Phase = PhaseArming
-			gs.StatusLine = "Bereit — Tannebaum starten"
-		}
 		if gs.Phase == PhaseArming && cfgBool(gs.Config, "autoStartWhenAllReady", true) && gs.allReady() {
 			events = append(events, gs.beginPlay()...)
 		} else if gs.Phase == PhaseArming {
@@ -458,22 +460,22 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 		"label":    l.Label(),
 		"rangeNum": rangeNum,
 		"tree": map[string]any{
-			"gameMode":           gs.Mode,
-			"phase":              gs.Phase,
-			"statusLine":         gs.StatusLine,
-			"startBlockedReason": gs.StartBlockedReason,
-			"winnerId":           gs.WinnerID,
-			"contenders":         contenders,
-			"shooters":           shooters,
-			"recentShots":        recentVM,
-			"stageMeta":          stageMeta,
-			"teamPicks":          gs.TeamPicks,
-			"canPickTeam":        gs.Mode == ModeTeam && gs.Phase != PhaseFinished,
+			"gameMode":             gs.Mode,
+			"phase":                gs.Phase,
+			"statusLine":           gs.StatusLine,
+			"startBlockedReason":   gs.StartBlockedReason,
+			"winnerId":             gs.WinnerID,
+			"contenders":           contenders,
+			"shooters":             shooters,
+			"recentShots":          recentVM,
+			"stageMeta":            stageMeta,
+			"teamPicks":            gs.TeamPicks,
+			"canPickTeam":          gs.Mode == ModeTeam && gs.Phase != PhaseFinished,
 			"defaultTargetProfile": cfgString(gs.Config, "defaultTargetProfile", "air_rifle_10m"),
 		},
-		"me":         meVM,
-		"myTree":     myTreeVM,
-		"lastOwn":    lastOwn,
+		"me":          meVM,
+		"myTree":      myTreeVM,
+		"lastOwn":     lastOwn,
 		"lastForeign": lastForeign,
 	}, nil
 }
@@ -749,6 +751,7 @@ func (gs *GameState) ensure() {
 			}
 		}
 	}
+	gs.applyMembership(gs.Config)
 	if len(gs.Contenders) == 0 {
 		gs.rebuildContenders()
 	}
@@ -833,8 +836,12 @@ func (gs *GameState) applyLive(params map[string]any) {
 		gs.NumRanges = cfgInt(map[string]any{"n": n}, "n", gs.NumRanges)
 		gs.ensure()
 	}
+	gs.applyMembership(params)
 	live, _ := params["live"].(map[string]any)
 	if live == nil {
+		if gs.Mode == ModeTeam || gs.Phase != PhasePlaying {
+			gs.rebuildContenders()
+		}
 		return
 	}
 	for k, raw := range live {
@@ -860,15 +867,56 @@ func (gs *GameState) applyLive(params map[string]any) {
 		if disc, ok := m["discipline"].(string); ok && disc != "" {
 			sh.Discipline = disc
 		}
-		if warmup, ok := m["isWarmup"].(bool); ok && warmup {
+		if warmup, ok := m["isWarmup"].(bool); ok && warmup && !gs.FieldOpen {
 			sh.WasWarmup = true
 		}
-		if active, ok := m["active"].(bool); ok {
-			sh.Active = active
-		}
+		sh.Active = gameutil.LiveActive(m, sh.Active)
 	}
 	if gs.Mode == ModeTeam || gs.Phase != PhasePlaying {
 		gs.rebuildContenders()
+	}
+}
+
+func (gs *GameState) applyMembership(params map[string]any) {
+	skip, ok := gameutil.InactiveSetFromParams(params)
+	if !ok {
+		return
+	}
+	gs.applyInactiveListFromSet(skip)
+}
+
+func (gs *GameState) applyInactiveList(nums []int) {
+	gs.applyInactiveListFromSet(gameutil.IntSet(nums))
+}
+
+func (gs *GameState) applyInactiveListFromSet(skip map[int]bool) {
+	if gs.Config != nil {
+		list := make([]int, 0, len(skip))
+		for n := range skip {
+			list = append(list, n)
+		}
+		gs.Config["inactiveRanges"] = list
+	}
+	for i := 1; i <= gs.NumRanges; i++ {
+		sh := gs.Shooters[itoa(i)]
+		if sh != nil {
+			sh.Active = !skip[i]
+		}
+	}
+}
+
+func (gs *GameState) openCompetitionField() {
+	gs.FieldOpen = true
+	for _, sh := range gs.Shooters {
+		if sh == nil || !sh.Active {
+			continue
+		}
+		sh.WasWarmup = false
+		sh.Ready = true
+	}
+	if gs.Phase == PhaseWarmup {
+		gs.Phase = PhaseArming
+		gs.StatusLine = "Bereit — Tannebaum starten"
 	}
 }
 

@@ -35,3 +35,6 @@ plugins/*/config.xml
 
 # Local audio edits (optional; safe if missing)
 fox-edit/
+
+# DISAG ShotsApp → Ring Reader iOS shortcut (proprietary key schedule — keep local)
+/shortcut/

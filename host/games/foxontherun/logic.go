@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"srdashboard/host/games/gameutil"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -19,12 +20,12 @@ func init() {
 }
 
 const (
-	PhaseCalibrate    = "calibrate"
-	PhaseArming       = "arming"
-	PhaseOpening      = "opening"
-	PhaseChase        = "chase"
-	PhaseRoundResult  = "round_result"
-	PhaseFinished     = "finished"
+	PhaseCalibrate   = "calibrate"
+	PhaseArming      = "arming"
+	PhaseOpening     = "opening"
+	PhaseChase       = "chase"
+	PhaseRoundResult = "round_result"
+	PhaseFinished    = "finished"
 
 	OutcomeEscaped = "escaped"
 	OutcomeCaught  = "caught"
@@ -73,24 +74,24 @@ func (l *Logic) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"calibrateShots":         map[string]any{"type": "integer"},
-			"openingShots":           map[string]any{"type": "integer"},
-			"escapeTarget":           map[string]any{"type": "number"},
-			"equalizerEnabled":       map[string]any{"type": "boolean"},
-			"equalizerMin":           map[string]any{"type": "number"},
-			"equalizerMax":           map[string]any{"type": "number"},
-			"startBonusFactor":       map[string]any{"type": "number"},
-			"startBonusMin":          map[string]any{"type": "number"},
-			"startBonusMax":          map[string]any{"type": "number"},
-			"terrainEnabled":         map[string]any{"type": "boolean"},
-			"terrainBand":            map[string]any{"type": "number"},
-			"terrainDampMax":         map[string]any{"type": "number"},
-			"trailAidMax":            map[string]any{"type": "number"},
-			"maxChaseShots":          map[string]any{"type": "integer"},
-			"autoStartWhenAllReady":  map[string]any{"type": "boolean"},
-			"defaultTargetProfile":   map[string]any{"type": "string"},
-			"skillOverrides":         map[string]any{"type": "object"},
-			"equalizerOverrides":     map[string]any{"type": "object"},
+			"calibrateShots":        map[string]any{"type": "integer"},
+			"openingShots":          map[string]any{"type": "integer"},
+			"escapeTarget":          map[string]any{"type": "number"},
+			"equalizerEnabled":      map[string]any{"type": "boolean"},
+			"equalizerMin":          map[string]any{"type": "number"},
+			"equalizerMax":          map[string]any{"type": "number"},
+			"startBonusFactor":      map[string]any{"type": "number"},
+			"startBonusMin":         map[string]any{"type": "number"},
+			"startBonusMax":         map[string]any{"type": "number"},
+			"terrainEnabled":        map[string]any{"type": "boolean"},
+			"terrainBand":           map[string]any{"type": "number"},
+			"terrainDampMax":        map[string]any{"type": "number"},
+			"trailAidMax":           map[string]any{"type": "number"},
+			"maxChaseShots":         map[string]any{"type": "integer"},
+			"autoStartWhenAllReady": map[string]any{"type": "boolean"},
+			"defaultTargetProfile":  map[string]any{"type": "string"},
+			"skillOverrides":        map[string]any{"type": "object"},
+			"equalizerOverrides":    map[string]any{"type": "object"},
 		},
 	}
 }
@@ -119,21 +120,21 @@ func defaultConfig() map[string]any {
 }
 
 type Player struct {
-	RangeNum     int       `json:"rangeNum"`
-	Active       bool      `json:"active"`
-	Color        string    `json:"color"`
-	ShooterName  string    `json:"shooterName"`
-	Discipline   string    `json:"discipline"`
-	Skill        float64   `json:"skill"`
-	Equalizer    float64   `json:"equalizer"`
-	CalValues    []float64 `json:"calValues"`
-	Calibrated   bool      `json:"calibrated"`
-	Ready        bool      `json:"ready"`
-	WasWarmup    bool      `json:"wasWarmup"`
-	FoxScore     float64   `json:"foxScore"`
-	FoxChaseShots int      `json:"foxChaseShots"`
-	Outcome      string    `json:"outcome"`
-	HadFoxTurn   bool      `json:"hadFoxTurn"`
+	RangeNum      int       `json:"rangeNum"`
+	Active        bool      `json:"active"`
+	Color         string    `json:"color"`
+	ShooterName   string    `json:"shooterName"`
+	Discipline    string    `json:"discipline"`
+	Skill         float64   `json:"skill"`
+	Equalizer     float64   `json:"equalizer"`
+	CalValues     []float64 `json:"calValues"`
+	Calibrated    bool      `json:"calibrated"`
+	Ready         bool      `json:"ready"`
+	WasWarmup     bool      `json:"wasWarmup"`
+	FoxScore      float64   `json:"foxScore"`
+	FoxChaseShots int       `json:"foxChaseShots"`
+	Outcome       string    `json:"outcome"`
+	HadFoxTurn    bool      `json:"hadFoxTurn"`
 }
 
 type ShotMark struct {
@@ -161,28 +162,29 @@ type RoundResult struct {
 }
 
 type HuntState struct {
-	Phase              string                  `json:"phase"`
-	NumRanges          int                     `json:"numRanges"`
-	Config             map[string]any          `json:"config"`
-	Players            map[string]*Player      `json:"players"`
-	FoxOrder           []int                   `json:"foxOrder"`
-	FoxIndex           int                     `json:"foxIndex"`
-	CurrentFox         int                     `json:"currentFox"`
-	TurnRange          int                     `json:"turnRange"`
-	HunterIdx          int                     `json:"hunterIdx"`
-	ExpectFoxShot      bool                    `json:"expectFoxShot"` // after a hunter, next is fox
-	Lead               float64                 `json:"lead"`
-	OpeningCount       int                     `json:"openingCount"`
-	OpeningSum         float64                 `json:"openingSum"`
-	StartBonus         float64                 `json:"startBonus"`
-	FieldAvg           float64                 `json:"fieldAvg"`
-	ChaseShots         int                     `json:"chaseShots"`
-	FoxChaseShots      int                     `json:"foxChaseShots"`
-	HuntShots          []ShotMark              `json:"huntShots"`
-	RoundResults       []RoundResult           `json:"roundResults"`
-	LastTerrain        *terrainEffect          `json:"lastTerrain,omitempty"`
-	StartBlockedReason string                  `json:"startBlockedReason"`
-	StatusLine         string                  `json:"statusLine"`
+	Phase              string             `json:"phase"`
+	NumRanges          int                `json:"numRanges"`
+	Config             map[string]any     `json:"config"`
+	Players            map[string]*Player `json:"players"`
+	FoxOrder           []int              `json:"foxOrder"`
+	FoxIndex           int                `json:"foxIndex"`
+	CurrentFox         int                `json:"currentFox"`
+	TurnRange          int                `json:"turnRange"`
+	HunterIdx          int                `json:"hunterIdx"`
+	ExpectFoxShot      bool               `json:"expectFoxShot"` // after a hunter, next is fox
+	Lead               float64            `json:"lead"`
+	OpeningCount       int                `json:"openingCount"`
+	OpeningSum         float64            `json:"openingSum"`
+	StartBonus         float64            `json:"startBonus"`
+	FieldAvg           float64            `json:"fieldAvg"`
+	ChaseShots         int                `json:"chaseShots"`
+	FoxChaseShots      int                `json:"foxChaseShots"`
+	HuntShots          []ShotMark         `json:"huntShots"`
+	RoundResults       []RoundResult      `json:"roundResults"`
+	LastTerrain        *terrainEffect     `json:"lastTerrain,omitempty"`
+	StartBlockedReason string             `json:"startBlockedReason"`
+	StatusLine         string             `json:"statusLine"`
+	FieldOpen          bool               `json:"fieldOpen"`
 }
 
 func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
@@ -192,12 +194,12 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 	}
 	n := cfgInt(merged, "numRanges", 6)
 	hs := &HuntState{
-		Phase:     PhaseCalibrate,
-		NumRanges: n,
-		Config:    merged,
-		Players:   map[string]*Player{},
-		FoxOrder:  nil,
-		HuntShots: []ShotMark{},
+		Phase:      PhaseCalibrate,
+		NumRanges:  n,
+		Config:     merged,
+		Players:    map[string]*Player{},
+		FoxOrder:   nil,
+		HuntShots:  []ShotMark{},
 		StatusLine: "Einschießen — Kalibrierung der Meute",
 	}
 	for i := 1; i <= n; i++ {
@@ -209,6 +211,7 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 			CalValues: []float64{},
 		}
 	}
+	hs.applyMembership(merged)
 	return marshalState(hs)
 }
 
@@ -229,6 +232,9 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	}
 	hs.ensurePlayers()
 	var events []logicapi.PluginEvent
+	if ctx.InactiveRanges != nil {
+		hs.applyInactiveList(ctx.InactiveRanges)
+	}
 	p := hs.Players[itoa(ctx.RangeNum)]
 	if p == nil || !p.Active {
 		return marshalWithEvents(hs, nil)
@@ -240,13 +246,13 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		p.Discipline = ctx.Live.Discipline
 	}
 
-	if ctx.Live.IsWarmup || ctx.Shot.IsWarmup {
+	discard, openNow := gameutil.WarmupDiscard(hs.FieldOpen, gameutil.IsWarmupShot(ctx.Live.IsWarmup, ctx.Shot.IsWarmup))
+	if discard {
 		p.WasWarmup = true
 		return marshalWithEvents(hs, nil)
 	}
-	if p.WasWarmup && !ctx.Live.IsWarmup {
-		p.WasWarmup = false
-		p.Ready = true
+	if openNow {
+		hs.openCompetitionField()
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
 	}
 
@@ -559,35 +565,35 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 		"label":    l.Label(),
 		"rangeNum": rangeNum,
 		"hunt": map[string]any{
-			"phase":              hs.Phase,
-			"statusLine":         hs.StatusLine,
-			"startBlockedReason": hs.StartBlockedReason,
-			"currentFox":         hs.CurrentFox,
-			"turnRange":          hs.TurnRange,
-			"lead":               hs.Lead,
-			"escapeTarget":       escape,
-			"foxProgress":        foxProg,
-			"packProgress":       packProg,
-			"openingCount":       hs.OpeningCount,
-			"openingShots":       cfgInt(hs.Config, "openingShots", 2),
-			"openingSum":         hs.OpeningSum,
-			"startBonus":         hs.StartBonus,
-			"chaseShots":         hs.ChaseShots,
-			"foxChaseShots":      hs.FoxChaseShots,
-			"fieldAvg":           hs.FieldAvg,
-			"foxOrder":           hs.FoxOrder,
-			"foxIndex":           hs.FoxIndex,
-			"players":            players,
-			"recentShots":        recentVM,
-			"terrain":            terrain,
-			"roundResults":       results,
-			"maxChaseShots":      cfgInt(hs.Config, "maxChaseShots", 40),
+			"phase":                hs.Phase,
+			"statusLine":           hs.StatusLine,
+			"startBlockedReason":   hs.StartBlockedReason,
+			"currentFox":           hs.CurrentFox,
+			"turnRange":            hs.TurnRange,
+			"lead":                 hs.Lead,
+			"escapeTarget":         escape,
+			"foxProgress":          foxProg,
+			"packProgress":         packProg,
+			"openingCount":         hs.OpeningCount,
+			"openingShots":         cfgInt(hs.Config, "openingShots", 2),
+			"openingSum":           hs.OpeningSum,
+			"startBonus":           hs.StartBonus,
+			"chaseShots":           hs.ChaseShots,
+			"foxChaseShots":        hs.FoxChaseShots,
+			"fieldAvg":             hs.FieldAvg,
+			"foxOrder":             hs.FoxOrder,
+			"foxIndex":             hs.FoxIndex,
+			"players":              players,
+			"recentShots":          recentVM,
+			"terrain":              terrain,
+			"roundResults":         results,
+			"maxChaseShots":        cfgInt(hs.Config, "maxChaseShots", 40),
 			"defaultTargetProfile": cfgString(hs.Config, "defaultTargetProfile", "air_rifle_10m"),
 		},
-		"me":       meVM,
-		"myRole":   role,
-		"myTurn":   myTurn,
-		"lastOwn":  lastOwn,
+		"me":          meVM,
+		"myRole":      role,
+		"myTurn":      myTurn,
+		"lastOwn":     lastOwn,
 		"lastForeign": lastForeign,
 	}, nil
 }
@@ -813,6 +819,7 @@ func (hs *HuntState) ensurePlayers() {
 			}
 		}
 	}
+	hs.applyMembership(hs.Config)
 }
 
 func (hs *HuntState) applyLive(params map[string]any) {
@@ -820,6 +827,7 @@ func (hs *HuntState) applyLive(params map[string]any) {
 		hs.NumRanges = n
 		hs.ensurePlayers()
 	}
+	hs.applyMembership(params)
 	live, _ := params["live"].(map[string]any)
 	if live == nil {
 		return
@@ -844,16 +852,55 @@ func (hs *HuntState) applyLive(params map[string]any) {
 			p.Discipline = disc
 		}
 		warmup, _ := m["isWarmup"].(bool)
-		if p.WasWarmup && !warmup {
-			p.WasWarmup = false
-			p.Ready = true
+		if !hs.FieldOpen {
+			if p.WasWarmup && !warmup {
+				p.WasWarmup = false
+				p.Ready = true
+			}
+			if warmup {
+				p.WasWarmup = true
+			}
 		}
-		if warmup {
-			p.WasWarmup = true
+		p.Active = gameutil.LiveActive(m, p.Active)
+	}
+}
+
+func (hs *HuntState) applyMembership(params map[string]any) {
+	skip, ok := gameutil.InactiveSetFromParams(params)
+	if !ok {
+		return
+	}
+	hs.applyInactiveListFromSet(skip)
+}
+
+func (hs *HuntState) applyInactiveList(nums []int) {
+	hs.applyInactiveListFromSet(gameutil.IntSet(nums))
+}
+
+func (hs *HuntState) applyInactiveListFromSet(skip map[int]bool) {
+	if hs.Config != nil {
+		list := make([]int, 0, len(skip))
+		for n := range skip {
+			list = append(list, n)
 		}
-		if active, ok := m["active"].(bool); ok {
-			p.Active = active
+		hs.Config["inactiveRanges"] = list
+	}
+	for i := 1; i <= hs.NumRanges; i++ {
+		p := hs.Players[itoa(i)]
+		if p != nil {
+			p.Active = !skip[i]
 		}
+	}
+}
+
+func (hs *HuntState) openCompetitionField() {
+	hs.FieldOpen = true
+	for _, p := range hs.Players {
+		if p == nil || !p.Active {
+			continue
+		}
+		p.WasWarmup = false
+		p.Ready = true
 	}
 }
 

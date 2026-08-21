@@ -2159,17 +2159,55 @@ body.config-display {
 }
 
 .last10-chart-wrap {
+  position: relative;
   width: 100%;
   height: 56px;
   min-height: 28px;
   border-top: 1px solid var(--line);
   flex-shrink: 1;
   background: var(--panel);
+  overflow: visible;
 }
 .last10-chart-wrap .last10-svg {
   display: block;
   width: 100%;
   height: 100%;
+}
+.last10-chart-wrap .last10-bar { pointer-events: none; }
+.last10-chart-wrap .last10-hit { cursor: pointer; }
+.last10-chart-wrap.is-hovering .last10-bar { opacity: 0.38; }
+.last10-chart-wrap.is-hovering .last10-bar.is-hover { opacity: 1; }
+.last10-value-tip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: var(--panel-strong);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
+.target-shots.chart-hover .target-shots-fill circle:not(.is-hover),
+.target-shots.chart-hover .target-shots-ring circle:not(.is-hover) {
+  opacity: 0.22;
+}
+.target-shot-hover-halo {
+  stroke: #fff;
+  filter: drop-shadow(0 0 0.25px #111);
+}
+.target-shot-hover-label {
+  fill: #fff;
+  stroke: #111;
+  font-weight: 700;
+  paint-order: stroke fill;
+  font-family: var(--font-ui);
 }
 
 .range-footer {

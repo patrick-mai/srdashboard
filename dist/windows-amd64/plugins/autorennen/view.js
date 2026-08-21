@@ -326,7 +326,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     // the same number and look like a stacked pile.
     const byRange = {};
     (cars || []).forEach(function (c) {
-      if (!c || c.rangeNum == null) return;
+      if (!c || c.rangeNum == null || c.active === false) return;
       byRange[c.rangeNum] = c;
     });
     const list = Object.keys(byRange).map(function (k) { return byRange[k]; }).sort(function (a, b) {
@@ -494,7 +494,9 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function standingsHtml(race, focusRange) {
-    const cars = (race && race.cars ? race.cars.slice() : []).sort(function (a, b) {
+    const cars = (race && race.cars ? race.cars.slice() : []).filter(function (c) {
+      return c && c.active !== false;
+    }).sort(function (a, b) {
       return (a.position || 99) - (b.position || 99);
     });
     return '<ol class="ar-standings ar-standings-slim">' + cars.map(function (c) {

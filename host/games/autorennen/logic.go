@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"srdashboard/host/games/gameutil"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -106,33 +107,33 @@ func (l *Logic) ConfigSchema() map[string]any {
 // wide DRS sections, and position-scaled DRS chase aid.
 func defaultConfig() map[string]any {
 	return map[string]any{
-		"circuitId":              "bergsee",
-		"motionMode":             MotionPush,
-		"stintSize":              10,
-		"roundDurationSec":       120,
-		"skippedRoundsToCrash":   2,
-		"overtakeRatio":          1.12,
-		"paceCompress":           0.50,
-		"pacePivot":              8.0,
-		"drsStackPerPlace":       0.12,
-		"drsSections":            "2,3,4,7,8",
-		"gridGap":                0.08,
-		"trackLength":            1.0,
-		"highShotThreshold":      9.0,
-		"streakBonus":            1.15,
-		"pitCueWindowMs":         5000,
-		"pitScoreWeight":         1.0,
-		"pitReactionWeight":      0.0004,
-		"autoStartWhenAllReady":  true,
-		"requireEqualShotTotals": true,
-		"fieldEventsEnabled":     true,
-		"fieldEventMinGapSec":    90,
+		"circuitId":                "bergsee",
+		"motionMode":               MotionPush,
+		"stintSize":                10,
+		"roundDurationSec":         120,
+		"skippedRoundsToCrash":     2,
+		"overtakeRatio":            1.12,
+		"paceCompress":             0.50,
+		"pacePivot":                8.0,
+		"drsStackPerPlace":         0.12,
+		"drsSections":              "2,3,4,7,8",
+		"gridGap":                  0.08,
+		"trackLength":              1.0,
+		"highShotThreshold":        9.0,
+		"streakBonus":              1.15,
+		"pitCueWindowMs":           5000,
+		"pitScoreWeight":           1.0,
+		"pitReactionWeight":        0.0004,
+		"autoStartWhenAllReady":    true,
+		"requireEqualShotTotals":   true,
+		"fieldEventsEnabled":       true,
+		"fieldEventMinGapSec":      90,
 		"fieldEventChancePerRound": 0.08,
-		"holeInHoleMinOverlap":   0.5,
-		"holeInHoleBonus":        0.05,
-		"shotDiameterMm":         4.5,
-		"dsgPerMm":               100.0,
-		"handicaps":              map[string]any{},
+		"holeInHoleMinOverlap":     0.5,
+		"holeInHoleBonus":          0.05,
+		"shotDiameterMm":           4.5,
+		"dsgPerMm":                 100.0,
+		"handicaps":                map[string]any{},
 	}
 }
 
@@ -180,26 +181,29 @@ type CarState struct {
 	LastBoostKind      string  `json:"lastBoostKind"` // miss|streak|hole_in_hole|drs|pit|""
 	NextHint           string  `json:"nextHint"`
 	NextHintKind       string  `json:"nextHintKind"`
+	Active             bool    `json:"active"`
 }
 
 type RaceState struct {
-	Phase              string              `json:"phase"`
-	CircuitID          string              `json:"circuitId"`
-	MotionMode         string              `json:"motionMode"`
-	CurrentRound       int                 `json:"currentRound"`
-	RoundOpenedAt      *time.Time          `json:"roundOpenedAt,omitempty"`
-	RoundDurationSec   int                 `json:"roundDurationSec"`
-	ShotTotal          int                 `json:"shotTotal"`
-	StartBlockedReason string              `json:"startBlockedReason,omitempty"`
-	GridSet            bool                `json:"gridSet"`
+	Phase              string               `json:"phase"`
+	CircuitID          string               `json:"circuitId"`
+	MotionMode         string               `json:"motionMode"`
+	CurrentRound       int                  `json:"currentRound"`
+	RoundOpenedAt      *time.Time           `json:"roundOpenedAt,omitempty"`
+	RoundDurationSec   int                  `json:"roundDurationSec"`
+	ShotTotal          int                  `json:"shotTotal"`
+	StartBlockedReason string               `json:"startBlockedReason,omitempty"`
+	GridSet            bool                 `json:"gridSet"`
 	Cars               map[string]*CarState `json:"cars"`
-	ActiveFieldEvent   *FieldEvent         `json:"activeFieldEvent,omitempty"`
-	LastFieldEventAt   *time.Time          `json:"lastFieldEventAt,omitempty"`
-	DRSZones           []DRSZone           `json:"drsZones"`
-	Config             map[string]any      `json:"config"`
-	NumRanges          int                 `json:"numRanges"`
-	PitCueAt           *time.Time          `json:"pitCueAt,omitempty"`
-	StintPitRound      int                 `json:"stintPitRound"`
+	ActiveFieldEvent   *FieldEvent          `json:"activeFieldEvent,omitempty"`
+	LastFieldEventAt   *time.Time           `json:"lastFieldEventAt,omitempty"`
+	DRSZones           []DRSZone            `json:"drsZones"`
+	Config             map[string]any       `json:"config"`
+	NumRanges          int                  `json:"numRanges"`
+	PitCueAt           *time.Time           `json:"pitCueAt,omitempty"`
+	StintPitRound      int                  `json:"stintPitRound"`
+	FieldOpen          bool                 `json:"fieldOpen"`
+	InactiveRanges     []int                `json:"inactiveRanges,omitempty"`
 }
 
 var defaultColors = []string{
@@ -253,8 +257,10 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 			Handicap:  hc,
 			Color:     color,
 			WasWarmup: true,
+			Active:    true,
 		}
 	}
+	rs.applyMembership(merged)
 	rs.formStartingGrid()
 	return marshalState(rs)
 }
@@ -275,8 +281,12 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		return sess, nil, err
 	}
 	var events []logicapi.PluginEvent
+	rs.syncCarsToNumRanges()
+	if ctx.InactiveRanges != nil {
+		rs.applyInactiveList(ctx.InactiveRanges)
+	}
 	car := rs.Cars[strconv.Itoa(ctx.RangeNum)]
-	if car == nil {
+	if car == nil || !car.Active {
 		return sess, nil, nil
 	}
 	if ctx.Live.ShooterName != "" {
@@ -289,23 +299,19 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		car.TotalShots = ctx.Live.TotalShotsToFire
 	}
 
-	// Warmup tracking / ready
-	if ctx.Live.IsWarmup || ctx.Shot.IsWarmup {
+	// Warmup tracking / ready. First competition shot opens the field so
+	// remaining active lanes count as no-warmup too.
+	discard, openNow := gameutil.WarmupDiscard(rs.FieldOpen, gameutil.IsWarmupShot(ctx.Live.IsWarmup, ctx.Shot.IsWarmup))
+	if discard {
 		car.WasWarmup = true
 		return marshalWithEvents(rs, nil)
 	}
-	if car.WasWarmup && !ctx.Live.IsWarmup {
-		car.WasWarmup = false
-		car.Ready = true
-		car.Status = StatusReady
+	if openNow {
+		rs.openCompetitionField()
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
-		if rs.Phase == PhaseWarmup {
-			rs.Phase = PhaseArming
-		}
 		if auto, reason := rs.canAutoStart(); auto {
 			evs := rs.forceStart(ctx.Now)
 			events = append(events, evs...)
-			_ = reason
 		} else if reason != "" {
 			rs.StartBlockedReason = reason
 		}
@@ -442,7 +448,7 @@ func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.Sessio
 	if rs.ActiveFieldEvent == nil {
 		if deadline, ok := rs.roundSkipDeadline(); ok && (now.After(deadline) || now.Equal(deadline)) {
 			for _, car := range rs.Cars {
-				if car.Status == StatusCrashed || car.Status == StatusFinished {
+				if car == nil || !car.Active || car.Status == StatusCrashed || car.Status == StatusFinished {
 					continue
 				}
 				if car.Status != StatusRacing {
@@ -550,7 +556,7 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 	cars := make([]map[string]any, 0, rs.NumRanges)
 	for i := 1; i <= rs.NumRanges; i++ {
 		c := rs.Cars[strconv.Itoa(i)]
-		if c == nil {
+		if c == nil || !c.Active {
 			continue
 		}
 		cars = append(cars, carVM(c))
@@ -651,10 +657,16 @@ func carVM(c *CarState) map[string]any {
 		"lastBoostKind":      c.LastBoostKind,
 		"nextHint":           c.NextHint,
 		"nextHintKind":       c.NextHintKind,
+		"active":             c.Active,
 	}
 }
 
 func (rs *RaceState) applyLive(params map[string]any) {
+	if n := cfgInt(params, "numRanges", 0); n > 0 {
+		rs.NumRanges = n
+		rs.syncCarsToNumRanges()
+	}
+	rs.applyMembership(params)
 	live, _ := params["live"].(map[string]any)
 	if live == nil {
 		return
@@ -678,23 +690,64 @@ func (rs *RaceState) applyLive(params map[string]any) {
 			car.ShooterName = name
 		}
 		warmup, _ := m["isWarmup"].(bool)
-		if car.WasWarmup && !warmup {
-			car.WasWarmup = false
-			car.Ready = true
-			if car.Status == StatusActive {
-				car.Status = StatusReady
+		if !rs.FieldOpen {
+			if car.WasWarmup && !warmup {
+				car.WasWarmup = false
+				car.Ready = true
+				if car.Status == StatusActive {
+					car.Status = StatusReady
+				}
+				if rs.Phase == PhaseWarmup {
+					rs.Phase = PhaseArming
+				}
 			}
-			if rs.Phase == PhaseWarmup {
-				rs.Phase = PhaseArming
+			if warmup {
+				car.WasWarmup = true
 			}
 		}
-		if warmup {
-			car.WasWarmup = true
+		car.Active = gameutil.LiveActive(m, car.Active)
+	}
+}
+
+func (rs *RaceState) applyMembership(params map[string]any) {
+	skip, ok := gameutil.InactiveSetFromParams(params)
+	if !ok {
+		return
+	}
+	rs.applyInactiveListFromSet(skip)
+}
+
+func (rs *RaceState) applyInactiveList(nums []int) {
+	rs.applyInactiveListFromSet(gameutil.IntSet(nums))
+}
+
+func (rs *RaceState) applyInactiveListFromSet(skip map[int]bool) {
+	list := make([]int, 0, len(skip))
+	for n := range skip {
+		list = append(list, n)
+	}
+	sort.Ints(list)
+	rs.InactiveRanges = list
+	if rs.Config != nil {
+		rs.Config["inactiveRanges"] = list
+	}
+	rs.syncCarsToNumRanges()
+}
+
+func (rs *RaceState) openCompetitionField() {
+	rs.FieldOpen = true
+	for _, car := range rs.Cars {
+		if car == nil || !car.Active {
+			continue
+		}
+		car.WasWarmup = false
+		car.Ready = true
+		if car.Status == StatusActive {
+			car.Status = StatusReady
 		}
 	}
-	if n := cfgInt(params, "numRanges", 0); n > 0 {
-		rs.NumRanges = n
-		rs.syncCarsToNumRanges()
+	if rs.Phase == PhaseWarmup {
+		rs.Phase = PhaseArming
 	}
 }
 
@@ -729,6 +782,13 @@ func (rs *RaceState) syncCarsToNumRanges() {
 			Handicap:  hc,
 			Color:     defaultColors[(i-1)%len(defaultColors)],
 			WasWarmup: true,
+			Active:    true,
+		}
+	}
+	skip := gameutil.IntSet(rs.InactiveRanges)
+	for i := 1; i <= rs.NumRanges; i++ {
+		if c := rs.Cars[strconv.Itoa(i)]; c != nil {
+			c.Active = !skip[i]
 		}
 	}
 	for k, c := range rs.Cars {
@@ -760,7 +820,7 @@ func (rs *RaceState) startGate() (bool, string) {
 	readyCount := 0
 	for i := 1; i <= rs.NumRanges; i++ {
 		car := rs.Cars[strconv.Itoa(i)]
-		if car == nil {
+		if car == nil || !car.Active {
 			continue
 		}
 		if car.TotalShots <= 0 {
@@ -777,7 +837,7 @@ func (rs *RaceState) startGate() (bool, string) {
 		}
 	}
 	if first {
-		return false, "Keine Bahnen konfiguriert"
+		return false, "Keine aktiven Bahnen"
 	}
 	rs.ShotTotal = total
 	return true, ""
@@ -793,7 +853,7 @@ func (rs *RaceState) canAutoStart() (bool, string) {
 	}
 	for i := 1; i <= rs.NumRanges; i++ {
 		car := rs.Cars[strconv.Itoa(i)]
-		if car == nil {
+		if car == nil || !car.Active {
 			continue
 		}
 		if !car.Ready {
@@ -812,7 +872,7 @@ func (rs *RaceState) forceStart(now time.Time) []logicapi.PluginEvent {
 	ok, _ := rs.startGate()
 	_ = ok
 	for _, car := range rs.Cars {
-		if car.Status == StatusCrashed {
+		if car == nil || !car.Active || car.Status == StatusCrashed {
 			continue
 		}
 		car.Status = StatusRacing
@@ -854,7 +914,7 @@ func (rs *RaceState) applyGridShot(car *CarState, ctx logicapi.ShotContext) []lo
 	}
 	var list []scored
 	for _, c := range rs.Cars {
-		if c.Status != StatusRacing {
+		if c == nil || !c.Active || c.Status != StatusRacing {
 			continue
 		}
 		if c.ShotsFired < 1 {
@@ -1009,7 +1069,7 @@ func (rs *RaceState) sectionInDRS(section int) bool {
 
 func (rs *RaceState) carByPosition(pos int) *CarState {
 	for _, c := range rs.Cars {
-		if c == nil || c.Status == StatusCrashed {
+		if c == nil || !c.Active || c.Status == StatusCrashed {
 			continue
 		}
 		if c.Status != StatusRacing && c.Status != StatusFinished {
@@ -1209,7 +1269,7 @@ func (rs *RaceState) formStartingGrid() {
 	order := make([]*CarState, 0, rs.NumRanges)
 	for i := 1; i <= rs.NumRanges; i++ {
 		c := rs.Cars[strconv.Itoa(i)]
-		if c == nil || c.Status == StatusCrashed {
+		if c == nil || !c.Active || c.Status == StatusCrashed {
 			continue
 		}
 		order = append(order, c)
@@ -1309,7 +1369,7 @@ func (rs *RaceState) maybeAdvanceRound(now time.Time) []logicapi.PluginEvent {
 	// If all racing cars have shot this round, close early
 	pending := false
 	for _, car := range rs.Cars {
-		if car.Status != StatusRacing {
+		if car == nil || !car.Active || car.Status != StatusRacing {
 			continue
 		}
 		if !car.ShotThisRound {
@@ -1392,6 +1452,9 @@ func (rs *RaceState) maybeFinish() {
 	allDone := true
 	any := false
 	for _, car := range rs.Cars {
+		if car == nil || !car.Active {
+			continue
+		}
 		if car.Status == StatusRacing {
 			allDone = false
 		}
@@ -1475,7 +1538,7 @@ func (rs *RaceState) pickFieldTargets(typ string, forceRange int, now time.Time)
 	var racing []*CarState
 	for i := 1; i <= rs.NumRanges; i++ {
 		c := rs.Cars[strconv.Itoa(i)]
-		if c != nil && c.Status == StatusRacing {
+		if c != nil && c.Active && c.Status == StatusRacing {
 			racing = append(racing, c)
 		}
 	}
@@ -1529,7 +1592,7 @@ func (rs *RaceState) recomputePositions() {
 	var list []pair
 	var crashed []*CarState
 	for _, c := range rs.Cars {
-		if c == nil {
+		if c == nil || !c.Active {
 			continue
 		}
 		if c.Status == StatusCrashed {
@@ -1701,7 +1764,7 @@ func (rs *RaceState) refreshNextHint(car *CarState) {
 	section := rs.sectionOfShot(nextRound)
 	inDRS := rs.sectionInDRS(section)
 	stint := rs.stintSize()
-	shotsToPit := stint - ((nextRound-1) % stint) - 1
+	shotsToPit := stint - ((nextRound - 1) % stint) - 1
 	if shotsToPit < 0 {
 		shotsToPit = 0
 	}

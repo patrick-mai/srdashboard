@@ -118,6 +118,7 @@ type GameState struct {
 	WinnerRange        int                `json:"winnerRange"`
 	StartBlockedReason string             `json:"startBlockedReason"`
 	StatusLine         string             `json:"statusLine"`
+	FieldOpen          bool               `json:"fieldOpen"`
 }
 
 func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
@@ -149,6 +150,9 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	}
 	gs.ensure()
 	var events []logicapi.PluginEvent
+	if ctx.InactiveRanges != nil {
+		gs.applyInactiveList(ctx.InactiveRanges)
+	}
 	p := gs.Players[gameutil.Itoa(ctx.RangeNum)]
 	if p == nil || !p.Active {
 		return marshalWithEvents(gs, nil)
@@ -159,18 +163,14 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	if ctx.Live.Discipline != "" {
 		p.Discipline = ctx.Live.Discipline
 	}
-	if ctx.Live.IsWarmup || ctx.Shot.IsWarmup {
+	discard, openNow := gameutil.WarmupDiscard(gs.FieldOpen, gameutil.IsWarmupShot(ctx.Live.IsWarmup, ctx.Shot.IsWarmup))
+	if discard {
 		p.WasWarmup = true
 		return marshalWithEvents(gs, nil)
 	}
-	if p.WasWarmup && !ctx.Live.IsWarmup {
-		p.WasWarmup = false
-		p.Ready = true
+	if openNow {
+		gs.openCompetitionField()
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
-		if gs.Phase == gameutil.PhaseWarmup {
-			gs.Phase = gameutil.PhaseArming
-			gs.StatusLine = "Bereit — Ludo starten"
-		}
 		if gs.Phase == gameutil.PhaseArming && gameutil.CfgBool(gs.Config, "autoStartWhenAllReady", true) && gs.allSeatedReady() {
 			events = append(events, gs.beginPlay()...)
 		} else if gs.Phase == gameutil.PhaseArming {
@@ -565,6 +565,7 @@ func (gs *GameState) ensure() {
 			}
 		}
 	}
+	gs.applyMembership(gs.Config)
 }
 
 func (gs *GameState) allSeatedReady() bool {
@@ -631,6 +632,7 @@ func (gs *GameState) applyLive(params map[string]any) {
 		gs.NumRanges = gameutil.CfgInt(map[string]any{"n": n}, "n", gs.NumRanges)
 		gs.ensure()
 	}
+	gs.applyMembership(params)
 	live, _ := params["live"].(map[string]any)
 	if live == nil {
 		return
@@ -658,12 +660,53 @@ func (gs *GameState) applyLive(params map[string]any) {
 		if disc, ok := m["discipline"].(string); ok && disc != "" {
 			p.Discipline = disc
 		}
-		if warmup, ok := m["isWarmup"].(bool); ok && warmup {
+		if warmup, ok := m["isWarmup"].(bool); ok && warmup && !gs.FieldOpen {
 			p.WasWarmup = true
 		}
-		if active, ok := m["active"].(bool); ok {
-			p.Active = active
+		p.Active = gameutil.LiveActive(m, p.Active)
+	}
+}
+
+func (gs *GameState) applyMembership(params map[string]any) {
+	skip, ok := gameutil.InactiveSetFromParams(params)
+	if !ok {
+		return
+	}
+	gs.applyInactiveListFromSet(skip)
+}
+
+func (gs *GameState) applyInactiveList(nums []int) {
+	gs.applyInactiveListFromSet(gameutil.IntSet(nums))
+}
+
+func (gs *GameState) applyInactiveListFromSet(skip map[int]bool) {
+	if gs.Config != nil {
+		list := make([]int, 0, len(skip))
+		for n := range skip {
+			list = append(list, n)
 		}
+		gs.Config["inactiveRanges"] = list
+	}
+	for i := 1; i <= gs.NumRanges; i++ {
+		p := gs.Players[gameutil.Itoa(i)]
+		if p != nil {
+			p.Active = !skip[i]
+		}
+	}
+}
+
+func (gs *GameState) openCompetitionField() {
+	gs.FieldOpen = true
+	for _, p := range gs.Players {
+		if p == nil || !p.Active {
+			continue
+		}
+		p.WasWarmup = false
+		p.Ready = true
+	}
+	if gs.Phase == gameutil.PhaseWarmup {
+		gs.Phase = gameutil.PhaseArming
+		gs.StatusLine = "Bereit — Ludo starten"
 	}
 }
 

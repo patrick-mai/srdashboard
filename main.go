@@ -56,10 +56,6 @@ func main() {
 	hub := api.NewHub()
 	ps.SetBroadcaster(hub)
 
-	if err := ps.EnsureActive(); err != nil {
-		log.Printf("activate plugin %q: %v", cfg.Plugins.Active, err)
-	}
-
 	udpListener, err := udp.NewListener(cfg.UDPPort, st, cfg.UDPForward)
 	if err != nil {
 		log.Fatalf("UDP listener: %v", err)
@@ -70,6 +66,11 @@ func main() {
 		log.Fatalf("load runtime: %v", err)
 	}
 	rt.Prune(cfg.Ranges)
+	ps.SetInactiveRanges(rt.InactiveList(cfg.Ranges))
+
+	if err := ps.EnsureActive(); err != nil {
+		log.Printf("activate plugin %q: %v", cfg.Plugins.Active, err)
+	}
 
 	handlers := &api.Handlers{
 		State:       st,

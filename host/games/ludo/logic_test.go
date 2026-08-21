@@ -196,3 +196,67 @@ func TestTwoPlayerUsesFullClassicBoard(t *testing.T) {
 		t.Fatalf("p2 entry=%d want opposite arm %d", p2.Entry, want)
 	}
 }
+
+func TestInactiveRangeDoesNotJoin(t *testing.T) {
+	l := New(nil)
+	sess, err := l.Init(map[string]any{"numRanges": 3, "inactiveRanges": []int{3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs, _ := unmarshalState(sess)
+	if gs.Players["3"] == nil || gs.Players["3"].Active {
+		t.Fatal("range 3 must be inactive")
+	}
+	if !gs.Players["1"].Active || !gs.Players["2"].Active {
+		t.Fatal("ranges 1 and 2 stay active")
+	}
+	sess, ev := fire(t, l, sess, 1, 10.0)
+	gs, _ = unmarshalState(sess)
+	if !gs.FieldOpen {
+		t.Fatal("first competition shot must open the field")
+	}
+	if !gs.Players["1"].Ready || !gs.Players["2"].Ready {
+		t.Fatal("active lanes must leave warmup together")
+	}
+	if gs.Players["3"].Ready {
+		t.Fatal("inactive lane must not be marked ready")
+	}
+	started := false
+	for _, e := range ev {
+		if e.Type == "match_start" {
+			started = true
+		}
+	}
+	if !started {
+		t.Fatalf("game should auto-start without waiting on the inactive lane, %#v", ev)
+	}
+	if gs.Players["3"].Seated {
+		t.Fatal("inactive lane must not be seated")
+	}
+}
+
+func TestWarmupShotCountsAfterFieldOpens(t *testing.T) {
+	l, sess := startTwo(t)
+	sess, _ = fire(t, l, sess, 1, 10.0)
+	gs, _ := unmarshalState(sess)
+	if !gs.FieldOpen {
+		t.Fatal("competition shot should open the field")
+	}
+	sess, ev, err := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 2,
+		Shot:     state.Shot{DecValue: 10.0, FullValue: 10, IsWarmup: true},
+		Live:     logicapi.LiveRangeInfo{IsWarmup: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range ev {
+		if e.Type == "enter" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("warmup-flagged shot on the other lane must count after field open, %#v", ev)
+	}
+}

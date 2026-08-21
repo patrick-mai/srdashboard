@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	_ "srdashboard/host/games/ludo"
 	"srdashboard/host/loader"
 	"srdashboard/state"
 )
@@ -50,6 +51,53 @@ func TestActivateDisplayPlugin(t *testing.T) {
 	snap = ps.SnapshotRange(1)
 	if snap.ShotCount != 1 {
 		t.Fatalf("shotCount = %d", snap.ShotCount)
+	}
+}
+
+func TestSetInactiveRangesPassedToSharedGame(t *testing.T) {
+	dir := t.TempDir()
+	pluginsRoot := filepath.Join(dir, "plugins")
+	src := filepath.Join("..", "..", "plugins", "ludo")
+	if _, err := os.Stat(src); err != nil {
+		t.Skip("ludo not present")
+	}
+	if err := copyDir(src, filepath.Join(pluginsRoot, "ludo")); err != nil {
+		t.Fatal(err)
+	}
+	pm := loader.NewManager(pluginsRoot)
+	if err := pm.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	ps := NewManager(3, pm, "ludo")
+	ps.SetLiveSource(state.NewLiveState(3))
+	ps.SetInactiveRanges([]int{3})
+	if err := ps.Activate("ludo"); err != nil {
+		t.Fatal(err)
+	}
+	snap := ps.SnapshotRange(1)
+	game, _ := snap.ViewModel["game"].(map[string]any)
+	if game == nil {
+		t.Fatalf("game missing: %#v", snap.ViewModel)
+	}
+	players, _ := game["players"].([]map[string]any)
+	foundInactive := false
+	activeCount := 0
+	for _, p := range players {
+		if p["rangeNum"] == 3 || p["rangeNum"] == float64(3) {
+			if p["active"] != false {
+				t.Fatalf("range 3 should be inactive: %#v", p)
+			}
+			foundInactive = true
+		}
+		if p["active"] != false {
+			activeCount++
+		}
+	}
+	if !foundInactive {
+		t.Fatalf("range 3 missing from players: %#v", players)
+	}
+	if activeCount != 2 {
+		t.Fatalf("activeCount=%d want 2", activeCount)
 	}
 }
 

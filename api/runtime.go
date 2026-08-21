@@ -110,6 +110,7 @@ func (h *Handlers) applyInactiveRanges(nums []int) {
 			newly = append(newly, n)
 		}
 	}
+	list := h.Runtime.InactiveList(max)
 	path := h.runtimePath()
 	rt := *h.Runtime
 	h.runtimeMu.Unlock()
@@ -121,5 +122,8 @@ func (h *Handlers) applyInactiveRanges(nums []int) {
 		if h.State != nil && h.State.ResetRange(n) {
 			h.broadcastLiveRange(n)
 		}
+	}
+	if h.PluginState != nil {
+		h.PluginState.SetInactiveRanges(list)
 	}
 }

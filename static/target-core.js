@@ -60,6 +60,8 @@ let userZoomedByRange = {};  // rangeNum -> true if user zoomed via wheel/drag; 
 let pinFullUntilNewShotByRange = {}; // dblclick: stay at full disk until another shot arrives
 /** Per-range series focus: { index, atShotNumber } while reviewing a completed series. */
 let seriesFocusByRange = {};
+/** Last-10 chart bar index currently hovered (null/undefined = none). */
+let hoverBarIdxByRange = {};
 
 let config = {
   ranges: 6,
@@ -619,24 +621,17 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
   // Migrate legacy single-circle children into the fill layer once.
   Array.prototype.slice.call(shotsGroup.children).forEach(function (n) {
     if (n === fillG || n === ringG) return;
+    if (n.classList && (n.classList.contains('target-shot-hover-halo') || n.classList.contains('target-shot-hover-label'))) return;
     if (n.tagName && n.tagName.toLowerCase() === 'circle') fillG.appendChild(n);
     else shotsGroup.removeChild(n);
   });
 
-  const fills = [];
-  const rings = [];
-  Array.prototype.forEach.call(fillG.children, function (n) {
-    if (n.tagName && n.tagName.toLowerCase() === 'circle') fills.push(n);
-  });
-  Array.prototype.forEach.call(ringG.children, function (n) {
-    if (n.tagName && n.tagName.toLowerCase() === 'circle') rings.push(n);
-  });
-
   shots.forEach((s, i) => {
     const pt = dsgToSvg(Number(s.x), Number(s.y), rangeNum);
-    let fill = fills[i];
+    let fill = fillG.querySelector('circle[data-shot-idx="' + i + '"]');
     if (!fill) {
       fill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      fill.setAttribute('data-shot-idx', String(i));
       fill.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'title'));
       fillG.appendChild(fill);
     }
@@ -651,9 +646,10 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
       title.textContent = `#${i + 1}: ${Number(s.decValue).toFixed(1)} (T ${Number(s.distance).toFixed(1)})`;
     }
 
-    let ring = rings[i];
+    let ring = ringG.querySelector('circle[data-shot-idx="' + i + '"]');
     if (!ring) {
       ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      ring.setAttribute('data-shot-idx', String(i));
       ring.setAttribute('fill', 'none');
       ringG.appendChild(ring);
     }
@@ -666,12 +662,16 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     ring.setAttribute('pointer-events', 'none');
   });
 
-  for (let i = fills.length - 1; i >= shots.length; i--) {
-    fillG.removeChild(fills[i]);
-  }
-  for (let i = rings.length - 1; i >= shots.length; i--) {
-    ringG.removeChild(rings[i]);
-  }
+  Array.prototype.slice.call(fillG.querySelectorAll('circle')).forEach(function (c) {
+    const idx = parseInt(c.getAttribute('data-shot-idx'), 10);
+    if (!Number.isFinite(idx) || idx >= shots.length) fillG.removeChild(c);
+  });
+  Array.prototype.slice.call(ringG.querySelectorAll('circle')).forEach(function (c) {
+    const idx = parseInt(c.getAttribute('data-shot-idx'), 10);
+    if (!Number.isFinite(idx) || idx >= shots.length) ringG.removeChild(c);
+  });
+
+  paintHoverForRange(rangeNum);
 }
 
 function renderTarget(container, rangeData, isWarmup, opts) {
@@ -801,6 +801,192 @@ function computeValueRange(last10Values, rangeNum) {
   return [minV, maxV];
 }
 
+function liveRangeData(rangeNum) {
+  if (!lastLiveData || !lastLiveData.ranges) return null;
+  return lastLiveData.ranges.find(function (r) {
+    return r.rangeNum === rangeNum;
+  }) || null;
+}
+
+/** Map a last-10 bar index to the shot currently drawn on the scheibe (−1 if that bar is not on the disk). */
+function chartBarToShotIndex(rangeNum, barIdx) {
+  if (barIdx == null || !Number.isFinite(barIdx) || barIdx < 0) return -1;
+  const live = liveRangeData(rangeNum);
+  if (!live) return barIdx;
+  const shots = shotsForDisplay(live);
+  const values = last10ForDisplay(live);
+  if (!shots.length) return -1;
+  if (values.length === shots.length) {
+    return barIdx < shots.length ? barIdx : -1;
+  }
+  const shotIdx = barIdx - (values.length - shots.length);
+  if (shotIdx < 0 || shotIdx >= shots.length) return -1;
+  return shotIdx;
+}
+
+function hoverValueLabel(barIdx, value) {
+  const n = Number(value);
+  const val = Number.isFinite(n) ? n.toFixed(1) : '–';
+  return '#' + (barIdx + 1) + ': ' + val;
+}
+
+function forEachRangeHost(rangeNum, fn) {
+  if (!Number.isFinite(rangeNum)) return;
+  document.querySelectorAll(
+    '.range-panel[data-range="' + rangeNum + '"], .classic-range-view[data-range="' + rangeNum + '"]'
+  ).forEach(fn);
+}
+
+function ensureShotHoverOverlay(shotsGroup) {
+  let halo = shotsGroup.querySelector('.target-shot-hover-halo');
+  if (!halo) {
+    halo = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    halo.setAttribute('class', 'target-shot-hover-halo');
+    halo.setAttribute('fill', 'none');
+    halo.setAttribute('pointer-events', 'none');
+    halo.setAttribute('visibility', 'hidden');
+    shotsGroup.appendChild(halo);
+  }
+  let label = shotsGroup.querySelector('.target-shot-hover-label');
+  if (!label) {
+    label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('class', 'target-shot-hover-label');
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('dominant-baseline', 'central');
+    label.setAttribute('pointer-events', 'none');
+    label.setAttribute('visibility', 'hidden');
+    shotsGroup.appendChild(label);
+  }
+  shotsGroup.appendChild(halo);
+  shotsGroup.appendChild(label);
+  return { halo: halo, label: label };
+}
+
+function paintShotHoverOnGroup(shotsGroup, rangeNum, shotIdx) {
+  if (!shotsGroup) return;
+  const on = shotIdx != null && shotIdx >= 0;
+  shotsGroup.classList.toggle('chart-hover', on);
+  shotsGroup.querySelectorAll('.target-shots-fill circle, .target-shots-ring circle').forEach(function (c) {
+    const i = parseInt(c.getAttribute('data-shot-idx'), 10);
+    c.classList.toggle('is-hover', on && i === shotIdx);
+  });
+  if (!on) {
+    const halo = shotsGroup.querySelector('.target-shot-hover-halo');
+    const label = shotsGroup.querySelector('.target-shot-hover-label');
+    if (halo) halo.setAttribute('visibility', 'hidden');
+    if (label) {
+      label.setAttribute('visibility', 'hidden');
+      label.textContent = '';
+    }
+    return;
+  }
+  const overlay = ensureShotHoverOverlay(shotsGroup);
+  const fill = shotsGroup.querySelector('.target-shots-fill circle[data-shot-idx="' + shotIdx + '"]');
+  if (!fill) {
+    overlay.halo.setAttribute('visibility', 'hidden');
+    overlay.label.setAttribute('visibility', 'hidden');
+    overlay.label.textContent = '';
+    return;
+  }
+  const cx = parseFloat(fill.getAttribute('cx'));
+  const cy = parseFloat(fill.getAttribute('cy'));
+  const r = parseFloat(fill.getAttribute('r')) || 2.25;
+  const z = zoomStateByRange[rangeNum];
+  const span = z && z.w ? z.w : (getTargetScale(rangeNum).svgSize || 200);
+  const fontSize = Math.max(2.2, span * 0.055);
+  overlay.halo.setAttribute('cx', String(cx));
+  overlay.halo.setAttribute('cy', String(cy));
+  overlay.halo.setAttribute('r', String(r + Math.max(0.35, span * 0.012)));
+  overlay.halo.setAttribute('stroke-width', String(Math.max(0.25, span * 0.008)));
+  overlay.halo.setAttribute('visibility', 'visible');
+  const title = fill.querySelector('title');
+  overlay.label.textContent = title && title.textContent
+    ? title.textContent.replace(/\s*\(T.*\)$/, '')
+    : hoverValueLabel(shotIdx, null);
+  overlay.label.setAttribute('x', String(cx));
+  let labelY = cy - r - fontSize * 0.45;
+  const viewTop = z && z.y != null ? z.y : 0;
+  if (labelY < viewTop + fontSize) labelY = cy + r + fontSize * 0.95;
+  overlay.label.setAttribute('y', String(labelY));
+  overlay.label.setAttribute('font-size', String(fontSize));
+  overlay.label.setAttribute('stroke-width', String(fontSize * 0.12));
+  overlay.label.setAttribute('visibility', 'visible');
+}
+
+function paintChartBarHover(container, barIdx) {
+  if (!container) return;
+  const hovering = barIdx != null && Number.isFinite(barIdx) && barIdx >= 0;
+  container.classList.toggle('is-hovering', hovering);
+  container.querySelectorAll('[data-shot-idx]').forEach(function (el) {
+    const i = parseInt(el.getAttribute('data-shot-idx'), 10);
+    el.classList.toggle('is-hover', hovering && i === barIdx);
+  });
+  let tip = container.querySelector('.last10-value-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.className = 'last10-value-tip';
+    container.appendChild(tip);
+  }
+  if (!hovering) {
+    tip.hidden = true;
+    return;
+  }
+  const bar = container.querySelector('rect.last10-bar[data-shot-idx="' + barIdx + '"]');
+  if (!bar) {
+    tip.hidden = true;
+    return;
+  }
+  const title = bar.querySelector('title');
+  tip.textContent = title ? title.textContent : hoverValueLabel(barIdx, null);
+  const x = parseFloat(bar.getAttribute('x')) + parseFloat(bar.getAttribute('width')) / 2;
+  tip.style.left = x + 'px';
+  tip.style.top = '2px';
+  tip.hidden = false;
+}
+
+function paintHoverForRange(rangeNum) {
+  if (!Number.isFinite(rangeNum)) return;
+  const barIdx = hoverBarIdxByRange[rangeNum];
+  const shotIdx = barIdx == null ? -1 : chartBarToShotIndex(rangeNum, barIdx);
+  forEachRangeHost(rangeNum, function (host) {
+    host.querySelectorAll('.target-shots').forEach(function (g) {
+      paintShotHoverOnGroup(g, rangeNum, shotIdx);
+    });
+    host.querySelectorAll('.last10-chart-wrap').forEach(function (wrap) {
+      paintChartBarHover(wrap, barIdx);
+    });
+  });
+}
+
+function setChartHover(rangeNum, barIdx) {
+  if (!Number.isFinite(rangeNum)) return;
+  const next = (barIdx == null || !Number.isFinite(barIdx) || barIdx < 0) ? undefined : barIdx;
+  if (hoverBarIdxByRange[rangeNum] === next) return;
+  if (next == null) delete hoverBarIdxByRange[rangeNum];
+  else hoverBarIdxByRange[rangeNum] = next;
+  paintHoverForRange(rangeNum);
+}
+
+function wireLast10ChartHover(container, rangeNum) {
+  if (!container) return;
+  container.dataset.rangeNum = Number.isFinite(rangeNum) ? String(rangeNum) : '';
+  if (container.dataset.hoverWired === '1') return;
+  container.dataset.hoverWired = '1';
+  container.addEventListener('pointermove', function (ev) {
+    const n = parseInt(container.dataset.rangeNum, 10);
+    const hit = ev.target.closest('[data-shot-idx]');
+    if (hit && container.contains(hit)) {
+      const idx = parseInt(hit.getAttribute('data-shot-idx'), 10);
+      setChartHover(n, Number.isFinite(idx) ? idx : null);
+    } else {
+      setChartHover(n, null);
+    }
+  });
+  container.addEventListener('pointerleave', function () {
+    setChartHover(parseInt(container.dataset.rangeNum, 10), null);
+  });
+}
+
 function renderLast10Chart(container, last10Values, rangeNum) {
   if (!container) return;
   const colors = getChartColors();
@@ -824,37 +1010,55 @@ function renderLast10Chart(container, last10Values, rangeNum) {
 
   let svg = container.querySelector('svg.last10-svg');
   if (!svg) {
-    container.innerHTML = '';
+    Array.prototype.slice.call(container.children).forEach(function (child) {
+      if (!child.classList || !child.classList.contains('last10-value-tip')) child.remove();
+    });
     svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'last10-svg');
-    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Letzte Schüsse');
     container.appendChild(svg);
   }
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('preserveAspectRatio', 'none');
 
-  const yToSvg = (v) => padT + plotH - ((v - yMin) / ySpan) * plotH;
-  // Baseline at yMin of the zoomed scale (may be > 0 when scores are clustered high).
-  const baselineY = yToSvg(yMin);
-  let html = '';
-  html += `<line x1="${padL}" y1="${baselineY}" x2="${W - padR}" y2="${baselineY}" stroke="${colors.border}" stroke-width="1"/>`;
-  for (let i = 0; i < 10; i++) {
-    const v = values[i];
-    if (v == null || Number.isNaN(v)) continue;
-    const barH = Math.max(1, ((v - yMin) / ySpan) * plotH);
-    const x = padL + i * slotW + slotW * 0.15;
-    const w = slotW * 0.7;
-    const y = yToSvg(v);
-    const fill = shotColors[i % shotColors.length] || colors.bar;
-    html += `<rect x="${x}" y="${y}" width="${w}" height="${barH}" fill="${fill}"/>`;
+  const sig = [W, H, yMin.toFixed(3), yMax.toFixed(3), values.join(','), shotColors.join(',')].join('|');
+  const skipPaint = container.dataset.chartSig === sig && svg.childElementCount > 0;
+  if (!skipPaint) {
+    container.dataset.chartSig = sig;
+    const yToSvg = (v) => padT + plotH - ((v - yMin) / ySpan) * plotH;
+    // Baseline at yMin of the zoomed scale (may be > 0 when scores are clustered high).
+    const baselineY = yToSvg(yMin);
+    let html = '';
+    html += `<line x1="${padL}" y1="${baselineY}" x2="${W - padR}" y2="${baselineY}" stroke="${colors.border}" stroke-width="1"/>`;
+    for (let i = 0; i < 10; i++) {
+      const v = values[i];
+      if (v == null || Number.isNaN(v)) continue;
+      const barH = Math.max(1, ((v - yMin) / ySpan) * plotH);
+      const x = padL + i * slotW + slotW * 0.15;
+      const w = slotW * 0.7;
+      const y = yToSvg(v);
+      const fill = shotColors[i % shotColors.length] || colors.bar;
+      const tip = hoverValueLabel(i, v);
+      html += `<rect class="last10-bar" data-shot-idx="${i}" x="${x}" y="${y}" width="${w}" height="${barH}" fill="${fill}"><title>${tip}</title></rect>`;
+    }
+    for (let i = 1; i <= 10; i++) {
+      const x = padL + (i - 0.5) * slotW;
+      html += `<text x="${x}" y="${H - 3}" text-anchor="middle" fill="${colors.font}" font-size="${fontSize}" pointer-events="none">${i}</text>`;
+    }
+    html += `<text x="3" y="${padT + fontSize}" fill="${colors.font}" font-size="${fontSize}" pointer-events="none">${yMax.toFixed(1)}</text>`;
+    html += `<text x="3" y="${padT + plotH}" fill="${colors.font}" font-size="${fontSize}" pointer-events="none">${yMin.toFixed(1)}</text>`;
+    for (let i = 0; i < 10; i++) {
+      const v = values[i];
+      if (v == null || Number.isNaN(v)) continue;
+      const tip = hoverValueLabel(i, v);
+      html += `<rect class="last10-hit" data-shot-idx="${i}" x="${padL + i * slotW}" y="${padT}" width="${slotW}" height="${plotH + padB}" fill="transparent"><title>${tip}</title></rect>`;
+    }
+    svg.innerHTML = html;
   }
-  for (let i = 1; i <= 10; i++) {
-    const x = padL + (i - 0.5) * slotW;
-    html += `<text x="${x}" y="${H - 3}" text-anchor="middle" fill="${colors.font}" font-size="${fontSize}">${i}</text>`;
-  }
-  html += `<text x="3" y="${padT + fontSize}" fill="${colors.font}" font-size="${fontSize}">${yMax.toFixed(1)}</text>`;
-  html += `<text x="3" y="${padT + plotH}" fill="${colors.font}" font-size="${fontSize}">${yMin.toFixed(1)}</text>`;
-  svg.innerHTML = html;
+
+  wireLast10ChartHover(container, rangeNum);
+  if (Number.isFinite(rangeNum)) paintHoverForRange(rangeNum);
 }
 
 function footerItem(label, value, visible) {
