@@ -398,8 +398,10 @@ class Runner:
 
     def play_bingo(self):
         def shots():
-            for v in (10.9, 9.5, 10.5):
-                send_shot(1, v, n=int(v * 10))
+            _, vm = phase_of(session())
+            values = ((vm or {}).get("game") or {}).get("cardValues") or []
+            for i, v in enumerate(values[:5]):
+                send_shot(1, float(v), n=i)
         self.play_started("zehner-bingo", shots)
 
     def play_tannebaum(self, plugin_id):

@@ -1,3 +1,161 @@
+// Shared Web Audio: unlock on first tap, then play decoded files from /sfx/.
+window.SRAudio = (function () {
+  const BASE = '/sfx/';
+  const EXTS = ['.mp3', '.ogg', '.m4a', '.wav'];
+  const DEFAULT_CUES = ['hit-glass', 'hit-glass-far', 'bingo'];
+
+  let ctx = null;
+  let master = null;
+  const buffers = {};
+  const loading = {};
+  const missing = {};
+
+  function ensure() {
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* */ }
+      if (ctx) {
+        master = ctx.createGain();
+        master.gain.value = 1;
+        master.connect(ctx.destination);
+      }
+    }
+    if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+      ctx.resume().catch(function () {});
+    }
+    return ctx;
+  }
+
+  function decode(c, arr) {
+    const copy = arr.slice(0);
+    return new Promise(function (resolve, reject) {
+      if (c.decodeAudioData.length === 1) {
+        c.decodeAudioData(copy).then(resolve, reject);
+      } else {
+        c.decodeAudioData(copy, resolve, reject);
+      }
+    });
+  }
+
+  function start(buf, gain) {
+    const c = ensure();
+    if (!c || !buf || !master) return;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const g = c.createGain();
+    g.gain.value = gain == null ? 1 : gain;
+    src.connect(g);
+    g.connect(master);
+    src.start();
+  }
+
+  function load(name, force) {
+    if (force) delete missing[name];
+    if (buffers[name]) return Promise.resolve(buffers[name]);
+    if (missing[name]) return Promise.resolve(null);
+    if (loading[name]) return loading[name];
+    const c = ensure();
+    if (!c) return Promise.resolve(null);
+    loading[name] = (function next(i) {
+      if (i >= EXTS.length) {
+        missing[name] = true;
+        return Promise.resolve(null);
+      }
+      return fetch(BASE + encodeURIComponent(name) + EXTS[i], { cache: 'no-cache' }).then(function (res) {
+        if (!res.ok) return next(i + 1);
+        return res.arrayBuffer().then(function (arr) {
+          return decode(c, arr);
+        }).then(function (buf) {
+          buffers[name] = buf;
+          delete missing[name];
+          return buf;
+        });
+      }).catch(function () {
+        return next(i + 1);
+      });
+    })(0);
+    return loading[name].then(function (buf) {
+      delete loading[name];
+      return buf;
+    });
+  }
+
+  function play(name, opts) {
+    opts = opts || {};
+    return load(name, opts.retry).then(function (buf) {
+      if (!buf && opts.fallbackName && opts.fallbackName !== name) {
+        return play(opts.fallbackName, {
+          gain: opts.fallbackGain == null ? 0.45 : opts.fallbackGain
+        });
+      }
+      if (!buf) return false;
+      start(buf, opts.gain);
+      return true;
+    });
+  }
+
+  function playOr(name, opts, fallback) {
+    return play(name, opts).then(function (ok) {
+      if (!ok && typeof fallback === 'function') fallback();
+      return ok;
+    });
+  }
+
+  function install(name, buf) {
+    if (!name || !buf) return;
+    buffers[name] = buf;
+    delete missing[name];
+  }
+
+  function installFile(name, file) {
+    const c = ensure();
+    if (!c || !file) return Promise.resolve(false);
+    return file.arrayBuffer().then(function (arr) {
+      return decode(c, arr);
+    }).then(function (buf) {
+      install(name, buf);
+      return true;
+    }).catch(function () {
+      return false;
+    });
+  }
+
+  function preload(names) {
+    (names || DEFAULT_CUES).forEach(function (n) { load(n); });
+  }
+
+  function has(name) {
+    return !!buffers[name];
+  }
+
+  function arm() {
+    const unlock = function () {
+      ensure();
+      preload();
+    };
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('touchstart', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arm);
+  } else {
+    arm();
+  }
+
+  return {
+    ensure: ensure,
+    load: load,
+    play: play,
+    playOr: playOr,
+    install: install,
+    installFile: installFile,
+    preload: preload,
+    has: has,
+    cues: DEFAULT_CUES
+  };
+})();
+
 window.SRPluginShell = (function () {
   // Loads a plugin's view.js, then delegates to SRPlugins / SRPluginViews.
   const loadedScripts = {}; // pluginId -> <script> element

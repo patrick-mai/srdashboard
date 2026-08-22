@@ -29,7 +29,7 @@ import (
 	"srdashboard/udp"
 )
 
-//go:embed static/*
+//go:embed all:static
 var staticFS embed.FS
 
 func main() {
@@ -159,7 +159,9 @@ func main() {
 			serveIndex(w, r)
 			return
 		}
-		if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".html") {
+		if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".html") ||
+			strings.HasSuffix(path, ".mp3") || strings.HasSuffix(path, ".ogg") ||
+			strings.HasSuffix(path, ".wav") || strings.HasSuffix(path, ".m4a") {
 			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		}
 		staticHandler.ServeHTTP(w, r)

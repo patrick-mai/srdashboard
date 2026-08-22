@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin id="zehner-bingo" label="Zehner-Bingo" version="1.0.0" mode="shared" kind="game">
-  <description>3×3 nur hohe Zellen (9.0–10.9). Ein Schuss markiert die höchste noch offene Zelle, die er erreichen kann. 6–7 zählen nicht. Erste Linie gewinnt.</description>
+  <description>5×5-Karte (8.5–10.9), zu Spielbeginn gemischt. Ein Schuss markiert die höchste noch offene Zelle, die er erreichen kann. Unter 8.5 zählt nicht. Erste Linie gewinnt.</description>
   <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
   <assetsDir>assets</assetsDir>
   <config>

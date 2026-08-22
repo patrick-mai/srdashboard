@@ -36,5 +36,12 @@ plugins/*/config.xml
 # Local audio edits (optional; safe if missing)
 fox-edit/
 
+# Local SFX generation / preview (game uses the mixed files in static/sfx/)
+static/sound-lab.html
+scripts/gen_sfx.py
+static/sfx/bingo-call.mp3
+static/sfx/bingo-fanfare.mp3
+static/sfx/bingo-applause.mp3
+
 # DISAG ShotsApp → Ring Reader iOS shortcut (proprietary key schedule — keep local)
 /shortcut/

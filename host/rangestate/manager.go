@@ -315,12 +315,16 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 			s.State = newState
 		}
 		s.ShotCount++
-		s.appendEvents(events)
 		s.UpdatedAt = time.Now()
 		if shared {
+			// Shared games broadcast range 1's session to every client
+			// (hall + all tablets). Events must live on that session, not
+			// only on the lane that shot, or stands 2+ stay silent.
+			m.appendEventsAllLocked(events)
 			m.refreshAllViewModelsLocked(ap)
 			m.notifyAllSessionsLocked()
 		} else {
+			s.appendEvents(events)
 			vm, _ := ap.Logic.ViewModel(s.State, rangeNum)
 			s.ViewModel = vm
 			m.notifyRangeLocked(rangeNum)
@@ -348,6 +352,19 @@ func (m *Manager) applyStateLocked(newState logicapi.SessionState, shared bool) 
 			}
 		}
 		return
+	}
+}
+
+func (m *Manager) appendEventsAllLocked(events []logicapi.PluginEvent) {
+	if len(events) == 0 {
+		return
+	}
+	now := time.Now()
+	for i := 1; i <= m.numRanges; i++ {
+		if s := m.sessions[i]; s != nil {
+			s.appendEvents(events)
+			s.UpdatedAt = now
+		}
 	}
 }
 
@@ -408,13 +425,7 @@ func (m *Manager) Tick(now time.Time) {
 		return
 	}
 	m.applyStateLocked(newState, true)
-	if len(events) > 0 {
-		for i := 1; i <= m.numRanges; i++ {
-			if s := m.sessions[i]; s != nil {
-				s.appendEvents(events)
-			}
-		}
-	}
+	m.appendEventsAllLocked(events)
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
 }
@@ -462,12 +473,7 @@ func (m *Manager) Control(action string, params map[string]any) error {
 	} else if s := m.sessions[1]; s != nil {
 		s.State = newState
 	}
-	for i := 1; i <= m.numRanges; i++ {
-		if s := m.sessions[i]; s != nil {
-			s.appendEvents(events)
-			s.UpdatedAt = time.Now()
-		}
-	}
+	m.appendEventsAllLocked(events)
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
 	return nil
@@ -652,11 +658,7 @@ func (m *Manager) syncLiveReady(onlyIfArming bool) {
 		return
 	}
 	m.applyStateLocked(newState, true)
-	for i := 1; i <= m.numRanges; i++ {
-		if s := m.sessions[i]; s != nil {
-			s.appendEvents(events)
-		}
-	}
+	m.appendEventsAllLocked(events)
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
 }

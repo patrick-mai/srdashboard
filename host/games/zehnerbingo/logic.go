@@ -3,6 +3,7 @@ package zehnerbingo
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"time"
@@ -20,23 +21,42 @@ func init() {
 }
 
 const (
-	WinLine     = "line"
-	WinBlackout = "blackout"
-	ResultMark  = "mark"
-	ResultMiss  = "miss"
+	WinLine      = "line"
+	WinBlackout  = "blackout"
+	ResultMark   = "mark"
+	ResultMiss   = "miss"
+	GridN        = 5
+	CardSize     = GridN * GridN
+	cardMinTenth = 85 // 8.5
 )
 
-// CardValues is row-major 3×3. Every line contains at least one 10.x.
-var CardValues = []float64{
-	10.9, 9.5, 10.5,
-	10.0, 10.7, 9.0,
-	10.3, 10.8, 10.6,
+var bingoLines = [][]int{
+	{0, 1, 2, 3, 4},
+	{5, 6, 7, 8, 9},
+	{10, 11, 12, 13, 14},
+	{15, 16, 17, 18, 19},
+	{20, 21, 22, 23, 24},
+	{0, 5, 10, 15, 20},
+	{1, 6, 11, 16, 21},
+	{2, 7, 12, 17, 22},
+	{3, 8, 13, 18, 23},
+	{4, 9, 14, 19, 24},
+	{0, 6, 12, 18, 24},
+	{4, 8, 12, 16, 20},
 }
 
-var bingoLines = [][]int{
-	{0, 1, 2}, {3, 4, 5}, {6, 7, 8},
-	{0, 3, 6}, {1, 4, 7}, {2, 5, 8},
-	{0, 4, 8}, {2, 4, 6},
+func canonicalCard() []float64 {
+	out := make([]float64, CardSize)
+	for i := 0; i < CardSize; i++ {
+		out[i] = float64(cardMinTenth+i) / 10
+	}
+	return out
+}
+
+func shuffleCard() []float64 {
+	out := canonicalCard()
+	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
 }
 
 type Logic struct {
@@ -122,6 +142,7 @@ type GameState struct {
 	Config             map[string]any     `json:"config"`
 	Players            map[string]*Player `json:"players"`
 	Shots              []ShotMark         `json:"shots"`
+	Card               []float64          `json:"card"`
 	WinnerRange        int                `json:"winnerRange"`
 	StartBlockedReason string             `json:"startBlockedReason"`
 	StatusLine         string             `json:"statusLine"`
@@ -136,6 +157,7 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 		NumRanges:  n,
 		Config:     merged,
 		Players:    map[string]*Player{},
+		Card:       shuffleCard(),
 		StatusLine: "Einschießen — danach Zehner-Bingo",
 	}
 	gs.ensure()
@@ -195,7 +217,7 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	}
 
 	eff := gameutil.Effective(raw, p.Handicap)
-	idx, val, ok := markHighest(p.Marked, CardValues, eff)
+	idx, val, ok := markHighest(p.Marked, gs.card(), eff)
 	mark := ShotMark{
 		RangeNum: ctx.RangeNum, Raw: raw, Effective: eff,
 		Result: ResultMiss, Cell: -1,
@@ -324,7 +346,8 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 			"startBlockedReason":   gs.StartBlockedReason,
 			"winnerRange":          gs.WinnerRange,
 			"winMode":              gameutil.CfgString(gs.Config, "winMode", WinLine),
-			"cardValues":           CardValues,
+			"gridSize":             GridN,
+			"cardValues":           gs.card(),
 			"players":              players,
 			"recentShots":          recentVM,
 			"defaultTargetProfile": gameutil.CfgString(gs.Config, "defaultTargetProfile", "air_rifle_10m"),
@@ -369,6 +392,13 @@ func playerLabel(p *Player) string {
 	return "Stand " + gameutil.Itoa(p.RangeNum)
 }
 
+func (gs *GameState) card() []float64 {
+	if gs == nil || len(gs.Card) != CardSize {
+		return canonicalCard()
+	}
+	return gs.Card
+}
+
 func markHighest(marked []bool, values []float64, shot float64) (int, float64, bool) {
 	bestI := -1
 	bestV := -1.0
@@ -395,7 +425,10 @@ func (gs *GameState) playerWins(p *Player) ([]int, bool) {
 				return nil, false
 			}
 		}
-		all := []int{0, 1, 2, 3, 4, 5, 6, 7, 8}
+		all := make([]int, len(p.Marked))
+		for i := range all {
+			all[i] = i
+		}
 		return all, true
 	}
 	for _, line := range bingoLines {
@@ -421,13 +454,14 @@ func (gs *GameState) beginPlay() []logicapi.PluginEvent {
 	gs.Shots = nil
 	gs.StartBlockedReason = ""
 	gs.StatusLine = "Zehner-Bingo — immer die höchste offene Zelle"
+	gs.Card = shuffleCard()
 	for _, p := range gs.Players {
 		if p == nil {
 			continue
 		}
 		p.Finished = false
 		p.BingoLine = nil
-		p.Marked = make([]bool, len(CardValues))
+		p.Marked = make([]bool, CardSize)
 		p.Seated = false
 		p.Handicap = gameutil.HandicapFor(gs.Config, p.RangeNum)
 	}
@@ -470,16 +504,19 @@ func (gs *GameState) ensure() {
 	if gs.NumRanges < 1 {
 		gs.NumRanges = 6
 	}
+	if len(gs.Card) != CardSize {
+		gs.Card = shuffleCard()
+	}
 	for i := 1; i <= gs.NumRanges; i++ {
 		k := gameutil.Itoa(i)
 		if gs.Players[k] == nil {
 			gs.Players[k] = &Player{
 				RangeNum: i, Active: true, WasWarmup: true,
-				Color: gameutil.LaneColor(i), Marked: make([]bool, len(CardValues)),
+				Color: gameutil.LaneColor(i), Marked: make([]bool, CardSize),
 			}
 		}
-		if len(gs.Players[k].Marked) != len(CardValues) {
-			gs.Players[k].Marked = make([]bool, len(CardValues))
+		if len(gs.Players[k].Marked) != CardSize {
+			gs.Players[k].Marked = make([]bool, CardSize)
 		}
 	}
 	gs.applyMembership(gs.Config)
@@ -568,7 +605,7 @@ func (gs *GameState) applyLive(params map[string]any) {
 		}
 		p := gs.Players[gameutil.Itoa(rn)]
 		if p == nil {
-			p = &Player{RangeNum: rn, Active: true, WasWarmup: true, Color: gameutil.LaneColor(rn), Marked: make([]bool, len(CardValues))}
+			p = &Player{RangeNum: rn, Active: true, WasWarmup: true, Color: gameutil.LaneColor(rn), Marked: make([]bool, CardSize)}
 			gs.Players[gameutil.Itoa(rn)] = p
 		}
 		if name, ok := m["shooterName"].(string); ok && name != "" {

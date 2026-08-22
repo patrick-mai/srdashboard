@@ -45,8 +45,15 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function ensureAudio() {
+    if (window.SRAudio && typeof window.SRAudio.ensure === 'function') {
+      audioCtx = window.SRAudio.ensure();
+      return audioCtx;
+    }
     if (!audioCtx) {
       try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* */ }
+    }
+    if (audioCtx && audioCtx.state === 'suspended' && audioCtx.resume) {
+      audioCtx.resume().catch(function () {});
     }
     return audioCtx;
   }
@@ -66,23 +73,41 @@ window.SRPluginViews = window.SRPluginViews || {};
     o.stop(ctx.currentTime + dur);
   }
 
+  function playCue(name, opts, fallback) {
+    if (window.SRAudio && typeof window.SRAudio.playOr === 'function') {
+      window.SRAudio.playOr(name, opts, fallback);
+      return;
+    }
+    if (fallback) fallback();
+  }
+
   function playEvents(events, focusRange) {
     if (!events || !events.length) return;
     const sig = JSON.stringify(events);
     if (sig === lastEventSig) return;
     lastEventSig = sig;
+    let winPlayed = false;
     events.forEach(function (ev) {
       if (!ev || !ev.type) return;
       const rn = ev.data && Number(ev.data.rangeNum);
       if (ev.type === 'strike') {
         if (ev.data && ev.data.gift) beep(420, 0.14, 'triangle', 0.07);
-        else if (!focusRange || rn === focusRange) beep(880, 0.12, 'sine', 0.09);
-        else beep(620, 0.08, 'sine', 0.05);
+        else if (!focusRange || rn === focusRange) {
+          playCue('hit-glass', {}, function () { beep(880, 0.12, 'sine', 0.09); });
+        } else {
+          playCue('hit-glass-far', { fallbackName: 'hit-glass', fallbackGain: 0.45 }, function () {
+            beep(620, 0.08, 'sine', 0.05);
+          });
+        }
       } else if (ev.type === 'miss') {
         if (!focusRange || rn === focusRange) beep(160, 0.18, 'square', 0.04);
       } else if (ev.type === 'match_finished' || ev.type === 'cleared') {
-        beep(523, 0.12); setTimeout(function () { beep(659, 0.14); }, 120);
-        setTimeout(function () { beep(784, 0.2); }, 260);
+        if (winPlayed) return;
+        winPlayed = true;
+        playCue('bingo', {}, function () {
+          beep(523, 0.12); setTimeout(function () { beep(659, 0.14); }, 120);
+          setTimeout(function () { beep(784, 0.2); }, 260);
+        });
       } else if (ev.type === 'match_start') {
         beep(500, 0.1); setTimeout(function () { beep(700, 0.15); }, 100);
       }

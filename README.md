@@ -91,7 +91,7 @@ Race to the Burg. Same step rules as Ludo. A wall blocks the next cell until a *
 
 ### Zehner-Bingo
 
-A 3×3 card of high cells (9.0–10.9). A shot marks the highest still-open cell it can reach. First full line wins (optional full-card mode). 6–7 mark nothing.
+A 5×5 card of 8.5–10.9, shuffled at match start. A shot marks the highest still-open cell it can reach. First full line wins (optional full-card mode). Below 8.5 marks nothing.
 
 <img src="./screenshots/zehner-bingo.png" alt="Zehner-Bingo">
 

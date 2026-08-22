@@ -33,6 +33,60 @@ func fire(t *testing.T, l *Logic, sess logicapi.SessionState, rn int, dec float6
 	return out, ev
 }
 
+func cardIndex(card []float64, want float64) int {
+	wantTenth := int(want*10 + 0.5)
+	for i, v := range card {
+		if int(v*10+0.5) == wantTenth {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestCardIsFiveByFiveAndShuffledAtStart(t *testing.T) {
+	l, sess := startTwo(t)
+	gs, _ := unmarshalState(sess)
+	if len(gs.Card) != CardSize {
+		t.Fatalf("card size %d want %d", len(gs.Card), CardSize)
+	}
+	counts := map[int]int{}
+	for _, v := range gs.Card {
+		counts[int(v*10+0.5)]++
+	}
+	for tenth := cardMinTenth; tenth <= cardMinTenth+CardSize-1; tenth++ {
+		if counts[tenth] != 1 {
+			t.Fatalf("value %.1f count %d want 1", float64(tenth)/10, counts[tenth])
+		}
+	}
+	canonical := canonicalCard()
+	same := true
+	for i := range canonical {
+		if gs.Card[i] != canonical[i] {
+			same = false
+			break
+		}
+	}
+	if same {
+		t.Fatal("card should be shuffled at start")
+	}
+
+	sess, _, err := l.Control(sess, "start", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs2, _ := unmarshalState(sess)
+	same = true
+	for i := range gs.Card {
+		if gs.Card[i] != gs2.Card[i] {
+			same = false
+			break
+		}
+	}
+	if same {
+		t.Fatal("start should shuffle a new card")
+	}
+}
+
 func TestSevenIsMiss(t *testing.T) {
 	l, sess := startTwo(t)
 	sess, ev := fire(t, l, sess, 1, 7.0)
@@ -57,8 +111,9 @@ func TestWaterfallSecondTenNine(t *testing.T) {
 	l, sess := startTwo(t)
 	sess, _ = fire(t, l, sess, 1, 10.9)
 	gs, _ := unmarshalState(sess)
-	if !gs.Players["1"].Marked[0] {
-		t.Fatal("first 10.9 should mark 10.9 (index 0)")
+	idx := cardIndex(gs.Card, 10.9)
+	if idx < 0 || !gs.Players["1"].Marked[idx] {
+		t.Fatal("first 10.9 should mark 10.9")
 	}
 	sess, ev := fire(t, l, sess, 1, 10.9)
 	found := false
@@ -74,33 +129,36 @@ func TestWaterfallSecondTenNine(t *testing.T) {
 
 func TestNineTwoCannotTakeNineFive(t *testing.T) {
 	l, sess := startTwo(t)
-	// mark 9.0 (index 5) first with a 9.2
-	sess, _ = fire(t, l, sess, 1, 9.2)
-	gs, _ := unmarshalState(sess)
-	if !gs.Players["1"].Marked[5] {
-		t.Fatalf("9.2 should mark 9.0, marked=%v", gs.Players["1"].Marked)
-	}
-	sess, ev := fire(t, l, sess, 1, 9.2)
-	found := false
-	for _, e := range ev {
-		if e.Type == "miss" {
-			found = true
+	var last []logicapi.PluginEvent
+	missed := false
+	for i := 0; i < CardSize; i++ {
+		sess, last = fire(t, l, sess, 1, 9.2)
+		for _, e := range last {
+			if e.Type == "miss" {
+				missed = true
+			}
+		}
+		if missed {
+			break
 		}
 	}
-	if !found {
-		t.Fatalf("second 9.2 should miss (cannot take 9.5), got %#v", ev)
+	if !missed {
+		t.Fatalf("expected miss after cells ≤ 9.2 are gone, got %#v", last)
+	}
+	gs, _ := unmarshalState(sess)
+	idx := cardIndex(gs.Card, 9.5)
+	if idx >= 0 && gs.Players["1"].Marked[idx] {
+		t.Fatal("9.2 must not mark 9.5")
 	}
 }
 
 func TestLineWin(t *testing.T) {
 	l, sess := startTwo(t)
-	// Bottom row: 10.3, 10.8, 10.6 (indices 6,7,8)
-	for _, v := range []float64{10.3, 10.8, 10.6} {
-		var ev []logicapi.PluginEvent
-		sess, ev = fire(t, l, sess, 1, v)
-		_ = ev
-	}
 	gs, _ := unmarshalState(sess)
+	for _, v := range gs.Card[:GridN] {
+		sess, _ = fire(t, l, sess, 1, v)
+	}
+	gs, _ = unmarshalState(sess)
 	if gs.WinnerRange != 1 || gs.Phase != "finished" {
 		t.Fatalf("winner=%d phase=%s marked=%v", gs.WinnerRange, gs.Phase, gs.Players["1"].Marked)
 	}

@@ -25,8 +25,15 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function ensureAudio() {
+    if (window.SRAudio && typeof window.SRAudio.ensure === 'function') {
+      audioCtx = window.SRAudio.ensure();
+      return audioCtx;
+    }
     if (!audioCtx) {
       try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* */ }
+    }
+    if (audioCtx && audioCtx.state === 'suspended' && audioCtx.resume) {
+      audioCtx.resume().catch(function () {});
     }
     return audioCtx;
   }
@@ -46,11 +53,20 @@ window.SRPluginViews = window.SRPluginViews || {};
     o.stop(ctx.currentTime + dur);
   }
 
+  function playCue(name, opts, fallback) {
+    if (window.SRAudio && typeof window.SRAudio.playOr === 'function') {
+      window.SRAudio.playOr(name, opts, fallback);
+      return;
+    }
+    if (fallback) fallback();
+  }
+
   function playEvents(events, focusRange) {
     if (!events || !events.length) return;
     const sig = JSON.stringify(events);
     if (sig === lastEventSig) return;
     lastEventSig = sig;
+    let winPlayed = false;
     events.forEach(function (ev) {
       if (!ev || !ev.type) return;
       const rn = ev.data && Number(ev.data.rangeNum);
@@ -60,8 +76,12 @@ window.SRPluginViews = window.SRPluginViews || {};
       } else if (ev.type === 'miss') {
         if (!focusRange || rn === focusRange) beep(160, 0.18, 'square', 0.04);
       } else if (ev.type === 'bingo' || ev.type === 'match_finished') {
-        beep(523, 0.12); setTimeout(function () { beep(659, 0.14); }, 120);
-        setTimeout(function () { beep(784, 0.2); }, 260);
+        if (winPlayed) return;
+        winPlayed = true;
+        playCue('bingo', {}, function () {
+          beep(523, 0.12); setTimeout(function () { beep(659, 0.14); }, 120);
+          setTimeout(function () { beep(784, 0.2); }, 260);
+        });
       } else if (ev.type === 'match_start') {
         beep(500, 0.1); setTimeout(function () { beep(700, 0.15); }, 100);
       }
@@ -243,6 +263,7 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function standingsHtml(game, focusRange) {
+    const total = ((game && game.cardValues) || []).length || 25;
     const list = visiblePlayers(game).slice().sort(function (a, b) {
       if (!!a.finished !== !!b.finished) return a.finished ? -1 : 1;
       return (b.markedCount || 0) - (a.markedCount || 0);
@@ -253,7 +274,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       return '<li class="' + cls + '">' +
         '<span class="zb-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
         '<span>' + esc(p.label) + '</span>' +
-        '<strong>' + (p.finished ? 'Bingo' : esc(p.markedCount || 0) + '/9') + '</strong>' +
+        '<strong>' + (p.finished ? 'Bingo' : esc(p.markedCount || 0) + '/' + total) + '</strong>' +
         '<span></span></li>';
     }).join('') + '</ul>';
   }
@@ -263,23 +284,28 @@ window.SRPluginViews = window.SRPluginViews || {};
     const line = {};
     ((player && player.bingoLine) || []).forEach(function (i) { line[i] = true; });
     const accent = (player && player.color) || '#2f6b3a';
+    const n = 5;
+    const pad = 6;
+    const step = 38;
+    const cell = 34;
+    const box = pad * 2 + step * (n - 1) + cell;
     let cells = '';
-    for (let i = 0; i < 9; i++) {
-      const r = Math.floor(i / 3);
-      const c = i % 3;
-      const x = 8 + c * 54;
-      const y = 8 + r * 54;
+    for (let i = 0; i < n * n; i++) {
+      const r = Math.floor(i / n);
+      const c = i % n;
+      const x = pad + c * step;
+      const y = pad + r * step;
       const on = !!marked[i];
       const win = !!line[i];
       const fill = on ? accent : '#fffdf8';
       const stroke = win ? '#c9a227' : (on ? '#1e2f24' : '#c5b89a');
       const text = on ? '#fffdf8' : '#1e2f24';
-      cells += '<g><rect x="' + x + '" y="' + y + '" width="50" height="50" rx="8" fill="' + fill +
-        '" stroke="' + stroke + '" stroke-width="' + (win ? 3 : 1.5) + '"/>' +
-        '<text x="' + (x + 25) + '" y="' + (y + 31) + '" text-anchor="middle" font-size="13" font-weight="700" fill="' + text + '">' +
+      cells += '<g><rect x="' + x + '" y="' + y + '" width="' + cell + '" height="' + cell + '" rx="6" fill="' + fill +
+        '" stroke="' + stroke + '" stroke-width="' + (win ? 2.5 : 1.25) + '"/>' +
+        '<text x="' + (x + cell / 2) + '" y="' + (y + cell * 0.64) + '" text-anchor="middle" font-size="11" font-weight="700" fill="' + text + '">' +
         esc(fmt1(cardValues[i])) + '</text></g>';
     }
-    return '<svg class="zb-card-svg" viewBox="0 0 178 178" aria-label="Bingo-Karte">' + cells + '</svg>';
+    return '<svg class="zb-card-svg" viewBox="0 0 ' + box + ' ' + box + '" aria-label="Bingo-Karte">' + cells + '</svg>';
   }
 
   function cardsHtml(game, focusRange, isMaster) {
@@ -422,7 +448,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     if (footer) {
       footer.innerHTML = '<span class="zb-meta">' +
         (game.winMode === 'blackout' ? 'Vollkarte gewinnt' : 'Erste Linie gewinnt') +
-        ' · höchste offene Zelle ≤ Schuss · 6–7 zählen nicht</span>';
+        ' · höchste offene Zelle ≤ Schuss · unter 8.5 zählt nicht</span>';
     }
     if (container.id === 'shared-master-host') {
       container._sharedReady = true;

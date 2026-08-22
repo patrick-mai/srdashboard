@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -113,6 +114,68 @@ func startRace(t *testing.T, m *Manager, ranges int) {
 	}
 	if len(b.sessions) != 1 {
 		t.Fatalf("got %d plugin_session messages for shared race, want 1", len(b.sessions))
+	}
+}
+
+// Shared games send one plugin_session (range 1) to every client. A shot on
+// stand 2 must still put events on that payload, or hall/tablets stay silent.
+func TestSharedShotOnNonFirstRangeBroadcastsEvents(t *testing.T) {
+	m, b := newSharedManager(t, 2)
+	startRace(t, m, 2)
+	b.reset()
+
+	m.OnShot(2, state.Shot{DecValue: 10.2, FullValue: 10, ReceivedAt: time.Now()}, 1)
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.sessions) != 1 {
+		t.Fatalf("got %d plugin_session messages, want 1", len(b.sessions))
+	}
+	if len(b.sessions[0].Events) == 0 {
+		t.Fatal("shot on range 2 produced no events in the shared broadcast")
+	}
+}
+
+func newBingoManager(t *testing.T, ranges int) (*Manager, *recordingBroadcaster) {
+	t.Helper()
+	pm := loader.NewManager(filepath.Join("..", "..", "plugins"))
+	if err := pm.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(ranges, pm, "zehner-bingo")
+	m.SetLiveSource(state.NewLiveState(ranges))
+	b := &recordingBroadcaster{}
+	m.SetBroadcaster(b)
+	if err := m.Activate("zehner-bingo"); err != nil {
+		t.Fatal(err)
+	}
+	live := map[string]any{}
+	for i := 1; i <= ranges; i++ {
+		live[itoa(i)] = map[string]any{"totalShotsToFire": 40, "isWarmup": false}
+	}
+	if err := m.Control("start", map[string]any{"live": live}); err != nil {
+		t.Fatal(err)
+	}
+	return m, b
+}
+
+func TestBingoShotOnNonFirstRangeBroadcastsEvents(t *testing.T) {
+	m, b := newBingoManager(t, 2)
+	b.reset()
+
+	m.OnShot(2, state.Shot{DecValue: 10.9, FullValue: 10, ReceivedAt: time.Now()}, 1)
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.sessions) != 1 {
+		t.Fatalf("got %d plugin_session messages, want 1", len(b.sessions))
+	}
+	got := map[string]bool{}
+	for _, ev := range b.sessions[0].Events {
+		got[ev.Type] = true
+	}
+	if !got["mark"] && !got["miss"] {
+		t.Fatalf("bingo shot on range 2 produced %#v, want mark or miss so tablets can beep", b.sessions[0].Events)
 	}
 }
 

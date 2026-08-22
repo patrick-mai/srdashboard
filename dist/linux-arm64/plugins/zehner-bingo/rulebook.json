@@ -1,11 +1,11 @@
 {
   "title": "Zehner-Bingo",
-  "summary": "Jeder Stand hat dieselbe 3×3-Karte mit hohen Zellen (9.0–10.9). Ein Schuss markiert die höchste noch offene Zelle, die er erreichen kann. Erste volle Linie gewinnt.",
+  "summary": "Jeder Stand hat dieselbe 5×5-Karte (8.5–10.9), die zu Spielbeginn gemischt wird. Ein Schuss markiert die höchste noch offene Zelle, die er erreichen kann. Erste volle Linie gewinnt.",
   "sections": [
     {
       "heading": "Die Karte",
       "paragraphs": [
-        "Neun Zellen, nur hohe Werte. Jede Linie (Reihe, Spalte oder Diagonale) enthält mindestens eine 10.x-Zelle."
+        "Fünfundzwanzig Zellen mit den Zehnteln von 8.5 bis 10.9. Die Anordnung wird zu Beginn jedes Spiels neu gemischt. Alle Stände spielen dieselbe Karte."
       ]
     },
     {
@@ -13,7 +13,7 @@
       "items": [
         "Der Schusswert muss mindestens so hoch sein wie die Zelle.",
         "Es fällt immer die höchste noch offene Zelle, die der Schuss erreichen kann.",
-        "6 und 7 (und alles unter 9.0) markieren nichts."
+        "Alles unter 8.5 markiert nichts."
       ]
     },
     {
@@ -25,7 +25,7 @@
     {
       "heading": "Sieg",
       "paragraphs": [
-        "Wer zuerst eine volle Linie hat, gewinnt (Einstellung: Linie). Optional kann auf Vollkarte (alle neun Zellen) gestellt werden. Nach dem Einschießen startet Bingo, sobald alle Stände bereit sind."
+        "Wer zuerst eine volle Linie hat (Reihe, Spalte oder Diagonale), gewinnt (Einstellung: Linie). Optional kann auf Vollkarte (alle 25 Zellen) gestellt werden. Nach dem Einschießen startet Bingo, sobald alle Stände bereit sind."
       ]
     }
   ]

@@ -85,8 +85,8 @@
   border-radius: var(--zb-radius); overflow: hidden;
 }
 .zb-cards {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.5rem; align-items: start;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.45rem; align-items: start; overflow: auto; min-height: 0; flex: 1 1 auto;
 }
 .zb-card {
   background: var(--zb-solid); border-radius: 14px; padding: 0.4rem;

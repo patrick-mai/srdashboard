@@ -76,11 +76,37 @@ func playBingo(t *testing.T, h *Host) {
 	t.Helper()
 	h.Start()
 	h.requireBothRangesPaint()
-	// First row of the card: 10.9, 9.5, 10.5.
-	for _, v := range []float64{10.9, 9.5, 10.5} {
+	vals := bingoCardValues(nest(h.VM(1), "game"))
+	if len(vals) < 5 {
+		t.Fatalf("bingo card values=%d want 25", len(vals))
+	}
+	for _, v := range vals[:5] {
 		h.Fire(1, v)
 	}
 	h.requirePhase([]string{"game", "phase"}, "finished")
+}
+
+func bingoCardValues(game map[string]any) []float64 {
+	if game == nil {
+		return nil
+	}
+	switch t := game["cardValues"].(type) {
+	case []float64:
+		return t
+	case []any:
+		out := make([]float64, 0, len(t))
+		for _, x := range t {
+			switch n := x.(type) {
+			case float64:
+				out = append(out, n)
+			case int:
+				out = append(out, float64(n))
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 var tannebaumClear = []float64{
