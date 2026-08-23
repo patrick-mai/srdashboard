@@ -448,6 +448,16 @@ class Runner:
         self.reload()
         self.capture("fox-on-the-run", "end")
 
+    def play_concept(self, plugin_id):
+        def shots():
+            for i in range(80):
+                for r in range(1, min(3, RANGES + 1)):
+                    send_shot(r, 10.9 if r == 1 else 8.8, n=200 + i * 10 + r)
+                ph, _ = phase_of(session())
+                if "finish" in ph.lower():
+                    return
+        self.play_started(plugin_id, shots)
+
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
@@ -478,6 +488,12 @@ def main():
             r.play_tannebaum("tannebaum-team")
             r.play_fox()
             r.play_autorennen()
+            for pid in (
+                "tauziehen", "kettenreaktion", "biathlon", "schrumpfender-kreis",
+                "kronen-duell", "bank-oder-risiko", "ko-pokal", "schiessgolf",
+                "turmbau", "ansage-duell",
+            ):
+                r.play_concept(pid)
         finally:
             try:
                 activate("classic-range")

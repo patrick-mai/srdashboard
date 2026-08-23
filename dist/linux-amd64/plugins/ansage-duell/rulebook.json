@@ -1,0 +1,26 @@
+{
+  "title": "Ansage-Duell",
+  "summary": "Sage an, was du liefern wirst, dann liefere es. Nur höherer Wert oder Hole-in-Hole zählen.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Vor jeder Runde eine Ansage wählen.",
+        "Verträge beziehen sich auf den eigenen Schnitt."
+      ]
+    },
+    {
+      "heading": "Wertung",
+      "items": [
+        "Halten bringt die Ansagepunkte.",
+        "Reißen kostet die Hälfte."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Höchste Punktzahl nach allen Runden."
+      ]
+    }
+  ]
+}

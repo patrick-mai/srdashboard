@@ -9,11 +9,21 @@ import (
 	"testing"
 
 	"srdashboard/config"
+	_ "srdashboard/host/games/ansageduell"
 	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/bankoderrisiko"
 	_ "srdashboard/host/games/barrikade"
+	_ "srdashboard/host/games/biathlon"
 	_ "srdashboard/host/games/foxontherun"
+	_ "srdashboard/host/games/kettenreaktion"
+	_ "srdashboard/host/games/kopokal"
+	_ "srdashboard/host/games/kronenduell"
 	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/schiessgolf"
+	_ "srdashboard/host/games/schrumpfenderkreis"
 	_ "srdashboard/host/games/tannebaum"
+	_ "srdashboard/host/games/tauziehen"
+	_ "srdashboard/host/games/turmbau"
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
@@ -26,6 +36,9 @@ func TestRulebooksAreServedAsPluginAssets(t *testing.T) {
 	ids := []string{
 		"autorennen", "ludo", "barrikade", "fox-on-the-run",
 		"tannebaum-einzel", "tannebaum-team", "zehner-bingo",
+		"tauziehen", "kettenreaktion", "biathlon", "schrumpfender-kreis",
+		"kronen-duell", "bank-oder-risiko", "ko-pokal", "schiessgolf",
+		"turmbau", "ansage-duell",
 	}
 	for _, id := range ids {
 		path := "/plugins/" + id + "/rulebook.json"

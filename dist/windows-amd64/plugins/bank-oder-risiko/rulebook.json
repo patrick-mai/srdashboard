@@ -1,0 +1,27 @@
+{
+  "title": "Bank oder Risiko",
+  "summary": "Schüsse füllen den Pot. Banken, bevor ein schwacher Schuss ihn wischt.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Freies Schießen. Am Tablet banken.",
+        "Kalibrierung setzt den persönlichen Boden."
+      ]
+    },
+    {
+      "heading": "Pot",
+      "items": [
+        "Jeder Schuss addiert den Wert.",
+        "Unter dem Boden: Pot weg.",
+        "Hole-in-Hole über 8,5 verdoppelt den Pot."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Höchster gebankter Stand. Was am Ende im Pot liegt, verfällt."
+      ]
+    }
+  ]
+}

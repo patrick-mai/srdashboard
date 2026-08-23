@@ -34,7 +34,11 @@
     const installed = installedPlugins.find(function (p) { return p.id === id; });
     if (installed) return installed.mode === 'shared';
     return id === 'autorennen' || id === 'fox-on-the-run' ||
-      id === 'zehner-bingo' || id === 'barrikade' || id === 'ludo';
+      id === 'zehner-bingo' || id === 'barrikade' || id === 'ludo' ||
+      id === 'tauziehen' || id === 'kettenreaktion' || id === 'biathlon' ||
+      id === 'schrumpfender-kreis' || id === 'kronen-duell' ||
+      id === 'bank-oder-risiko' || id === 'ko-pokal' || id === 'schiessgolf' ||
+      id === 'turmbau' || id === 'ansage-duell';
   }
 
   function teardownSharedHost() {
@@ -815,6 +819,46 @@
         if (oilBtn) oilBtn.hidden = true;
       } else if (id === 'ludo') {
         if (startBtn) startBtn.textContent = 'Ludo starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'tauziehen') {
+        if (startBtn) startBtn.textContent = 'Tauziehen starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'kettenreaktion') {
+        if (startBtn) startBtn.textContent = 'Kette starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'biathlon') {
+        if (startBtn) startBtn.textContent = 'Biathlon starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'schrumpfender-kreis') {
+        if (startBtn) startBtn.textContent = 'Kreis starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'kronen-duell') {
+        if (startBtn) startBtn.textContent = 'Duell starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'bank-oder-risiko') {
+        if (startBtn) startBtn.textContent = 'Risiko starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'ko-pokal') {
+        if (startBtn) startBtn.textContent = 'Pokal starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'schiessgolf') {
+        if (startBtn) startBtn.textContent = 'Golf starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'turmbau') {
+        if (startBtn) startBtn.textContent = 'Turm starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'ansage-duell') {
+        if (startBtn) startBtn.textContent = 'Ansage starten';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
       } else {

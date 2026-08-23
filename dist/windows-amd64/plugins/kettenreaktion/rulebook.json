@@ -1,0 +1,26 @@
+{
+  "title": "Kettenreaktion",
+  "summary": "Aufeinanderfolgende Schüsse ins selbe Loch bauen eine Kette. Jedes Glied vervielfacht die Punkte.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Freies Schießen, festes Schussprogramm.",
+        "Eine Kette beginnt mit einem Schuss über 8,5."
+      ]
+    },
+    {
+      "heading": "Kette",
+      "items": [
+        "Hole-in-Hole (50 %, Wert über 8,5) verlängert die Kette.",
+        "Jeder andere Schuss bricht sie, außer einer Schutz bleibt."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Höchste Punktzahl. Bei Gleichstand die längste Kette."
+      ]
+    }
+  ]
+}

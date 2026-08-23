@@ -1678,6 +1678,56 @@ body.config-display {
   background: #5a3224;
 }
 
+#shared-master-host.tz-view,
+#shared-master-host:has(.tz-view) {
+  background: #3a4a38;
+}
+
+#shared-master-host.kr-view,
+#shared-master-host:has(.kr-view) {
+  background: #2c3a52;
+}
+
+#shared-master-host.bt-view,
+#shared-master-host:has(.bt-view) {
+  background: #1e3a48;
+}
+
+#shared-master-host.sk-view,
+#shared-master-host:has(.sk-view) {
+  background: #3b2a1e;
+}
+
+#shared-master-host.kd-view,
+#shared-master-host:has(.kd-view) {
+  background: #3a2a48;
+}
+
+#shared-master-host.bk-view,
+#shared-master-host:has(.bk-view) {
+  background: #2a3a2e;
+}
+
+#shared-master-host.kp-view,
+#shared-master-host:has(.kp-view) {
+  background: #3a2430;
+}
+
+#shared-master-host.sg-view,
+#shared-master-host:has(.sg-view) {
+  background: #2e4a32;
+}
+
+#shared-master-host.tw-view,
+#shared-master-host:has(.tw-view) {
+  background: #4a3828;
+}
+
+#shared-master-host.ad-view,
+#shared-master-host:has(.ad-view) {
+  background: #243848;
+}
+
 #shared-master-host[hidden] {
   display: none !important;
 }

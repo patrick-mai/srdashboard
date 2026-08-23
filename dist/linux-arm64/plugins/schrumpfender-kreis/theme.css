@@ -1,0 +1,107 @@
+.sk-view {
+  --sk-ink: #f6ead8;
+  --sk-muted: rgba(255,255,255,0.62);
+  --sk-accent: #f0a05a;
+  --sk-ok: #f0a05a;
+  --sk-snow: rgba(255,255,255,0.12);
+  --sk-line: rgba(255,255,255,0.22);
+  --sk-glass: rgba(0,0,0,0.22);
+  --sk-solid: rgba(0,0,0,0.28);
+  --sk-radius: 18px;
+  --sk-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--sk-ink);
+  font-family: var(--sk-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #3b2a1e;
+  overflow: hidden;
+}
+.sk-view * { box-sizing: border-box; }
+
+#shared-master-host.sk-view,
+#shared-master-host > .sk-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  background: #3b2a1e;
+}
+
+.sk-master-layout, .sk-shooter-layout {
+  display: flex; flex-direction: column; height: 100%; min-height: 100%;
+}
+.sk-header {
+  flex: 0 0 auto; margin: 0.45rem 0.55rem 0; padding: 0.55rem 0.95rem;
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: baseline;
+  background: var(--sk-glass); border: 1px solid var(--sk-line);
+  border-radius: var(--sk-radius);
+}
+.sk-title { font-size: 1.45rem; font-weight: 700; }
+.sk-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: var(--sk-ok); color: #1a1a1a; font-weight: 700; font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.sk-meta { color: var(--sk-muted); font-size: 0.95rem; }
+.sk-status {
+  font-weight: 700; margin-left: auto; padding: 0.2rem 0.55rem;
+  background: var(--sk-solid); border-radius: 999px;
+}
+.sk-main {
+  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+}
+.sk-target-col, .sk-board-col {
+  min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+}
+.sk-panel {
+  background: var(--sk-solid); border: 1px solid var(--sk-line);
+  border-radius: 14px; padding: 0.5rem 0.6rem; min-height: 0;
+}
+.sk-panel h3 { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--sk-muted); }
+.sk-scheibe-wrap {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; background: var(--sk-glass); border: 1px solid var(--sk-line);
+  border-radius: var(--sk-radius);
+}
+.sk-scheibe-wrap svg, .sk-scheibe-svg { width: 100%; height: 100%; }
+.sk-shot-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.sk-shot-val { font-size: 1.6rem; font-weight: 700; }
+.sk-muted { color: var(--sk-muted); font-size: 0.85rem; }
+.sk-block {
+  margin-top: 0.35rem; background: rgba(255,255,255,0.1);
+  border: 1px solid var(--sk-line); border-radius: 12px; padding: 8px 12px;
+}
+.sk-board-host {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+  padding: 0.15rem; background: transparent; border: none;
+  border-radius: var(--sk-radius); overflow: hidden;
+  align-items: stretch; justify-content: center;
+}
+.sk-board-svg {
+  width: 100%; height: 100%; flex: 1 1 auto; min-height: 0; display: block;
+}
+.sk-recent, .sk-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; overflow: hidden; }
+.sk-recent li, .sk-standings li {
+  display: grid; grid-template-columns: 14px 1fr auto auto; gap: 0.45rem; align-items: center; font-size: 0.86rem;
+}
+.sk-recent li.is-me, .sk-standings li.is-me {
+  background: rgba(255,255,255,0.12); border-radius: 8px; padding: 0.12rem 0.28rem;
+}
+.sk-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.sk-footer {
+  flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
+  background: var(--sk-glass); border: 1px solid var(--sk-line); border-radius: 14px;
+}
+.sk-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
+.sk-btn {
+  border: 0; border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 700;
+  background: var(--sk-accent); color: #1a1a1a; cursor: pointer;
+}
+@media (max-width: 900px) {
+  .sk-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
+}

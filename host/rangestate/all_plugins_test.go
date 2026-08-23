@@ -5,11 +5,21 @@ import (
 	"path/filepath"
 	"testing"
 
+	_ "srdashboard/host/games/ansageduell"
 	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/bankoderrisiko"
 	_ "srdashboard/host/games/barrikade"
+	_ "srdashboard/host/games/biathlon"
 	_ "srdashboard/host/games/foxontherun"
+	_ "srdashboard/host/games/kettenreaktion"
+	_ "srdashboard/host/games/kopokal"
+	_ "srdashboard/host/games/kronenduell"
 	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/schiessgolf"
+	_ "srdashboard/host/games/schrumpfenderkreis"
 	_ "srdashboard/host/games/tannebaum"
+	_ "srdashboard/host/games/tauziehen"
+	_ "srdashboard/host/games/turmbau"
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
 	"srdashboard/state"
@@ -30,8 +40,10 @@ func TestAllBundledPluginsLoadAndActivate(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"autorennen", "barrikade", "classic-range", "fox-on-the-run",
-		"ludo", "tannebaum-einzel", "tannebaum-team", "zehner-bingo",
+		"ansage-duell", "autorennen", "bank-oder-risiko", "barrikade", "biathlon",
+		"classic-range", "fox-on-the-run", "kettenreaktion", "ko-pokal",
+		"kronen-duell", "ludo", "schiessgolf", "schrumpfender-kreis",
+		"tannebaum-einzel", "tannebaum-team", "tauziehen", "turmbau", "zehner-bingo",
 	}
 	wantSet := map[string]bool{}
 	for _, id := range want {

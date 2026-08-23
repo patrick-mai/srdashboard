@@ -1,0 +1,27 @@
+{
+  "title": "Biathlon",
+  "summary": "Vier Schießrunden à fünf Scheiben. Wer seinen Schnitt trifft, räumt. Fehlschüsse kosten Zeit.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Kalibrierung setzt die persönliche Trefferschwelle.",
+        "Vier Runden à fünf Scheiben."
+      ]
+    },
+    {
+      "heading": "Wertung",
+      "items": [
+        "Treffer räumt die nächste Scheibe.",
+        "Fehlschuss addiert Strafsekunden.",
+        "Hole-in-Hole über 8,5 spart Zeit."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Niedrigste Gesamtzeit gewinnt."
+      ]
+    }
+  ]
+}

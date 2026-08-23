@@ -1,0 +1,26 @@
+{
+  "title": "Kronen-Duell",
+  "summary": "Eine Krone. Wer den Träger überbietet, nimmt sie. Zeit mit der Krone gewinnt.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Der erste Wertungsschuss nimmt die Krone.",
+        "Danach stiehlt, wer die Latte überbietet."
+      ]
+    },
+    {
+      "heading": "Krone",
+      "items": [
+        "Die Latte sinkt mit jedem Schuss im Feld.",
+        "Hole-in-Hole über 8,5 stiehlt sofort."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Meiste Kronenzeit gewinnt."
+      ]
+    }
+  ]
+}

@@ -9,11 +9,21 @@ import (
 	"testing"
 	"time"
 
+	_ "srdashboard/host/games/ansageduell"
 	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/bankoderrisiko"
 	_ "srdashboard/host/games/barrikade"
+	_ "srdashboard/host/games/biathlon"
 	_ "srdashboard/host/games/foxontherun"
+	_ "srdashboard/host/games/kettenreaktion"
+	_ "srdashboard/host/games/kopokal"
+	_ "srdashboard/host/games/kronenduell"
 	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/schiessgolf"
+	_ "srdashboard/host/games/schrumpfenderkreis"
 	_ "srdashboard/host/games/tannebaum"
+	_ "srdashboard/host/games/tauziehen"
+	_ "srdashboard/host/games/turmbau"
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
@@ -127,6 +137,13 @@ func (h *Host) Start() {
 	h.T.Helper()
 	if err := h.PS.Control("start", nil); err != nil {
 		h.T.Fatalf("start %s: %v", h.PluginID, err)
+	}
+}
+
+func (h *Host) Control(action string, params map[string]any) {
+	h.T.Helper()
+	if err := h.PS.Control(action, params); err != nil {
+		h.T.Fatalf("%s control %s: %v", h.PluginID, action, err)
 	}
 }
 

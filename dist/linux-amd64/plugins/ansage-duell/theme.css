@@ -1,0 +1,107 @@
+.ad-view {
+  --ad-ink: #e8f2fa;
+  --ad-muted: rgba(255,255,255,0.62);
+  --ad-accent: #7ec8e8;
+  --ad-ok: #7ec8e8;
+  --ad-snow: rgba(255,255,255,0.12);
+  --ad-line: rgba(255,255,255,0.22);
+  --ad-glass: rgba(0,0,0,0.22);
+  --ad-solid: rgba(0,0,0,0.28);
+  --ad-radius: 18px;
+  --ad-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--ad-ink);
+  font-family: var(--ad-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #243848;
+  overflow: hidden;
+}
+.ad-view * { box-sizing: border-box; }
+
+#shared-master-host.ad-view,
+#shared-master-host > .ad-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  background: #243848;
+}
+
+.ad-master-layout, .ad-shooter-layout {
+  display: flex; flex-direction: column; height: 100%; min-height: 100%;
+}
+.ad-header {
+  flex: 0 0 auto; margin: 0.45rem 0.55rem 0; padding: 0.55rem 0.95rem;
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: baseline;
+  background: var(--ad-glass); border: 1px solid var(--ad-line);
+  border-radius: var(--ad-radius);
+}
+.ad-title { font-size: 1.45rem; font-weight: 700; }
+.ad-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: var(--ad-ok); color: #1a1a1a; font-weight: 700; font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.ad-meta { color: var(--ad-muted); font-size: 0.95rem; }
+.ad-status {
+  font-weight: 700; margin-left: auto; padding: 0.2rem 0.55rem;
+  background: var(--ad-solid); border-radius: 999px;
+}
+.ad-main {
+  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+}
+.ad-target-col, .ad-board-col {
+  min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+}
+.ad-panel {
+  background: var(--ad-solid); border: 1px solid var(--ad-line);
+  border-radius: 14px; padding: 0.5rem 0.6rem; min-height: 0;
+}
+.ad-panel h3 { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--ad-muted); }
+.ad-scheibe-wrap {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; background: var(--ad-glass); border: 1px solid var(--ad-line);
+  border-radius: var(--ad-radius);
+}
+.ad-scheibe-wrap svg, .ad-scheibe-svg { width: 100%; height: 100%; }
+.ad-shot-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.ad-shot-val { font-size: 1.6rem; font-weight: 700; }
+.ad-muted { color: var(--ad-muted); font-size: 0.85rem; }
+.ad-block {
+  margin-top: 0.35rem; background: rgba(255,255,255,0.1);
+  border: 1px solid var(--ad-line); border-radius: 12px; padding: 8px 12px;
+}
+.ad-board-host {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+  padding: 0.15rem; background: transparent; border: none;
+  border-radius: var(--ad-radius); overflow: hidden;
+  align-items: stretch; justify-content: center;
+}
+.ad-board-svg {
+  width: 100%; height: 100%; flex: 1 1 auto; min-height: 0; display: block;
+}
+.ad-recent, .ad-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; overflow: hidden; }
+.ad-recent li, .ad-standings li {
+  display: grid; grid-template-columns: 14px 1fr auto auto; gap: 0.45rem; align-items: center; font-size: 0.86rem;
+}
+.ad-recent li.is-me, .ad-standings li.is-me {
+  background: rgba(255,255,255,0.12); border-radius: 8px; padding: 0.12rem 0.28rem;
+}
+.ad-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.ad-footer {
+  flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
+  background: var(--ad-glass); border: 1px solid var(--ad-line); border-radius: 14px;
+}
+.ad-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
+.ad-btn {
+  border: 0; border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 700;
+  background: var(--ad-accent); color: #1a1a1a; cursor: pointer;
+}
+@media (max-width: 900px) {
+  .ad-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
+}

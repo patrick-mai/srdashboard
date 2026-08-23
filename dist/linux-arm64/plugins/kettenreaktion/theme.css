@@ -1,0 +1,107 @@
+.kr-view {
+  --kr-ink: #eef3ff;
+  --kr-muted: rgba(255,255,255,0.62);
+  --kr-accent: #7ec8ff;
+  --kr-ok: #7ec8ff;
+  --kr-snow: rgba(255,255,255,0.12);
+  --kr-line: rgba(255,255,255,0.22);
+  --kr-glass: rgba(0,0,0,0.22);
+  --kr-solid: rgba(0,0,0,0.28);
+  --kr-radius: 18px;
+  --kr-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--kr-ink);
+  font-family: var(--kr-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #2c3a52;
+  overflow: hidden;
+}
+.kr-view * { box-sizing: border-box; }
+
+#shared-master-host.kr-view,
+#shared-master-host > .kr-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  background: #2c3a52;
+}
+
+.kr-master-layout, .kr-shooter-layout {
+  display: flex; flex-direction: column; height: 100%; min-height: 100%;
+}
+.kr-header {
+  flex: 0 0 auto; margin: 0.45rem 0.55rem 0; padding: 0.55rem 0.95rem;
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: baseline;
+  background: var(--kr-glass); border: 1px solid var(--kr-line);
+  border-radius: var(--kr-radius);
+}
+.kr-title { font-size: 1.45rem; font-weight: 700; }
+.kr-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: var(--kr-ok); color: #1a1a1a; font-weight: 700; font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.kr-meta { color: var(--kr-muted); font-size: 0.95rem; }
+.kr-status {
+  font-weight: 700; margin-left: auto; padding: 0.2rem 0.55rem;
+  background: var(--kr-solid); border-radius: 999px;
+}
+.kr-main {
+  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+}
+.kr-target-col, .kr-board-col {
+  min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+}
+.kr-panel {
+  background: var(--kr-solid); border: 1px solid var(--kr-line);
+  border-radius: 14px; padding: 0.5rem 0.6rem; min-height: 0;
+}
+.kr-panel h3 { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--kr-muted); }
+.kr-scheibe-wrap {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; background: var(--kr-glass); border: 1px solid var(--kr-line);
+  border-radius: var(--kr-radius);
+}
+.kr-scheibe-wrap svg, .kr-scheibe-svg { width: 100%; height: 100%; }
+.kr-shot-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.kr-shot-val { font-size: 1.6rem; font-weight: 700; }
+.kr-muted { color: var(--kr-muted); font-size: 0.85rem; }
+.kr-block {
+  margin-top: 0.35rem; background: rgba(255,255,255,0.1);
+  border: 1px solid var(--kr-line); border-radius: 12px; padding: 8px 12px;
+}
+.kr-board-host {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+  padding: 0.15rem; background: transparent; border: none;
+  border-radius: var(--kr-radius); overflow: hidden;
+  align-items: stretch; justify-content: center;
+}
+.kr-board-svg {
+  width: 100%; height: 100%; flex: 1 1 auto; min-height: 0; display: block;
+}
+.kr-recent, .kr-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; overflow: hidden; }
+.kr-recent li, .kr-standings li {
+  display: grid; grid-template-columns: 14px 1fr auto auto; gap: 0.45rem; align-items: center; font-size: 0.86rem;
+}
+.kr-recent li.is-me, .kr-standings li.is-me {
+  background: rgba(255,255,255,0.12); border-radius: 8px; padding: 0.12rem 0.28rem;
+}
+.kr-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.kr-footer {
+  flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
+  background: var(--kr-glass); border: 1px solid var(--kr-line); border-radius: 14px;
+}
+.kr-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
+.kr-btn {
+  border: 0; border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 700;
+  background: var(--kr-accent); color: #1a1a1a; cursor: pointer;
+}
+@media (max-width: 900px) {
+  .kr-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
+}

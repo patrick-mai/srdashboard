@@ -125,6 +125,16 @@ func TestNewSharedGamesPreserveHostClassAndLayout(t *testing.T) {
 		{"zehner-bingo", "zehner-bingo", "zb", "setZbSurfaceClasses", "zbPaintStale", "Bingo starten"},
 		{"barrikade", "barrikade", "br", "setBrSurfaceClasses", "brPaintStale", "Barrikade starten"},
 		{"ludo", "ludo", "ld", "setLdSurfaceClasses", "ldPaintStale", "Ludo starten"},
+		{"tauziehen", "tauziehen", "tz", "setTzSurfaceClasses", "tzPaintStale", "Tauziehen starten"},
+		{"kettenreaktion", "kettenreaktion", "kr", "setKrSurfaceClasses", "krPaintStale", "Kette starten"},
+		{"biathlon", "biathlon", "bt", "setBtSurfaceClasses", "btPaintStale", "Biathlon starten"},
+		{"schrumpfender-kreis", "schrumpfender-kreis", "sk", "setSkSurfaceClasses", "skPaintStale", "Kreis starten"},
+		{"kronen-duell", "kronen-duell", "kd", "setKdSurfaceClasses", "kdPaintStale", "Duell starten"},
+		{"bank-oder-risiko", "bank-oder-risiko", "bk", "setBkSurfaceClasses", "bkPaintStale", "Risiko starten"},
+		{"ko-pokal", "ko-pokal", "kp", "setKpSurfaceClasses", "kpPaintStale", "Pokal starten"},
+		{"schiessgolf", "schiessgolf", "sg", "setSgSurfaceClasses", "sgPaintStale", "Golf starten"},
+		{"turmbau", "turmbau", "tw", "setTwSurfaceClasses", "twPaintStale", "Turm starten"},
+		{"ansage-duell", "ansage-duell", "ad", "setAdSurfaceClasses", "adPaintStale", "Ansage starten"},
 	}
 	for _, g := range games {
 		js := readRepoFile(t, "plugins", g.dir, "view.js")
@@ -191,7 +201,7 @@ func TestAutorennenPreservesSharedHostClassAndLayout(t *testing.T) {
 
 func TestFoxScheibeKeepsRoundRings(t *testing.T) {
 	css := readRepoFile(t, "plugins", "fox-on-the-run", "theme.css")
-	idx := strings.Index(css, ".fox-scheibe-wrap svg")
+	idx := strings.Index(css, ".fox-scheibe-frame svg")
 	if idx < 0 {
 		t.Fatal("missing .fox-scheibe-wrap svg rule")
 	}

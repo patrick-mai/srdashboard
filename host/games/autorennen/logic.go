@@ -2003,26 +2003,8 @@ func cfgIntList(m map[string]any, key string) []int {
 	return out
 }
 
-// circleOverlapRatio returns intersection area / area of one circle.
 func circleOverlapRatio(x1, y1, x2, y2, r float64) float64 {
-	if r <= 0 {
-		return 0
-	}
-	d := math.Hypot(x2-x1, y2-y1)
-	if d >= 2*r {
-		return 0
-	}
-	if d <= 0 {
-		return 1
-	}
-	// intersection of two equal circles
-	part := 2 * r * r * math.Acos(d/(2*r))
-	part -= 0.5 * d * math.Sqrt(4*r*r-d*d)
-	area := math.Pi * r * r
-	if area <= 0 {
-		return 0
-	}
-	return part / area
+	return gameutil.CircleOverlapRatio(x1, y1, x2, y2, r)
 }
 
 func marshalState(rs *RaceState) (logicapi.SessionState, error) {

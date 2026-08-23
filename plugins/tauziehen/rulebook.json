@@ -1,0 +1,29 @@
+{
+  "title": "Tauziehen",
+  "summary": "Zwei Mannschaften, ein Seil. Wer besser schießt als sein eigener Schnitt, zieht das Seil auf seine Seite.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Einschießen: fünf Kalibrierschüsse pro Stand — daraus entsteht dein persönlicher Schnitt.",
+        "Danach zählt jede Runde: erst wenn alle Stände geschossen haben, bewegt sich das Seil.",
+        "Die Stände werden auf zwei Mannschaften verteilt (ungerade gegen gerade)."
+      ]
+    },
+    {
+      "heading": "Zug am Seil",
+      "items": [
+        "Über deinem Schnitt: du ziehst um die Differenz. Darunter: das Seil rutscht zurück.",
+        "Ein Schuss ins selbe Loch (mindestens 50 % Überdeckung, Wert über 8,5) bringt Zusatzzug — und schadet nie.",
+        "Ungleich große Mannschaften werden ausgeglichen: es zählt der Schnitt der Mannschaft."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Seilmarke erreicht: Mannschaft gewinnt.",
+        "Nach der letzten Runde entscheidet die Seite, auf der das Seil steht."
+      ]
+    }
+  ]
+}

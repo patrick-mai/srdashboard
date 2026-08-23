@@ -1,0 +1,26 @@
+{
+  "title": "KO-Pokal",
+  "summary": "K.o.-Turnier. Der bessere Wert holt den Punkt, ein Hole-in-Hole nimmt ihn sofort.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Qualifikationsschüsse setzen die Setzliste.",
+        "Danach Duell um Duell auf der großen Scheibe."
+      ]
+    },
+    {
+      "heading": "Punkt",
+      "items": [
+        "Beide schießen einmal. Höherer Wert holt den Punkt.",
+        "Hole-in-Hole über 8,5 nimmt den Punkt sofort."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Wer den Pokal holt, gewinnt den Abend."
+      ]
+    }
+  ]
+}

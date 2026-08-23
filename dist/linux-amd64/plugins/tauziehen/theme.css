@@ -1,0 +1,107 @@
+.tz-view {
+  --tz-ink: #e8f0e4;
+  --tz-muted: rgba(255,255,255,0.62);
+  --tz-accent: #c9e27a;
+  --tz-ok: #c9e27a;
+  --tz-snow: rgba(255,255,255,0.12);
+  --tz-line: rgba(255,255,255,0.22);
+  --tz-glass: rgba(0,0,0,0.22);
+  --tz-solid: rgba(0,0,0,0.28);
+  --tz-radius: 18px;
+  --tz-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--tz-ink);
+  font-family: var(--tz-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #3a4a38;
+  overflow: hidden;
+}
+.tz-view * { box-sizing: border-box; }
+
+#shared-master-host.tz-view,
+#shared-master-host > .tz-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  background: #3a4a38;
+}
+
+.tz-master-layout, .tz-shooter-layout {
+  display: flex; flex-direction: column; height: 100%; min-height: 100%;
+}
+.tz-header {
+  flex: 0 0 auto; margin: 0.45rem 0.55rem 0; padding: 0.55rem 0.95rem;
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: baseline;
+  background: var(--tz-glass); border: 1px solid var(--tz-line);
+  border-radius: var(--tz-radius);
+}
+.tz-title { font-size: 1.45rem; font-weight: 700; }
+.tz-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: var(--tz-ok); color: #1a1a1a; font-weight: 700; font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.tz-meta { color: var(--tz-muted); font-size: 0.95rem; }
+.tz-status {
+  font-weight: 700; margin-left: auto; padding: 0.2rem 0.55rem;
+  background: var(--tz-solid); border-radius: 999px;
+}
+.tz-main {
+  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+}
+.tz-target-col, .tz-board-col {
+  min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+}
+.tz-panel {
+  background: var(--tz-solid); border: 1px solid var(--tz-line);
+  border-radius: 14px; padding: 0.5rem 0.6rem; min-height: 0;
+}
+.tz-panel h3 { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--tz-muted); }
+.tz-scheibe-wrap {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; background: var(--tz-glass); border: 1px solid var(--tz-line);
+  border-radius: var(--tz-radius);
+}
+.tz-scheibe-wrap svg, .tz-scheibe-svg { width: 100%; height: 100%; }
+.tz-shot-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.tz-shot-val { font-size: 1.6rem; font-weight: 700; }
+.tz-muted { color: var(--tz-muted); font-size: 0.85rem; }
+.tz-block {
+  margin-top: 0.35rem; background: rgba(255,255,255,0.1);
+  border: 1px solid var(--tz-line); border-radius: 12px; padding: 8px 12px;
+}
+.tz-board-host {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+  padding: 0.15rem; background: transparent; border: none;
+  border-radius: var(--tz-radius); overflow: hidden;
+  align-items: stretch; justify-content: center;
+}
+.tz-board-svg {
+  width: 100%; height: 100%; flex: 1 1 auto; min-height: 0; display: block;
+}
+.tz-recent, .tz-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; overflow: hidden; }
+.tz-recent li, .tz-standings li {
+  display: grid; grid-template-columns: 14px 1fr auto auto; gap: 0.45rem; align-items: center; font-size: 0.86rem;
+}
+.tz-recent li.is-me, .tz-standings li.is-me {
+  background: rgba(255,255,255,0.12); border-radius: 8px; padding: 0.12rem 0.28rem;
+}
+.tz-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.tz-footer {
+  flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
+  background: var(--tz-glass); border: 1px solid var(--tz-line); border-radius: 14px;
+}
+.tz-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
+.tz-btn {
+  border: 0; border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 700;
+  background: var(--tz-accent); color: #1a1a1a; cursor: pointer;
+}
+@media (max-width: 900px) {
+  .tz-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
+}

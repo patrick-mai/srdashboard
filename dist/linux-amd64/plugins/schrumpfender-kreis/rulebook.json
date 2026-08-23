@@ -1,0 +1,26 @@
+{
+  "title": "Schrumpfender Kreis",
+  "summary": "Der Kreis zieht sich zusammen. Wer die steigende Wertschwelle verfehlt, scheidet aus.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Kalibrierung setzt den persönlichen Startkreis.",
+        "Jede Runde steigt die Schwelle."
+      ]
+    },
+    {
+      "heading": "Überleben",
+      "items": [
+        "Schwelle treffen: weiter. Verfehlen: Leben weg.",
+        "Hole-in-Hole über 8,5 gibt ein Leben zurück."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Wer als Letzter steht, gewinnt."
+      ]
+    }
+  ]
+}

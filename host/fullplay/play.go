@@ -201,3 +201,68 @@ func playAutorennen(t *testing.T, h *Host) {
 	}
 	h.requirePhase([]string{"race", "phase"}, "finished")
 }
+
+func playUntilFinished(t *testing.T, h *Host, fire func(round int)) {
+	t.Helper()
+	h.Start()
+	h.requireBothRangesPaint()
+	path := []string{"game", "phase"}
+	for i := 0; i < 500 && h.phase(path) != "finished"; i++ {
+		fire(i)
+	}
+	h.requirePhase(path, "finished")
+}
+
+func playHighValueProgram(t *testing.T, h *Host) {
+	t.Helper()
+	playUntilFinished(t, h, func(round int) {
+		for r := 1; r <= h.NumRanges; r++ {
+			if h.phase([]string{"game", "phase"}) == "finished" {
+				return
+			}
+			h.Fire(r, 10.9)
+		}
+	})
+}
+
+func playTauziehen(t *testing.T, h *Host) {
+	t.Helper()
+	playUntilFinished(t, h, func(round int) {
+		h.Fire(1, 10.9)
+		if h.NumRanges >= 2 && h.phase([]string{"game", "phase"}) != "finished" {
+			h.Fire(2, 5.0)
+		}
+	})
+	if asString(nest(h.VM(1), "game")["winnerTeam"]) != "A" {
+		t.Fatalf("tauziehen winnerTeam=%v want A", nest(h.VM(1), "game")["winnerTeam"])
+	}
+}
+
+func playKoPokal(t *testing.T, h *Host) {
+	t.Helper()
+	playUntilFinished(t, h, func(round int) {
+		h.Fire(1, 10.9)
+		if h.NumRanges >= 2 && h.phase([]string{"game", "phase"}) != "finished" {
+			h.Fire(2, 8.0)
+		}
+	})
+}
+
+func playBankOderRisiko(t *testing.T, h *Host) {
+	t.Helper()
+	h.Start()
+	h.requireBothRangesPaint()
+	path := []string{"game", "phase"}
+	for i := 0; i < 80 && h.phase(path) != "finished"; i++ {
+		for r := 1; r <= h.NumRanges; r++ {
+			if h.phase(path) == "finished" {
+				break
+			}
+			h.Fire(r, 10.9)
+			if i%4 == 3 {
+				h.Control("bank", map[string]any{"rangeNum": r})
+			}
+		}
+	}
+	h.requirePhase(path, "finished")
+}

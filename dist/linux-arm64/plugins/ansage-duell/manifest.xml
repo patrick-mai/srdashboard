@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="ansage-duell" label="Ansage-Duell" version="1.0.0" mode="shared" kind="game">
+  <description>Sage an, was du lieferst — Schnitt oder Hole-in-Hole — und halte die Ansage.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+    <holeInHoleMinOverlap>0.5</holeInHoleMinOverlap>
+    <holeInHoleMinValue>8.5</holeInHoleMinValue>
+    <shotDiameterMm>4.5</shotDiameterMm>
+    <dsgPerMm>100</dsgPerMm>
+    <disciplineTargets>
+      <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <LG>air_rifle_10m</LG>
+      <Luftpistole>air_pistol_10m</Luftpistole>
+      <LP>air_pistol_10m</LP>
+      <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK-Gewehr>smallbore_50m_prone</KK-Gewehr>
+      <KK>smallbore_50m_prone</KK>
+    </disciplineTargets>
+  </config>
+</plugin>

@@ -1,0 +1,26 @@
+{
+  "title": "Schießgolf",
+  "summary": "Neun Bahnen. Der Schusswert treibt den Ball, eingelocht wird in der Mitte.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Alle Stände spielen dieselbe Bahn.",
+        "Jeder Schuss ist ein Schlag."
+      ]
+    },
+    {
+      "heading": "Spiel",
+      "items": [
+        "Höherer Wert bringt mehr Weite.",
+        "Am Grün: 10,5 oder Hole-in-Hole über 8,5 locht ein."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Niedrigstes Netto (Schläge minus Vorgabe)."
+      ]
+    }
+  ]
+}

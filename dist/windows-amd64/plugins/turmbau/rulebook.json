@@ -1,0 +1,25 @@
+{
+  "title": "Turmbau",
+  "summary": "Jeder Schuss stapelt. Weit vom Zentrum neigt der Turm, bis er fällt.",
+  "sections": [
+    {
+      "heading": "Ablauf",
+      "items": [
+        "Festes Schussprogramm. Ein Sturz friert die Höhe."
+      ]
+    },
+    {
+      "heading": "Turm",
+      "items": [
+        "Teiler erhöht die Neigung.",
+        "Wert über 8,5 stapelt höher. Hole-in-Hole über 8,5 stabilisiert."
+      ]
+    },
+    {
+      "heading": "Sieg",
+      "items": [
+        "Höchster Turm gewinnt."
+      ]
+    }
+  ]
+}

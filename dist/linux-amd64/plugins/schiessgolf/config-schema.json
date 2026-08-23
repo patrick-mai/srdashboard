@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "autoStartWhenAllReady": {
+      "type": "boolean"
+    },
+    "defaultTargetProfile": {
+      "type": "string",
+      "enum": [
+        "air_rifle_10m",
+        "air_pistol_10m",
+        "smallbore_50m_prone",
+        "smallbore_50m_3p"
+      ]
+    },
+    "holeInHoleMinOverlap": {
+      "type": "number"
+    },
+    "holeInHoleMinValue": {
+      "type": "number"
+    },
+    "shotDiameterMm": {
+      "type": "number"
+    },
+    "dsgPerMm": {
+      "type": "number"
+    },
+    "handicaps": {
+      "type": "object",
+      "title": "Handicap je Bahn"
+    }
+  }
+}

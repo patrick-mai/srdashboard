@@ -64,8 +64,10 @@ func TestEveryPluginIdMatchesFolderManifestAndView(t *testing.T) {
 		}
 	}
 	want := []string{
-		"autorennen", "barrikade", "classic-range", "fox-on-the-run",
-		"ludo", "tannebaum-einzel", "tannebaum-team", "zehner-bingo",
+		"ansage-duell", "autorennen", "bank-oder-risiko", "barrikade", "biathlon",
+		"classic-range", "fox-on-the-run", "kettenreaktion", "ko-pokal",
+		"kronen-duell", "ludo", "schiessgolf", "schrumpfender-kreis",
+		"tannebaum-einzel", "tannebaum-team", "tauziehen", "turmbau", "zehner-bingo",
 	}
 	wantSet := map[string]bool{}
 	for _, id := range want {

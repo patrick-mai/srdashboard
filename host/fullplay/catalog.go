@@ -37,6 +37,16 @@ var frozenIDs = []string{
 	"tannebaum-team-4p",
 	"fox-on-the-run-2p",
 	"autorennen-2p",
+	"tauziehen-2p",
+	"kettenreaktion-2p",
+	"biathlon-2p",
+	"schrumpfender-kreis-2p",
+	"kronen-duell-2p",
+	"bank-oder-risiko-2p",
+	"ko-pokal-2p",
+	"schiessgolf-2p",
+	"turmbau-2p",
+	"ansage-duell-2p",
 }
 
 // Catalog is the single list of full games. go test ./host/fullplay runs all of them.
@@ -174,5 +184,31 @@ func Catalog() []Scenario {
 				Why:    "capping shooter standings at 22% forced a leftover-space scrollbar",
 			}},
 		},
+		conceptScenario("tauziehen-2p", "tauziehen", playTauziehen),
+		conceptScenario("kettenreaktion-2p", "kettenreaktion", playHighValueProgram),
+		conceptScenario("biathlon-2p", "biathlon", playHighValueProgram),
+		conceptScenario("schrumpfender-kreis-2p", "schrumpfender-kreis", playHighValueProgram),
+		conceptScenario("kronen-duell-2p", "kronen-duell", playHighValueProgram),
+		conceptScenario("bank-oder-risiko-2p", "bank-oder-risiko", playBankOderRisiko),
+		conceptScenario("ko-pokal-2p", "ko-pokal", playKoPokal),
+		conceptScenario("schiessgolf-2p", "schiessgolf", playHighValueProgram),
+		conceptScenario("turmbau-2p", "turmbau", playHighValueProgram),
+		conceptScenario("ansage-duell-2p", "ansage-duell", playHighValueProgram),
+	}
+}
+
+func conceptScenario(id, pluginID string, play func(*testing.T, *Host)) Scenario {
+	return Scenario{
+		ID:        id,
+		PluginID:  pluginID,
+		NumRanges: 2,
+		PhasePath: []string{"game", "phase"},
+		Finished:  "finished",
+		Play:      play,
+		UI: []FileCheck{{
+			Rel: []string{"plugins", pluginID, "view.js"},
+			Has: []string{"const PLUGIN_ID = '" + pluginID + "'", "SRPluginViews[PLUGIN_ID]", "classList.add('shared-master-host')"},
+			Why: pluginID + " hall paint must keep the shared host class and current plugin id",
+		}},
 	}
 }
