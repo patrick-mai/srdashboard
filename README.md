@@ -2,7 +2,7 @@
 
 Live hall display for **DISAG OpticScore**. It shows every stand on a large screen (or one stand on a tablet), plots shots on the target, and can switch from the classic range view into game plugins.
 
-**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE).
+**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.2](CHANGELOG.md).
 
 ---
 
@@ -94,6 +94,48 @@ Race to the Burg. Same step rules as Ludo. A wall blocks the next cell until a *
 A 5×5 card of 8.5–10.9, shuffled at match start. A shot marks the highest still-open cell it can reach. First full line wins (optional full-card mode). Below 8.5 marks nothing.
 
 <img src="./screenshots/zehner-bingo.png" alt="Zehner-Bingo">
+
+### Tauziehen
+
+Two teams, one rope. Shots above your personal par pull your way. A hole-in-hole adds extra pull and never hurts.
+
+### Kettenreaktion
+
+Consecutive hole-in-holes build a chain that multiplies the next shot. Break the chain and the multiplier resets.
+
+### Biathlon
+
+Five targets per stage; a miss costs penalty time. Calibration sets a personal hit threshold so mixed fields race on rhythm, not absolute score.
+
+### Schrumpfender Kreis
+
+The required value climbs each round until only one shooter is left. A hole-in-hole can restore a life.
+
+### Kronen-Duell
+
+One lane wears the crown. Beat the decaying bar — or land a hole-in-hole — to steal it. Most hold time wins.
+
+### Bank oder Risiko
+
+Shots pile into a pot. Bank it from the tablet when you dare; a shot below your personal floor wipes it.
+
+### KO-Pokal
+
+Qualify, then a knockout bracket on the hall screen. Higher value takes the point; a hole-in-hole takes it outright.
+
+### Schießgolf
+
+The ring value is how far the ball travels. Hole out with **10.5+** or a hole-in-hole. Lowest strokes win.
+
+### Turmbau
+
+Each shot stacks a block. Height follows ring value; lean follows Teiler. Too much lean and the tower topples.
+
+### Ansage-Duell
+
+Bid a contract from the tablet (value vs your par, or a hole-in-hole count), then deliver it.
+
+The ten training games above reward only a **higher ring value** or a **hole-in-hole** (50 % overlap with the last shot, raw value above 8.5). Mixed fields use personal par or handicap — never a different aiming task.
 
 Tap **Regeln** on the master display for the in-app rulebook of the active game.
 

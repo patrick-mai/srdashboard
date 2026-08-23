@@ -1,9 +1,7 @@
 # Game concepts
 
-Design specification for ten proposed competitive training games. None of them are
-implemented yet — this document fixes the rules, the shared scoring primitives and the
-skill-balancing model so each game can be built as a plugin without re-litigating the
-design. **Tug of War** is specified in implementation-ready depth and is the first to build.
+Design specification for the ten competitive training games shipped as plugins. This
+document fixes the rules, the shared scoring primitives and the skill-balancing model.
 
 Existing games (Ludo, Barrikade, Zehner-Bingo, Tannebaum, Fox on the Run, Autorennen) are
 not affected. See [plugin-authoring.md](plugin-authoring.md) for the plugin contract and
