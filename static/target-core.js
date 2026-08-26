@@ -33,7 +33,7 @@ const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scor
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
 
-// Classic Range pellets: 10 muted rainbow hues (same order as original, softer than s=75%).
+// Classic Range pellets: one hue, 10 shades (shot 1 light → shot 10 deep).
 function hslToHex(h, s, l) {
   s /= 100; l /= 100;
   const a = s * Math.min(l, 1 - l);
@@ -46,9 +46,7 @@ function hslToHex(h, s, l) {
 }
 
 const SHOT_ORDER_COUNT = 10;
-/** Original used s=75 / l=50; muted defaults stay readable on black & white rings. */
-const DEFAULT_SHOT_SAT = 48;
-const DEFAULT_SHOT_LIGHT = 52;
+const DEFAULT_SHOT_HUE = 142; // green
 
 let lastLiveData = null;
 
@@ -58,13 +56,20 @@ function readCssNumber(name, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** Ten hues evenly from 0° to 330° (red → … → magenta), saturation/lightness from CSS. */
+function getShotHue() {
+  const n = readCssNumber('--shot-hue', DEFAULT_SHOT_HUE);
+  return ((n % 360) + 360) % 360;
+}
+
+/** Ten shades of --shot-hue: index 0 (first) is pale, index 9 (10th) is deepest. */
 function getShotOrderColors() {
-  const s = Math.max(0, Math.min(100, readCssNumber('--shot-sat', DEFAULT_SHOT_SAT)));
-  const l = Math.max(0, Math.min(100, readCssNumber('--shot-light', DEFAULT_SHOT_LIGHT)));
-  return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) =>
-    hslToHex((i / (SHOT_ORDER_COUNT - 1)) * 330, s, l)
-  );
+  const hue = getShotHue();
+  return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) => {
+    const t = SHOT_ORDER_COUNT <= 1 ? 1 : i / (SHOT_ORDER_COUNT - 1);
+    const s = 40 + t * 35; // 40% → 75%
+    const l = 72 - t * 38; // 72% → 34%
+    return hslToHex(hue, s, l);
+  });
 }
 
 function colorForShotIndex(i) {
