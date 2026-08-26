@@ -18,10 +18,21 @@
             document.documentElement.style.setProperty('--shot-sat', String(n));
           }
         }
+        var mode = localStorage.getItem('srdashboard-shot-mode');
+        if (mode != null && mode !== '') {
+          if (mode === 'rainbow') {
+            document.documentElement.style.setProperty('--shot-mode', 'rainbow');
+          } else {
+            var mi = Math.round(Number(mode));
+            if (isFinite(mi) && mi >= 0 && mi <= 9) {
+              document.documentElement.style.setProperty('--shot-mode', String(mi));
+            }
+          }
+        }
       } catch (e) { /* ignore */ }
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=less-colors6">
+  <link rel="stylesheet" href="/style.css?v=less-colors7">
 </head>
 <body>
   <div id="shooter-app" hidden></div>
@@ -59,7 +70,7 @@
     </div>
   </div>
   <script src="/auth.js"></script>
-  <script src="/target-core.js?v=less-colors6"></script>
+  <script src="/target-core.js?v=less-colors7"></script>
   <script src="/plugin-shell.js?v=sfx2"></script>
   <script src="/rulebook.js?v=rulebook"></script>
   <script src="/config-editor.js"></script>
@@ -70,7 +81,7 @@
       const s = document.createElement('script');
       if (display === 'shooter') s.src = '/shooter.js';
       else if (display === 'config') s.src = '/config-page.js';
-      else s.src = '/master.js?v=less-colors6';
+      else s.src = '/master.js?v=less-colors7';
       document.body.appendChild(s);
     })();
   </script>

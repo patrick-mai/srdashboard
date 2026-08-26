@@ -33,7 +33,7 @@ const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scor
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
 
-// Classic Range pellets: 10 rainbow hues; saturation from --shot-sat (side-menu slider).
+// Classic Range pellets: rainbow or single-hue shades; sat from --shot-sat (side-menu).
 function hslToHex(h, s, l) {
   s /= 100; l /= 100;
   const a = s * Math.min(l, 1 - l);
@@ -58,13 +58,49 @@ function readCssNumber(name, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** Ten hues evenly from 0° to 330° (red → … → magenta). */
+function readCssRaw(name) {
+  const inline = document.documentElement.style.getPropertyValue(name).trim();
+  if (inline) return inline;
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function shotHueAt(i) {
+  const idx = ((i % SHOT_ORDER_COUNT) + SHOT_ORDER_COUNT) % SHOT_ORDER_COUNT;
+  return (idx / (SHOT_ORDER_COUNT - 1)) * 330;
+}
+
+/** 'rainbow' or hue index 0..9 (matches the ten rainbow swatches). */
+function getShotColorMode() {
+  const raw = readCssRaw('--shot-mode');
+  if (!raw || raw === 'rainbow') return 'rainbow';
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 0 && n < SHOT_ORDER_COUNT) return Math.round(n);
+  return 'rainbow';
+}
+
+/** Ten shot fills: rainbow hues, or light→deep shades of one selected hue. */
 function getShotOrderColors() {
   const s = Math.max(0, Math.min(100, readCssNumber('--shot-sat', DEFAULT_SHOT_SAT)));
   const l = Math.max(0, Math.min(100, readCssNumber('--shot-light', DEFAULT_SHOT_LIGHT)));
-  return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) =>
-    hslToHex((i / (SHOT_ORDER_COUNT - 1)) * 330, s, l)
-  );
+  const mode = getShotColorMode();
+  if (mode === 'rainbow') {
+    return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) => hslToHex(shotHueAt(i), s, l));
+  }
+  const hue = shotHueAt(mode);
+  return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) => {
+    const t = SHOT_ORDER_COUNT <= 1 ? 1 : i / (SHOT_ORDER_COUNT - 1);
+    // Same base hue: pale → deep; slider sets peak saturation.
+    const sat = Math.max(0, Math.min(100, s * (0.4 + 0.6 * t)));
+    const light = 74 - t * 40;
+    return hslToHex(hue, sat, light);
+  });
+}
+
+/** Swatch preview colours at the current saturation (rainbow order). */
+function getShotSwatchColors() {
+  const s = Math.max(0, Math.min(100, readCssNumber('--shot-sat', DEFAULT_SHOT_SAT)));
+  const l = Math.max(0, Math.min(100, readCssNumber('--shot-light', DEFAULT_SHOT_LIGHT)));
+  return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) => hslToHex(shotHueAt(i), s, l));
 }
 
 function colorForShotIndex(i) {
@@ -72,7 +108,7 @@ function colorForShotIndex(i) {
   return colors[((i % colors.length) + colors.length) % colors.length];
 }
 
-/** Re-paint pellets + last-10 bars after --shot-sat changes. */
+/** Re-paint pellets + last-10 bars after palette (sat / mode) changes. */
 function repaintShotColors() {
   document.querySelectorAll('.last10-chart-wrap').forEach(function (wrap) {
     delete wrap.dataset.chartSig;
@@ -1517,6 +1553,7 @@ function repaintAllShotVals() {
 if (typeof document !== 'undefined') {
   document.addEventListener('srdashboard:themechange', repaintAllShotVals);
   document.addEventListener('srdashboard:shotsatchange', repaintShotColors);
+  document.addEventListener('srdashboard:shotmodechange', repaintShotColors);
   window.addEventListener('resize', function () {
     repaintAllShotVals();
     // Re-measure last-10 charts so preserveAspectRatio=none does not stretch a stale viewBox.
@@ -1892,6 +1929,8 @@ window.SRCore = {
   renderFooter,
   formatRangeHeader,
   getShotOrderColors,
+  getShotSwatchColors,
+  getShotColorMode,
   repaintShotColors,
   getTargetScale,
   setTargetAssetBase,

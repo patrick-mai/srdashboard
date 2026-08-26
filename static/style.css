@@ -50,6 +50,7 @@
   /* Classic Range shot rainbow (HSL); original sat was 75 — default muted, live via Menü */
   --shot-sat: 48;
   --shot-light: 52;
+  --shot-mode: rainbow;
   /* System UI only — webfonts (e.g. Barlow) render with stepped curves on Windows ClearType */
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-display: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -94,6 +95,7 @@ html[data-theme="dark"] {
   --shooter-glow: rgba(42, 159, 175, 0.1);
   --shot-sat: 44;
   --shot-light: 58;
+  --shot-mode: rainbow;
 }
 
 * { box-sizing: border-box; }
@@ -513,6 +515,53 @@ body::before {
   color: var(--ink);
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+.shot-hue-swatches {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 0.2rem;
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.shot-hue-swatch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 1.05rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 3px;
+  cursor: pointer;
+  box-sizing: border-box;
+  background: var(--panel);
+}
+
+.shot-hue-swatch:hover {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.shot-hue-swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--accent);
+  border-color: var(--accent);
+}
+
+.shot-hue-swatch.shot-hue-rainbow {
+  background-image: linear-gradient(
+    90deg,
+    #bf4a4a 0%,
+    #bf924a 12%,
+    #a5bf4a 24%,
+    #5dbf4a 36%,
+    #4abf7e 48%,
+    #4ab9bf 60%,
+    #4a71bf 72%,
+    #6a4abf 84%,
+    #b24abf 100%
+  );
 }
 
 #race-controls.race-controls:not([hidden]) {

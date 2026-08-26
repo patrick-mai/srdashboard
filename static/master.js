@@ -679,7 +679,13 @@
       '<span class="shot-sat-row">' +
       '<input type="range" id="shot-sat-slider" min="0" max="100" step="1" aria-valuemin="0" aria-valuemax="100">' +
       '<span class="shot-sat-value" id="shot-sat-value" aria-hidden="true"></span>' +
-      '</span></label>' +
+      '</span>' +
+      '<div class="shot-hue-swatches" id="shot-hue-swatches" role="group" aria-label="Schussfarbe">' +
+      Array.from({ length: 10 }, function (_, i) {
+        return '<button type="button" class="shot-hue-swatch" data-shot-mode="' + i + '" title="Farbe ' + (i + 1) + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="false"></button>';
+      }).join('') +
+      '<button type="button" class="shot-hue-swatch shot-hue-rainbow" data-shot-mode="rainbow" title="Regenbogen" aria-label="Regenbogen" aria-pressed="false"></button>' +
+      '</div></label>' +
       '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
       '<span class="tablet-hint">Tablet: /BahnNr z.B. ' + location.origin + '/3</span>' +
@@ -768,6 +774,7 @@
     }
     const satSlider = document.getElementById('shot-sat-slider');
     const satValue = document.getElementById('shot-sat-value');
+    const hueSwatches = document.getElementById('shot-hue-swatches');
     if (satSlider && window.SRShotSat) {
       function syncShotSatUI(sat) {
         const n = window.SRShotSat.get();
@@ -776,6 +783,24 @@
         satSlider.setAttribute('aria-valuenow', String(v));
         satSlider.setAttribute('aria-valuetext', v + ' Prozent');
         if (satValue) satValue.textContent = v + '%';
+        syncShotHueSwatches();
+      }
+      function syncShotHueSwatches() {
+        if (!hueSwatches) return;
+        const mode = window.SRShotMode ? window.SRShotMode.get() : 'rainbow';
+        const colors = (window.SRCore && typeof window.SRCore.getShotSwatchColors === 'function')
+          ? window.SRCore.getShotSwatchColors()
+          : [];
+        hueSwatches.querySelectorAll('.shot-hue-swatch').forEach(function (btn) {
+          const raw = btn.getAttribute('data-shot-mode');
+          const isRainbow = raw === 'rainbow';
+          const pressed = isRainbow ? mode === 'rainbow' : String(mode) === String(raw);
+          btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+          if (!isRainbow) {
+            const idx = parseInt(raw, 10);
+            if (Number.isFinite(idx) && colors[idx]) btn.style.background = colors[idx];
+          }
+        });
       }
       syncShotSatUI();
       function onSatInput() {
@@ -787,6 +812,18 @@
       document.addEventListener('srdashboard:shotsatchange', function (ev) {
         syncShotSatUI(ev.detail && ev.detail.sat);
       });
+      document.addEventListener('srdashboard:shotmodechange', function () {
+        syncShotHueSwatches();
+      });
+      if (hueSwatches && window.SRShotMode) {
+        hueSwatches.addEventListener('click', function (ev) {
+          const btn = ev.target && ev.target.closest && ev.target.closest('.shot-hue-swatch');
+          if (!btn || !hueSwatches.contains(btn)) return;
+          const raw = btn.getAttribute('data-shot-mode');
+          window.SRShotMode.set(raw === 'rainbow' ? 'rainbow' : parseInt(raw, 10));
+          syncShotHueSwatches();
+        });
+      }
     }
     const fsBtn = document.getElementById('btn-fullscreen-toggle');
     if (fsBtn) {
