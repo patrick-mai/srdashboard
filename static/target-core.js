@@ -46,7 +46,7 @@ function hslToHex(h, s, l) {
 }
 
 const SHOT_ORDER_COUNT = 10;
-const DEFAULT_SHOT_HUE = 142; // green
+const DEFAULT_SHOT_HUE = 214; // blue
 
 let lastLiveData = null;
 
