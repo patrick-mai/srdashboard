@@ -9,10 +9,19 @@
       try {
         var t = localStorage.getItem('srdashboard-theme');
         if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        var sat = localStorage.getItem('srdashboard-shot-sat');
+        if (sat != null && sat !== '') {
+          var n = Math.round(Number(sat));
+          if (isFinite(n)) {
+            if (n < 0) n = 0;
+            if (n > 100) n = 100;
+            document.documentElement.style.setProperty('--shot-sat', String(n));
+          }
+        }
       } catch (e) { /* ignore */ }
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=less-colors5">
+  <link rel="stylesheet" href="/style.css?v=less-colors6">
 </head>
 <body>
   <div id="shooter-app" hidden></div>
@@ -50,7 +59,7 @@
     </div>
   </div>
   <script src="/auth.js"></script>
-  <script src="/target-core.js?v=less-colors5"></script>
+  <script src="/target-core.js?v=less-colors6"></script>
   <script src="/plugin-shell.js?v=sfx2"></script>
   <script src="/rulebook.js?v=rulebook"></script>
   <script src="/config-editor.js"></script>
@@ -61,7 +70,7 @@
       const s = document.createElement('script');
       if (display === 'shooter') s.src = '/shooter.js';
       else if (display === 'config') s.src = '/config-page.js';
-      else s.src = '/master.js?v=range-lanes5';
+      else s.src = '/master.js?v=less-colors6';
       document.body.appendChild(s);
     })();
   </script>

@@ -53,6 +53,44 @@
     toggle: toggleTheme
   };
 
+  const SHOT_SAT_KEY = 'srdashboard-shot-sat';
+  const DEFAULT_SHOT_SAT = 48;
+
+  function clampShotSat(n) {
+    n = Math.round(Number(n));
+    if (!Number.isFinite(n)) return DEFAULT_SHOT_SAT;
+    return Math.max(0, Math.min(100, n));
+  }
+
+  function getShotSat() {
+    const inline = document.documentElement.style.getPropertyValue('--shot-sat').trim();
+    if (inline !== '') {
+      const n = Number(inline);
+      if (Number.isFinite(n)) return clampShotSat(n);
+    }
+    try {
+      const stored = localStorage.getItem(SHOT_SAT_KEY);
+      if (stored != null && stored !== '') return clampShotSat(stored);
+    } catch (e) { /* ignore */ }
+    return DEFAULT_SHOT_SAT;
+  }
+
+  function applyShotSat(sat, opts) {
+    const next = clampShotSat(sat);
+    document.documentElement.style.setProperty('--shot-sat', String(next));
+    try { localStorage.setItem(SHOT_SAT_KEY, String(next)); } catch (e) { /* ignore */ }
+    if (!opts || opts.emit !== false) {
+      document.dispatchEvent(new CustomEvent('srdashboard:shotsatchange', { detail: { sat: next } }));
+    }
+    return next;
+  }
+
+  window.SRShotSat = {
+    get: getShotSat,
+    set: applyShotSat,
+    default: DEFAULT_SHOT_SAT
+  };
+
   document.addEventListener('DOMContentLoaded', function () {
     const chrome = document.getElementById('master-chrome');
     const shooter = document.getElementById('shooter-app');

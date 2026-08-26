@@ -675,6 +675,11 @@
       '<div class="plugin-active-label">Bahnen' +
       '<div id="range-lane-select" class="range-lane-list" role="group" aria-label="Bahnen"></div></div>' +
       '<button type="button" class="btn btn-ghost" id="btn-theme-toggle">Dunkelmodus</button>' +
+      '<label class="plugin-active-label shot-sat-control">Farbsättigung' +
+      '<span class="shot-sat-row">' +
+      '<input type="range" id="shot-sat-slider" min="0" max="100" step="1" aria-valuemin="0" aria-valuemax="100">' +
+      '<span class="shot-sat-value" id="shot-sat-value" aria-hidden="true"></span>' +
+      '</span></label>' +
       '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
       '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
       '<span class="tablet-hint">Tablet: /BahnNr z.B. ' + location.origin + '/3</span>' +
@@ -760,6 +765,28 @@
         syncThemeButton();
       };
       document.addEventListener('srdashboard:themechange', syncThemeButton);
+    }
+    const satSlider = document.getElementById('shot-sat-slider');
+    const satValue = document.getElementById('shot-sat-value');
+    if (satSlider && window.SRShotSat) {
+      function syncShotSatUI(sat) {
+        const n = window.SRShotSat.get();
+        const v = sat != null ? sat : n;
+        satSlider.value = String(v);
+        satSlider.setAttribute('aria-valuenow', String(v));
+        satSlider.setAttribute('aria-valuetext', v + ' Prozent');
+        if (satValue) satValue.textContent = v + '%';
+      }
+      syncShotSatUI();
+      function onSatInput() {
+        const next = window.SRShotSat.set(satSlider.value);
+        syncShotSatUI(next);
+      }
+      satSlider.addEventListener('input', onSatInput);
+      satSlider.addEventListener('change', onSatInput);
+      document.addEventListener('srdashboard:shotsatchange', function (ev) {
+        syncShotSatUI(ev.detail && ev.detail.sat);
+      });
     }
     const fsBtn = document.getElementById('btn-fullscreen-toggle');
     if (fsBtn) {
