@@ -33,24 +33,32 @@ const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scor
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
 
-// Shot order: 10 colors rainbow 0°–330° (almost full circle). HSL hue; s=75%, l=50%.
-function hslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n) => {
-    const k = (n + h / 30) % 12;
-    return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-  };
-  const r = Math.round(f(0) * 255), g = Math.round(f(8) * 255), b = Math.round(f(4) * 255);
-  return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('');
-}
-// 10 hues evenly from 0° to 330° (red → … → magenta, stopping short of 360°)
-const DEFAULT_SHOT_ORDER_COLORS = Array.from({ length: 10 }, (_, i) => hslToHex((i / 9) * 330, 75, 50));
+// Classic Range pellets: older shots share one colour; only the latest shot is red.
+const DEFAULT_SHOT_PRIOR = '#e8c547';
+const DEFAULT_SHOT_LAST = '#d32f2f';
 
 let lastLiveData = null;
 
+function getShotPaintColors() {
+  const styles = getComputedStyle(document.documentElement);
+  const pick = function (name, fallback) {
+    const v = styles.getPropertyValue(name).trim();
+    return v || fallback;
+  };
+  return {
+    prior: pick('--shot-prior', DEFAULT_SHOT_PRIOR),
+    last: pick('--shot-last', DEFAULT_SHOT_LAST)
+  };
+}
+
+function colorForShotIndex(i, count) {
+  const colors = getShotPaintColors();
+  return (count > 0 && i === count - 1) ? colors.last : colors.prior;
+}
+
 function getShotOrderColors() {
-  return DEFAULT_SHOT_ORDER_COLORS;
+  const colors = getShotPaintColors();
+  return [colors.prior, colors.last];
 }
 
 let zoomStateByRange = {};   // rangeNum -> { x, y, w, h } SVG viewBox
@@ -597,7 +605,6 @@ function ensureTargetSvg(container, rangeNum) {
 }
 
 function upsertShotCircles(shotsGroup, shots, rangeNum) {
-  const colors = getShotOrderColors();
   // Keep the whole shot stack above the target face.
   if (shotsGroup.parentNode && shotsGroup.parentNode.lastElementChild !== shotsGroup) {
     shotsGroup.parentNode.appendChild(shotsGroup);
@@ -637,10 +644,12 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     }
     fill.setAttribute('cx', String(pt.x));
     fill.setAttribute('cy', String(pt.y));
+    const paint = colorForShotIndex(i, shots.length);
     fill.setAttribute('r', String(getShotFillRadius(rangeNum)));
-    fill.setAttribute('fill', colors[i % colors.length]);
+    fill.setAttribute('fill', paint);
     fill.setAttribute('fill-opacity', '1');
     fill.setAttribute('stroke', 'none');
+    fill.classList.toggle('is-last', i === shots.length - 1);
     const title = fill.querySelector('title');
     if (title) {
       title.textContent = `#${i + 1}: ${Number(s.decValue).toFixed(1)} (T ${Number(s.distance).toFixed(1)})`;
@@ -656,7 +665,8 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     ring.setAttribute('cx', String(pt.x));
     ring.setAttribute('cy', String(pt.y));
     ring.setAttribute('r', String(getShotFillRadius(rangeNum)));
-    ring.setAttribute('stroke', colors[i % colors.length]);
+    ring.setAttribute('stroke', paint);
+    ring.classList.toggle('is-last', i === shots.length - 1);
     ring.setAttribute('stroke-width', String(getShotStrokeWidth()));
     ring.setAttribute('stroke-opacity', '1');
     ring.setAttribute('pointer-events', 'none');
@@ -990,7 +1000,7 @@ function wireLast10ChartHover(container, rangeNum) {
 function renderLast10Chart(container, last10Values, rangeNum) {
   if (!container) return;
   const colors = getChartColors();
-  const shotColors = getShotOrderColors();
+  const shotPaint = getShotPaintColors();
   const values = (last10Values || []).map(Number).filter((n) => !Number.isNaN(n));
   const [yMin, yMax] = computeValueRange(last10Values, rangeNum);
   const ySpan = Math.max(0.01, yMax - yMin);
@@ -1022,7 +1032,7 @@ function renderLast10Chart(container, last10Values, rangeNum) {
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('preserveAspectRatio', 'none');
 
-  const sig = [W, H, yMin.toFixed(3), yMax.toFixed(3), values.join(','), shotColors.join(',')].join('|');
+  const sig = [W, H, yMin.toFixed(3), yMax.toFixed(3), values.join(','), shotPaint.prior, shotPaint.last].join('|');
   const skipPaint = container.dataset.chartSig === sig && svg.childElementCount > 0;
   if (!skipPaint) {
     container.dataset.chartSig = sig;
@@ -1038,7 +1048,7 @@ function renderLast10Chart(container, last10Values, rangeNum) {
       const x = padL + i * slotW + slotW * 0.15;
       const w = slotW * 0.7;
       const y = yToSvg(v);
-      const fill = shotColors[i % shotColors.length] || colors.bar;
+      const fill = (i === values.length - 1) ? shotPaint.last : shotPaint.prior;
       const tip = hoverValueLabel(i, v);
       html += `<rect class="last10-bar" data-shot-idx="${i}" x="${x}" y="${y}" width="${w}" height="${barH}" fill="${fill}"><title>${tip}</title></rect>`;
     }
