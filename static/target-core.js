@@ -33,32 +33,44 @@ const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scor
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
 
-// Classic Range pellets: older shots share one colour; only the latest shot is red.
-const DEFAULT_SHOT_PRIOR = '#e8c547';
-const DEFAULT_SHOT_LAST = '#d32f2f';
+// Classic Range pellets: one hue, 10 shades (shot 1 light → shot 10 deep).
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => {
+    const k = (n + h / 30) % 12;
+    return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+  };
+  const r = Math.round(f(0) * 255), g = Math.round(f(8) * 255), b = Math.round(f(4) * 255);
+  return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+const DEFAULT_SHOT_HUE = 4; // red
+const SHOT_ORDER_COUNT = 10;
 
 let lastLiveData = null;
 
-function getShotPaintColors() {
+function getShotHue() {
   const styles = getComputedStyle(document.documentElement);
-  const pick = function (name, fallback) {
-    const v = styles.getPropertyValue(name).trim();
-    return v || fallback;
-  };
-  return {
-    prior: pick('--shot-prior', DEFAULT_SHOT_PRIOR),
-    last: pick('--shot-last', DEFAULT_SHOT_LAST)
-  };
+  const raw = styles.getPropertyValue('--shot-hue').trim();
+  const n = Number(raw);
+  return Number.isFinite(n) ? ((n % 360) + 360) % 360 : DEFAULT_SHOT_HUE;
 }
 
-function colorForShotIndex(i, count) {
-  const colors = getShotPaintColors();
-  return (count > 0 && i === count - 1) ? colors.last : colors.prior;
-}
-
+/** Ten shades of --shot-hue: index 0 (first) is pale, index 9 (10th) is deepest. */
 function getShotOrderColors() {
-  const colors = getShotPaintColors();
-  return [colors.prior, colors.last];
+  const hue = getShotHue();
+  return Array.from({ length: SHOT_ORDER_COUNT }, (_, i) => {
+    const t = SHOT_ORDER_COUNT <= 1 ? 1 : i / (SHOT_ORDER_COUNT - 1);
+    const s = 52 + t * 38; // 52% → 90%
+    const l = 78 - t * 42; // 78% → 36%
+    return hslToHex(hue, s, l);
+  });
+}
+
+function colorForShotIndex(i) {
+  const colors = getShotOrderColors();
+  return colors[((i % colors.length) + colors.length) % colors.length];
 }
 
 let zoomStateByRange = {};   // rangeNum -> { x, y, w, h } SVG viewBox
@@ -644,7 +656,7 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     }
     fill.setAttribute('cx', String(pt.x));
     fill.setAttribute('cy', String(pt.y));
-    const paint = colorForShotIndex(i, shots.length);
+    const paint = colorForShotIndex(i);
     fill.setAttribute('r', String(getShotFillRadius(rangeNum)));
     fill.setAttribute('fill', paint);
     fill.setAttribute('fill-opacity', '1');
@@ -1000,7 +1012,7 @@ function wireLast10ChartHover(container, rangeNum) {
 function renderLast10Chart(container, last10Values, rangeNum) {
   if (!container) return;
   const colors = getChartColors();
-  const shotPaint = getShotPaintColors();
+  const shotColors = getShotOrderColors();
   const values = (last10Values || []).map(Number).filter((n) => !Number.isNaN(n));
   const [yMin, yMax] = computeValueRange(last10Values, rangeNum);
   const ySpan = Math.max(0.01, yMax - yMin);
@@ -1032,7 +1044,7 @@ function renderLast10Chart(container, last10Values, rangeNum) {
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('preserveAspectRatio', 'none');
 
-  const sig = [W, H, yMin.toFixed(3), yMax.toFixed(3), values.join(','), shotPaint.prior, shotPaint.last].join('|');
+  const sig = [W, H, yMin.toFixed(3), yMax.toFixed(3), values.join(','), shotColors.join(',')].join('|');
   const skipPaint = container.dataset.chartSig === sig && svg.childElementCount > 0;
   if (!skipPaint) {
     container.dataset.chartSig = sig;
@@ -1048,7 +1060,7 @@ function renderLast10Chart(container, last10Values, rangeNum) {
       const x = padL + i * slotW + slotW * 0.15;
       const w = slotW * 0.7;
       const y = yToSvg(v);
-      const fill = (i === values.length - 1) ? shotPaint.last : shotPaint.prior;
+      const fill = shotColors[i % shotColors.length] || colors.bar;
       const tip = hoverValueLabel(i, v);
       html += `<rect class="last10-bar" data-shot-idx="${i}" x="${x}" y="${y}" width="${w}" height="${barH}" fill="${fill}"><title>${tip}</title></rect>`;
     }

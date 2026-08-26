@@ -47,8 +47,8 @@
   --ludo-stroke: rgba(0, 0, 0, 0.28);
   --mini-target-bg: rgba(21, 32, 43, 0.04);
   --shooter-glow: rgba(10, 122, 140, 0.12);
-  --shot-prior: #e8c547;
-  --shot-last: #d32f2f;
+  /* Classic Range pellet gradient hue (HSL degrees); shades go light→deep for shot 1→10 */
+  --shot-hue: 4;
   /* System UI only — webfonts (e.g. Barlow) render with stepped curves on Windows ClearType */
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-display: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -91,8 +91,7 @@ html[data-theme="dark"] {
   --ludo-stroke: rgba(0, 0, 0, 0.4);
   --mini-target-bg: rgba(232, 236, 239, 0.06);
   --shooter-glow: rgba(42, 159, 175, 0.1);
-  --shot-prior: #f0d24a;
-  --shot-last: #ef5350;
+  --shot-hue: 4;
 }
 
 * { box-sizing: border-box; }
