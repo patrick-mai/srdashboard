@@ -1551,7 +1551,10 @@ function repaintAllShotVals() {
 }
 
 if (typeof document !== 'undefined') {
-  document.addEventListener('srdashboard:themechange', repaintAllShotVals);
+  document.addEventListener('srdashboard:themechange', function () {
+    repaintAllShotVals();
+    repaintShotColors();
+  });
   document.addEventListener('srdashboard:shotsatchange', repaintShotColors);
   document.addEventListener('srdashboard:shotmodechange', repaintShotColors);
   window.addEventListener('resize', function () {

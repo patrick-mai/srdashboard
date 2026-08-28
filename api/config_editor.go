@@ -106,6 +106,9 @@ func (h *Handlers) responseToConfig(resp ConfigResponse, old *config.Config) *co
 			DefaultMode:     resp.DefaultMode,
 			ControlToken:    token,
 			ShotStrokeWidth: resp.ShotStrokeWidth,
+			// Listen ports are not edited via the JSON config UI; keep across saves.
+			AdminPort:  old.Display.AdminPort,
+			PublicPort: old.Display.PublicPort,
 		},
 	}
 }

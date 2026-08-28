@@ -78,11 +78,14 @@
   <script>
     (function () {
       const display = (window.SRDisplay && window.SRDisplay.display) || 'master';
-      const s = document.createElement('script');
-      if (display === 'shooter') s.src = '/shooter.js';
-      else if (display === 'config') s.src = '/config-page.js';
-      else s.src = '/master.js?v=less-colors7';
-      document.body.appendChild(s);
+      const boot = (window.SRMode && window.SRMode.ready) || Promise.resolve();
+      boot.finally(function () {
+        const s = document.createElement('script');
+        if (display === 'shooter') s.src = '/shooter.js';
+        else if (display === 'config') s.src = '/config-page.js';
+        else s.src = '/master.js?v=less-colors7';
+        document.body.appendChild(s);
+      });
     })();
   </script>
 </body>

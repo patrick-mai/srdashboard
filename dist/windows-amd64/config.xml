@@ -25,5 +25,9 @@
     <shotStrokeWidth>0.1</shotStrokeWidth>
     <defaultMode>master</defaultMode>
     <controlToken/>
+    <!-- Full-control LAN port (PORT env overrides). -->
+    <adminPort>8080</adminPort>
+    <!-- Read-only master+stands for publish/proxy; 0 = off. -->
+    <publicPort>0</publicPort>
   </display>
 </config>

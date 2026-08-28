@@ -19,8 +19,7 @@ func (h *Handlers) PluginControl(w http.ResponseWriter, r *http.Request) {
 		Type   string         `json:"type"`
 		Params map[string]any `json:"params"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.Action == "" {

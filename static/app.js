@@ -54,29 +54,40 @@
   };
 
   const SHOT_SAT_KEY = 'srdashboard-shot-sat';
-  const DEFAULT_SHOT_SAT = 48;
+  const FALLBACK_SHOT_SAT = 48;
 
-  function clampShotSat(n) {
+  function clampShotSat(n, fallback) {
+    const fb = fallback != null ? fallback : FALLBACK_SHOT_SAT;
     n = Math.round(Number(n));
-    if (!Number.isFinite(n)) return DEFAULT_SHOT_SAT;
+    if (!Number.isFinite(n)) return fb;
     return Math.max(0, Math.min(100, n));
+  }
+
+  /** Theme CSS default (--shot-sat on :root / [data-theme]), not a hardcoded constant. */
+  function themeShotSatDefault() {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--shot-sat').trim();
+      const n = Number(v);
+      if (Number.isFinite(n)) return clampShotSat(n, FALLBACK_SHOT_SAT);
+    } catch (e) { /* ignore */ }
+    return FALLBACK_SHOT_SAT;
   }
 
   function getShotSat() {
     const inline = document.documentElement.style.getPropertyValue('--shot-sat').trim();
     if (inline !== '') {
       const n = Number(inline);
-      if (Number.isFinite(n)) return clampShotSat(n);
+      if (Number.isFinite(n)) return clampShotSat(n, themeShotSatDefault());
     }
     try {
       const stored = localStorage.getItem(SHOT_SAT_KEY);
-      if (stored != null && stored !== '') return clampShotSat(stored);
+      if (stored != null && stored !== '') return clampShotSat(stored, themeShotSatDefault());
     } catch (e) { /* ignore */ }
-    return DEFAULT_SHOT_SAT;
+    return themeShotSatDefault();
   }
 
   function applyShotSat(sat, opts) {
-    const next = clampShotSat(sat);
+    const next = clampShotSat(sat, themeShotSatDefault());
     document.documentElement.style.setProperty('--shot-sat', String(next));
     try { localStorage.setItem(SHOT_SAT_KEY, String(next)); } catch (e) { /* ignore */ }
     if (!opts || opts.emit !== false) {
@@ -88,7 +99,7 @@
   window.SRShotSat = {
     get: getShotSat,
     set: applyShotSat,
-    default: DEFAULT_SHOT_SAT
+    get default() { return themeShotSatDefault(); }
   };
 
   const SHOT_MODE_KEY = 'srdashboard-shot-mode';
@@ -126,6 +137,26 @@
     set: applyShotMode,
     default: DEFAULT_SHOT_MODE
   };
+
+  // Listener role: admin (full control) vs public (read-only view port).
+  window.SRMode = {
+    role: 'admin',
+    canControl: true,
+    ready: null
+  };
+  window.SRMode.ready = fetch('/api/mode')
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (data) {
+      const role = data && data.role === 'public' ? 'public' : 'admin';
+      window.SRMode.role = role;
+      window.SRMode.canControl = role !== 'public';
+      document.documentElement.setAttribute('data-role', role);
+      return window.SRMode;
+    })
+    .catch(function () {
+      document.documentElement.setAttribute('data-role', 'admin');
+      return window.SRMode;
+    });
 
   document.addEventListener('DOMContentLoaded', function () {
     const chrome = document.getElementById('master-chrome');

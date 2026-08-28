@@ -101,23 +101,6 @@ func TestUnzipExtractsNormalPackage(t *testing.T) {
 	}
 }
 
-func TestSanitizeUploadName(t *testing.T) {
-	cases := map[string]string{
-		"demo.srplugin.zip":            "demo.srplugin.zip",
-		"../../evil.zip":               "evil.zip",
-		`..\..\evil.zip`:               "evil.zip",
-		"/etc/passwd":                  "passwd",
-		`C:\Windows\System32\evil.zip`: "evil.zip",
-		"":                             "upload.srplugin.zip",
-		"..":                           "upload.srplugin.zip",
-	}
-	for in, want := range cases {
-		if got := sanitizeUploadName(in); got != want {
-			t.Errorf("sanitizeUploadName(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestCheckZipEntryName(t *testing.T) {
 	valid := []string{"manifest.xml", "assets/logo.svg", "a/b/c.txt", "."}
 	for _, name := range valid {

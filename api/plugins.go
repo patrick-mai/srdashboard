@@ -3,7 +3,6 @@ package api
 import (
 	"crypto/subtle"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -117,23 +116,6 @@ func (h *Handlers) PluginByID(w http.ResponseWriter, r *http.Request) {
 	path = strings.Trim(path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 1 && parts[0] != "" {
-		if r.Method == http.MethodDelete {
-			if !h.checkControlToken(r) {
-				http.Error(w, "Forbidden", http.StatusForbidden)
-				return
-			}
-			id := parts[0]
-			if h.PluginState != nil && h.PluginState.ActivePluginID() == id {
-				http.Error(w, "cannot uninstall the active plugin", http.StatusBadRequest)
-				return
-			}
-			if err := h.Plugins.Uninstall(id); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -168,50 +150,6 @@ func (h *Handlers) PluginByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.NotFound(w, r)
-}
-
-func (h *Handlers) PluginInstall(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !h.checkControlToken(r) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-	filename := r.Header.Get("X-Filename")
-	if filename == "" {
-		filename = "upload.srplugin.zip"
-	}
-	body := http.MaxBytesReader(w, r.Body, loader.MaxPluginUploadBytes)
-	if _, err := h.Plugins.SaveToInbox(filename, body); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			http.Error(w, "plugin package too large", http.StatusRequestEntityTooLarge)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	list, err := h.Plugins.ScanInbox()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := h.Plugins.Reload(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Re-bind active plugin after reload
-	if h.PluginState != nil {
-		h.syncRangeCount(h.cfgSnapshot().Ranges)
-		_ = h.PluginState.EnsureActive()
-	}
-	if h.Hub != nil {
-		h.Hub.BroadcastAll(map[string]any{"type": "plugins_changed"})
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(list)
 }
 
 func (h *Handlers) PluginActivate(w http.ResponseWriter, r *http.Request) {
@@ -272,33 +210,6 @@ func (h *Handlers) PluginReload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "active": h.PluginState.ActivePluginID()})
-}
-
-func (h *Handlers) PluginScanInbox(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !h.checkControlToken(r) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-	list, err := h.Plugins.ScanInbox()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := h.Plugins.Reload(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	h.syncRangeCount(h.cfgSnapshot().Ranges)
-	_ = h.PluginState.EnsureActive()
-	if h.Hub != nil {
-		h.Hub.BroadcastAll(map[string]any{"type": "plugins_changed"})
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(list)
 }
 
 func pluginAssetURL(id, rest string) string {

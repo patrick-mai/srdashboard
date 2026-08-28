@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -14,8 +13,6 @@ import (
 	"srdashboard/config"
 	"srdashboard/host/logicapi"
 )
-
-const defaultInboxDir = "host/inbox"
 
 // PluginInfo is a lightweight installed-plugin listing.
 type PluginInfo struct {
@@ -28,30 +25,26 @@ type PluginInfo struct {
 
 // ActivePlugin is a loaded plugin (manifest + optional WASM logic).
 type ActivePlugin struct {
-	Manifest *Manifest       `json:"manifest"`
-	Dir      string          `json:"-"`
-	Logic    logicapi.Logic  `json:"-"` // nil for display plugins
+	Manifest *Manifest      `json:"manifest"`
+	Dir      string         `json:"-"`
+	Logic    logicapi.Logic `json:"-"` // nil for display plugins
 }
 
-// Manager scans plugins/, loads optional logic.wasm, and installs zips.
+// Manager scans plugins/, loads optional logic.wasm, and can unpack zip packages on disk.
 type Manager struct {
-	mu       sync.RWMutex
-	rootDir  string
-	inboxDir string
-	loaded   map[string]*ActivePlugin
+	mu      sync.RWMutex
+	rootDir string
+	loaded  map[string]*ActivePlugin
 }
 
 func NewManager(rootDir string) *Manager {
 	if rootDir == "" {
 		rootDir = "plugins"
 	}
-	inbox := defaultInboxDir
-	_ = os.MkdirAll(inbox, 0755)
 	_ = os.MkdirAll(rootDir, 0755)
 	return &Manager{
-		rootDir:  rootDir,
-		inboxDir: inbox,
-		loaded:   map[string]*ActivePlugin{},
+		rootDir: rootDir,
+		loaded:  map[string]*ActivePlugin{},
 	}
 }
 
@@ -164,18 +157,6 @@ func (m *Manager) Install(zipPath string) (PluginInfo, error) {
 	}, nil
 }
 
-func (m *Manager) Uninstall(id string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if ap, ok := m.loaded[id]; ok {
-		if w, ok := ap.Logic.(*WasmLogic); ok {
-			_ = w.Close(context.Background())
-		}
-		delete(m.loaded, id)
-	}
-	return os.RemoveAll(m.pluginDir(id))
-}
-
 func (m *Manager) MergedConfig(id string) map[string]any {
 	ap, err := m.Get(id)
 	if err != nil {
@@ -200,65 +181,6 @@ func (m *Manager) MergedConfig(id string) map[string]any {
 		cfg[k] = v
 	}
 	return cfg
-}
-
-func (m *Manager) SaveToInbox(filename string, r io.Reader) (string, error) {
-	name := sanitizeUploadName(filename)
-	dest := filepath.Join(m.inboxDir, name)
-	f, err := os.Create(dest)
-	if err != nil {
-		return "", err
-	}
-	// Independent of any limit the HTTP layer applies, never let one upload
-	// write more than the package limit into the inbox.
-	if _, err := io.Copy(f, io.LimitReader(r, MaxPluginUploadBytes)); err != nil {
-		f.Close()
-		_ = os.Remove(dest)
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(dest)
-		return "", err
-	}
-	return dest, nil
-}
-
-// sanitizeUploadName reduces a client-supplied filename to a bare, safe name.
-// Both separators are stripped so a Windows-style path cannot survive on Linux.
-func sanitizeUploadName(filename string) string {
-	name := strings.ReplaceAll(filename, "\\", "/")
-	name = path.Base(name)
-	name = strings.TrimLeft(name, ".")
-	if name == "" || strings.ContainsAny(name, `/\:*?"<>|`) {
-		return "upload.srplugin.zip"
-	}
-	return name
-}
-
-func (m *Manager) ScanInbox() ([]PluginInfo, error) {
-	entries, err := os.ReadDir(m.inboxDir)
-	if err != nil {
-		return nil, err
-	}
-	var installed []PluginInfo
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		lower := strings.ToLower(name)
-		if !strings.HasSuffix(lower, ".srplugin.zip") && !strings.HasSuffix(lower, ".zip") {
-			continue
-		}
-		path := filepath.Join(m.inboxDir, name)
-		info, err := m.Install(path)
-		if err != nil {
-			continue
-		}
-		_ = os.Remove(path)
-		installed = append(installed, info)
-	}
-	return installed, nil
 }
 
 // Reload rescans plugins/ and (re)loads manifests + optional WASM.
@@ -372,10 +294,8 @@ func validateZip(zipPath string) (*Manifest, error) {
 	return manifest, nil
 }
 
-// Limits applied to uploaded plugin packages.
+// Limits applied when unpacking plugin zip packages on disk.
 const (
-	// MaxPluginUploadBytes caps the compressed upload accepted by the install endpoint.
-	MaxPluginUploadBytes = 64 << 20 // 64 MiB
 	// MaxPluginUnpackedBytes caps the total extracted size, guarding against zip bombs.
 	MaxPluginUnpackedBytes = 256 << 20 // 256 MiB
 	// MaxPluginZipEntries caps the archive entry count.

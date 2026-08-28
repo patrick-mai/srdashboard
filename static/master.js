@@ -657,24 +657,12 @@
     list.dataset.laneSig = sig;
   }
 
-  function buildControls() {
-    const strip = document.getElementById('control-strip');
-    if (!strip) return;
-    strip.innerHTML =
-      '<div class="plugin-quick">' +
-      '<label class="plugin-active-label">Aktiv' +
-      '<select id="plugin-active-select"></select></label>' +
-      '<a class="btn btn-ghost" id="plugin-config-link" href="/config">Einstellungen</a>' +
-      '<button type="button" class="btn btn-ghost" id="rulebook-menu-btn" hidden>Regelbuch</button>' +
-      '<span id="race-controls" class="race-controls" hidden>' +
-      '<button type="button" class="btn btn-primary" id="race-start-btn">Start</button>' +
-      '<button type="button" class="btn" id="race-reset-btn">Reset</button>' +
-      '<button type="button" class="btn" id="race-puncture-btn" hidden>Reifenplatzer</button>' +
-      '<button type="button" class="btn" id="race-oil-btn" hidden>Ölverlust</button>' +
-      '</span>' +
-      '<div class="plugin-active-label">Bahnen' +
-      '<div id="range-lane-select" class="range-lane-list" role="group" aria-label="Bahnen"></div></div>' +
-      '<button type="button" class="btn btn-ghost" id="btn-theme-toggle">Dunkelmodus</button>' +
+  function canControlUI() {
+    return !(window.SRMode && window.SRMode.canControl === false);
+  }
+
+  function shotColourControlsHtml() {
+    return '<button type="button" class="btn btn-ghost" id="btn-theme-toggle">Dunkelmodus</button>' +
       '<label class="plugin-active-label shot-sat-control">Farbsättigung' +
       '<span class="shot-sat-row">' +
       '<input type="range" id="shot-sat-slider" min="0" max="100" step="1" aria-valuemin="0" aria-valuemax="100">' +
@@ -686,10 +674,42 @@
       }).join('') +
       '<button type="button" class="shot-hue-swatch shot-hue-rainbow" data-shot-mode="rainbow" title="Regenbogen" aria-label="Regenbogen" aria-pressed="false"></button>' +
       '</div></label>' +
-      '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
-      '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
-      '<span class="tablet-hint">Tablet: /BahnNr z.B. ' + location.origin + '/3</span>' +
-      '</div>';
+      '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>';
+  }
+
+  function buildControls() {
+    const strip = document.getElementById('control-strip');
+    if (!strip) return;
+    const admin = canControlUI();
+    if (!admin) {
+      strip.innerHTML =
+        '<div class="plugin-quick">' +
+        '<label class="plugin-active-label">Aktiv' +
+        '<span class="plugin-active-readonly" id="plugin-active-label">–</span></label>' +
+        '<button type="button" class="btn btn-ghost" id="rulebook-menu-btn" hidden>Regelbuch</button>' +
+        shotColourControlsHtml() +
+        '<span class="tablet-hint">Ansicht (öffentlich)</span>' +
+        '</div>';
+    } else {
+      strip.innerHTML =
+        '<div class="plugin-quick">' +
+        '<label class="plugin-active-label">Aktiv' +
+        '<select id="plugin-active-select"></select></label>' +
+        '<a class="btn btn-ghost" id="plugin-config-link" href="/config">Einstellungen</a>' +
+        '<button type="button" class="btn btn-ghost" id="rulebook-menu-btn" hidden>Regelbuch</button>' +
+        '<span id="race-controls" class="race-controls" hidden>' +
+        '<button type="button" class="btn btn-primary" id="race-start-btn">Start</button>' +
+        '<button type="button" class="btn" id="race-reset-btn">Reset</button>' +
+        '<button type="button" class="btn" id="race-puncture-btn" hidden>Reifenplatzer</button>' +
+        '<button type="button" class="btn" id="race-oil-btn" hidden>Ölverlust</button>' +
+        '</span>' +
+        '<div class="plugin-active-label">Bahnen' +
+        '<div id="range-lane-select" class="range-lane-list" role="group" aria-label="Bahnen"></div></div>' +
+        shotColourControlsHtml() +
+        '<button type="button" class="btn btn-ghost" id="btn-control-token">Control-Token</button>' +
+        '<span class="tablet-hint">Tablet: /BahnNr z.B. ' + location.origin + '/3</span>' +
+        '</div>';
+    }
 
     const sel = document.getElementById('plugin-active-select');
     if (sel) {
@@ -706,10 +726,13 @@
       });
       if (!res.ok) alert(await res.text());
     }
-    document.getElementById('race-start-btn').onclick = function () { raceControl('start'); };
-    document.getElementById('race-reset-btn').onclick = function () { raceControl('reset'); };
-    document.getElementById('race-puncture-btn').onclick = function () { raceControl('field_event', 'puncture'); };
-    document.getElementById('race-oil-btn').onclick = function () { raceControl('field_event', 'oil_leak'); };
+    const startBtn = document.getElementById('race-start-btn');
+    if (startBtn) {
+      startBtn.onclick = function () { raceControl('start'); };
+      document.getElementById('race-reset-btn').onclick = function () { raceControl('reset'); };
+      document.getElementById('race-puncture-btn').onclick = function () { raceControl('field_event', 'puncture'); };
+      document.getElementById('race-oil-btn').onclick = function () { raceControl('field_event', 'oil_leak'); };
+    }
     const rangeList = document.getElementById('range-lane-select');
     if (rangeList) {
       function laneCheckbox(ev) {
@@ -812,6 +835,10 @@
       document.addEventListener('srdashboard:shotsatchange', function (ev) {
         syncShotSatUI(ev.detail && ev.detail.sat);
       });
+      // Theme CSS may change --shot-sat; refresh slider when user has no override.
+      document.addEventListener('srdashboard:themechange', function () {
+        syncShotSatUI();
+      });
       document.addEventListener('srdashboard:shotmodechange', function () {
         syncShotHueSwatches();
       });
@@ -845,19 +872,27 @@
   }
 
   function refreshControls() {
-    const sel = document.getElementById('plugin-active-select');
-    if (!sel) return;
     const activeId = currentPluginId();
-    sel.innerHTML = installedPlugins.map(function (p) {
-      return '<option value="' + escapeHtml(p.id) + '"' +
-        (p.id === activeId ? ' selected' : '') + '>' +
-        escapeHtml(p.label || p.id) + ' (' + escapeHtml(p.kind || '') + ')</option>';
-    }).join('');
+    const readonly = document.getElementById('plugin-active-label');
+    if (readonly) {
+      const p = installedPlugins.find(function (x) { return x.id === activeId; }) || activePlugin;
+      readonly.textContent = p
+        ? ((p.label || p.id) + (p.kind ? ' (' + p.kind + ')' : ''))
+        : (activeId || '–');
+    }
+    const sel = document.getElementById('plugin-active-select');
+    if (sel) {
+      sel.innerHTML = installedPlugins.map(function (p) {
+        return '<option value="' + escapeHtml(p.id) + '"' +
+          (p.id === activeId ? ' selected' : '') + '>' +
+          escapeHtml(p.label || p.id) + ' (' + escapeHtml(p.kind || '') + ')</option>';
+      }).join('');
+    }
     const race = document.getElementById('race-controls');
     if (race) {
       const shared = isSharedPlugin();
       const id = currentPluginId();
-      race.hidden = !shared;
+      race.hidden = !shared || !canControlUI();
       const startBtn = document.getElementById('race-start-btn');
       const punctureBtn = document.getElementById('race-puncture-btn');
       const oilBtn = document.getElementById('race-oil-btn');

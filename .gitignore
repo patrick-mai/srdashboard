@@ -28,8 +28,6 @@ Thumbs.db
 
 # Local overrides / runtime
 runtime.xml
-host/inbox/*
-!host/inbox/.gitkeep
 plugins/*/config.xml
 *.log
 

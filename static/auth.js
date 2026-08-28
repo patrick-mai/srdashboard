@@ -43,10 +43,15 @@ window.SRAuth = (function () {
   // Sends a request with the stored token and, on 403, asks for the token once
   // and retries. Everything else is passed through untouched.
   async function fetchWithAuth(url, options) {
+    const method = String((options && options.method) || 'GET').toUpperCase();
+    if (window.SRMode && window.SRMode.canControl === false && method !== 'GET' && method !== 'HEAD') {
+      return new Response('Not available on public view', { status: 403, statusText: 'Forbidden' });
+    }
     const opts = Object.assign({}, options || {});
     opts.headers = headers(opts.headers);
     let res = await fetch(url, opts);
     if (res.status !== 403) return res;
+    if (window.SRMode && window.SRMode.canControl === false) return res;
     const token = promptForToken('Control-Token erforderlich für diese Aktion:');
     if (!token) return res;
     opts.headers = headers(options && options.headers);

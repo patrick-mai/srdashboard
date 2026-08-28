@@ -72,6 +72,8 @@ func Save(path string, cfg *Config) error {
 	setChildScalar(display, "defaultMode", cfg.Display.DefaultMode)
 	setChildScalar(display, "controlToken", cfg.Display.ControlToken)
 	setChildScalar(display, "shotStrokeWidth", cfg.Display.ShotStrokeWidth)
+	setChildScalar(display, "adminPort", cfg.Display.AdminPort)
+	setChildScalar(display, "publicPort", cfg.Display.PublicPort)
 
 	return writeXMLDocAtomic(path, doc)
 }

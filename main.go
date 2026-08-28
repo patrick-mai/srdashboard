@@ -4,14 +4,13 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"regexp"
-	"strings"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -53,9 +52,6 @@ func main() {
 	}
 
 	pm := loader.NewManager(cfg.Plugins.Dir)
-	if _, err := pm.ScanInbox(); err != nil {
-		log.Printf("scan plugin inbox: %v", err)
-	}
 	if err := pm.Reload(); err != nil {
 		log.Printf("load plugins: %v", err)
 	}
@@ -113,92 +109,48 @@ func main() {
 	udpListener.Start()
 	defer udpListener.Stop()
 
-	http.HandleFunc("/api/live", handlers.Live)
-	http.HandleFunc("/api/live/reset", handlers.LiveReset)
-	http.HandleFunc("/api/runtime", handlers.ServeRuntime)
-	http.HandleFunc("/api/qr", handlers.QR)
-	http.HandleFunc("/api/qr.png", handlers.QR)
-	http.HandleFunc("/api/qr/formats", handlers.QRFormats)
-	http.HandleFunc("/api/config", handlers.Config)
-	http.HandleFunc("/api/historic", handlers.Historic)
-	http.HandleFunc("/api/plugins/active", handlers.PluginsActiveList)
-	http.HandleFunc("/api/plugins/session", handlers.PluginSession)
-	http.HandleFunc("/api/plugins/control", handlers.PluginControl)
-	http.HandleFunc("/api/plugins", handlers.PluginsList)
-	http.HandleFunc("/api/plugins/install", handlers.PluginInstall)
-	http.HandleFunc("/api/plugins/activate", handlers.PluginActivate)
-	http.HandleFunc("/api/plugins/reload", handlers.PluginReload)
-	http.HandleFunc("/api/plugins/scan-inbox", handlers.PluginScanInbox)
-	http.HandleFunc("/api/plugins/", handlers.PluginByID)
-	http.HandleFunc("/ws", hub.ServeWS)
-	http.HandleFunc("/plugins/", handlers.ServePlugin)
+	staticOpt := buildStaticOptions()
 
-	staticDir := "static"
-	var staticHandler http.Handler
-	if _, err := os.Stat(staticDir); err == nil {
-		staticHandler = http.FileServer(http.Dir(staticDir))
-	} else {
-		sub, err := fs.Sub(staticFS, "static")
-		if err != nil {
-			log.Fatalf("embedded static assets: %v", err)
-		}
-		staticHandler = http.FileServer(http.FS(sub))
-	}
-	rangePath := regexp.MustCompile(`^/(\d+)/?$`)
-	serveIndex := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if _, err := os.Stat(filepath.Join(staticDir, "index.html")); err == nil {
-			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
-			return
-		}
-		data, err := staticFS.ReadFile("static/index.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		_, _ = w.Write(data)
-	}
-	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if path == "/config" || path == "/config/" || rangePath.MatchString(path) {
-			serveIndex(w, r)
-			return
-		}
-		if path == "/" || path == "/index.html" {
-			serveIndex(w, r)
-			return
-		}
-		if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".html") ||
-			strings.HasSuffix(path, ".mp3") || strings.HasSuffix(path, ".ogg") ||
-			strings.HasSuffix(path, ".wav") || strings.HasSuffix(path, ".m4a") {
-			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
-		}
-		staticHandler.ServeHTTP(w, r)
-	}))
-
-	addr := ":8080"
+	adminPort := cfg.Display.AdminPort
 	if p := os.Getenv("PORT"); p != "" {
-		addr = ":" + p
-	}
-	server := &http.Server{
-		Addr:              addr,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-	}
-	if cfg.Display.ControlToken == "" {
-		log.Printf("WARNING: display/controlToken is not set in %s — anyone who can reach %s may change plugins, config and live scores", configPath, addr)
-	}
-	log.Printf("HTTP server on http://localhost%s (active plugin: %s)", addr, cfg.Plugins.Active)
-
-	serverErr := make(chan error, 1)
-	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 1 || n > 65535 {
+			log.Fatalf("PORT env %q is not a valid TCP port", p)
 		}
-		close(serverErr)
-	}()
+		adminPort = n
+	}
+	publicPort := cfg.Display.PublicPort
+	if publicPort < 0 || publicPort > 65535 {
+		log.Fatalf("display/publicPort must be 0 (off) or 1–65535, got %d", publicPort)
+	}
+	if publicPort != 0 && publicPort == adminPort {
+		log.Fatalf("display/publicPort (%d) must differ from admin port (%d)", publicPort, adminPort)
+	}
+
+	adminMux := http.NewServeMux()
+	api.RegisterAdminRoutes(adminMux, handlers, hub, staticOpt)
+	adminServer := newHTTPServer(fmt.Sprintf(":%d", adminPort), adminMux)
+
+	var publicServer *http.Server
+	if publicPort > 0 {
+		publicMux := http.NewServeMux()
+		api.RegisterPublicRoutes(publicMux, handlers, hub, staticOpt)
+		publicServer = newHTTPServer(fmt.Sprintf(":%d", publicPort), publicMux)
+	}
+
+	if cfg.Display.ControlToken == "" {
+		log.Printf("WARNING: display/controlToken is not set in %s — anyone who can reach the admin port :%d may change plugins, config and live scores", configPath, adminPort)
+	}
+	log.Printf("admin HTTP on http://localhost:%d (active plugin: %s)", adminPort, cfg.Plugins.Active)
+	if publicServer != nil {
+		log.Printf("public HTTP on http://localhost:%d (read-only master + stands; publish this port only)", publicPort)
+	}
+
+	serverErr := make(chan error, 2)
+	go serveHTTP(adminServer, "admin", serverErr)
+	if publicServer != nil {
+		go serveHTTP(publicServer, "public", serverErr)
+	}
 
 	// Shut down on Ctrl-C so in-flight config writes finish and the UDP socket
 	// is released instead of being torn down mid-operation.
@@ -213,8 +165,51 @@ func main() {
 		log.Printf("received %s, shutting down", sig)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("graceful shutdown: %v", err)
+		if err := adminServer.Shutdown(ctx); err != nil {
+			log.Printf("admin shutdown: %v", err)
 		}
+		if publicServer != nil {
+			if err := publicServer.Shutdown(ctx); err != nil {
+				log.Printf("public shutdown: %v", err)
+			}
+		}
+	}
+}
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+	}
+}
+
+func serveHTTP(server *http.Server, name string, serverErr chan<- error) {
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		serverErr <- fmt.Errorf("%s: %w", name, err)
+	}
+}
+
+func buildStaticOptions() api.StaticOptions {
+	staticDir := "static"
+	var staticHandler http.Handler
+	if _, err := os.Stat(staticDir); err == nil {
+		staticHandler = http.FileServer(http.Dir(staticDir))
+	} else {
+		sub, err := fs.Sub(staticFS, "static")
+		if err != nil {
+			log.Fatalf("embedded static assets: %v", err)
+		}
+		staticHandler = http.FileServer(http.FS(sub))
+	}
+	return api.StaticOptions{
+		StaticDir:     staticDir,
+		StaticHandler: staticHandler,
+		AllowConfig:   true,
+		ReadIndex: func() ([]byte, error) {
+			return staticFS.ReadFile("static/index.html")
+		},
 	}
 }

@@ -35,11 +35,15 @@ type PluginRef struct {
 	Version string `xml:"version,attr" json:"version"`
 }
 
-// Display holds UI defaults and control token for master displays.
+// Display holds UI defaults, listen ports, and control token for master displays.
 type Display struct {
 	DefaultMode     string  `xml:"defaultMode" json:"defaultMode"`
 	ControlToken    string  `xml:"controlToken" json:"controlToken"`
 	ShotStrokeWidth float64 `xml:"shotStrokeWidth" json:"shotStrokeWidth"` // pellet outline width in mm (SVG user units)
+	// AdminPort is the full-control HTTP port (LAN). 0 → default 8080.
+	AdminPort int `xml:"adminPort" json:"adminPort"`
+	// PublicPort is the read-only view port (master + stands). 0 → disabled.
+	PublicPort int `xml:"publicPort" json:"publicPort"`
 }
 
 // Footer holds visibility toggles for footer elements
@@ -93,6 +97,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Display.ShotStrokeWidth <= 0 {
 		cfg.Display.ShotStrokeWidth = 0.1
+	}
+	if cfg.Display.AdminPort <= 0 {
+		cfg.Display.AdminPort = 8080
 	}
 }
 

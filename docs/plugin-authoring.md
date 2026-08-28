@@ -24,10 +24,10 @@ plugins/
     assets/            (optional)
 ```
 
-Host code lives under `host/` (`loader/`, `rangestate/`, `logicapi/`). Upload zips go in `host/inbox/`.
+Host code lives under `host/` (`loader/`, `rangestate/`, `logicapi/`).  
+Plugins ship with the release package under `plugins/`. Special or custom plugins are added the same way: place a folder under `plugins/{id}/` and reload (or restart) the host.
 
-Upload zips land in `host/inbox/`, then unpack into `plugins/{id}/`.  
-Distribution zips are built to `dist/plugins/` via `go run ./cmd/zip-bundled`.
+Distribution zips for packaging are built to `dist/plugins/` via `go run ./cmd/zip-bundled`.
 
 ## manifest.xml
 
@@ -72,11 +72,11 @@ go run ./cmd/zip-bundled
 
 Creates `dist/plugins/{id}-{version}.srplugin.zip` from each `plugins/{id}/` with a `manifest.xml` (excludes `config.xml` and `logic/`).
 
-## Install
+## Load / activate
 
-- Copy or edit plugin folders directly under `plugins/{id}/`
-- Or drop a zip in `host/inbox/` and click **Scan inbox** / `POST /api/plugins/scan-inbox`
-- API upload: `POST /api/plugins/install`
+- Shipped and custom plugins live as folders under `plugins/{id}/`
+- Startup and `POST /api/plugins/reload` rescan that directory (dynamic load; no web upload)
+- Activate via the master selector or `POST /api/plugins/activate` with `{"id":"…"}`
 
 ## Runtime URLs
 

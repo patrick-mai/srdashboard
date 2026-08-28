@@ -205,7 +205,26 @@ srdashboard.exe
 
 Pass a custom config path as the first argument: `srdashboard.exe D:\range\config.xml`.
 
-On a network that is not only the range LAN, set `display/controlToken` in `config.xml` (or in Einstellungen) so random visitors cannot change plugins or reset scores.
+### Admin vs public HTTP ports
+
+| Port | Config | Role |
+|------|--------|------|
+| **Admin** (default **8080**) | `display/adminPort` (or `PORT` env) | Full control: master, stands, `/config`, plugin switch, live reset. On the controlled hall LAN an empty `controlToken` is fine. |
+| **Public** (optional) | `display/publicPort` — `0` = off, e.g. `8081` | Read-only **master + stands**. No `/config`, no mutations. Safe to put behind a reverse proxy / publish elsewhere. |
+
+Example — enable the public view port in `config.xml`:
+
+```xml
+<display>
+  <adminPort>8080</adminPort>
+  <publicPort>8081</publicPort>
+  …
+</display>
+```
+
+Then publish **only** `:8081` (rate limits / TLS at the reverse proxy). Keep `:8080` and UDP on the private range network.
+
+On a network that is not only the range LAN **and** you only use the admin port, set `display/controlToken` in `config.xml` (or in Einstellungen) so random visitors cannot change plugins or reset scores.
 
 ---
 
@@ -215,7 +234,8 @@ On a network that is not only the range LAN, set `display/controlToken` in `conf
 |-----|------|
 | `/?display=master` | All ranges (default) |
 | `/?display=shooter&range=2` or `/2` | Single-range tablet |
-| `/config` | Site + plugin settings |
+| `/config` | Site + plugin settings (**admin port only**) |
+| `GET /api/mode` | `{ "role": "admin" }` or `{ "role": "public" }` |
 
 ---
 
