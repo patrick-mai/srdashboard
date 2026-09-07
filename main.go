@@ -5,6 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
+	"srdashboard/recovery"
 	"srdashboard/state"
 	"srdashboard/udp"
 )
@@ -66,6 +68,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("UDP listener: %v", err)
 	}
+	sessionLog, err := recovery.OpenSessionLog("log")
+	if err != nil {
+		log.Printf("session log disabled: %v", err)
+	} else {
+		log.SetOutput(io.MultiWriter(os.Stdout, sessionLog))
+		log.Printf("session log: %s", sessionLog.Path)
+		defer sessionLog.Close()
+	}
 
 	rt, err := config.LoadRuntime(config.RuntimePath(configPath))
 	if err != nil {
@@ -86,6 +96,7 @@ func main() {
 		Plugins:     pm,
 		PluginState: ps,
 		Hub:         hub,
+		ReplayLog:   udpListener.ReplayLog,
 	}
 	udpListener.SetShotFilter(handlers)
 	udpListener.SetShotNotifier(func(rng int, shot state.Shot, shotIndex int) {
@@ -98,6 +109,9 @@ func main() {
 			// Leaving warmup is detected inside game logic via Live.IsWarmup;
 			// still sync once when a competition shot arrives after warmup.
 			ps.SyncLiveReadyIfArming()
+		}
+		if ps.InReplay() {
+			return
 		}
 		if rs, ok := st.RangeSnapshot(rng); ok {
 			hub.BroadcastRange(rng, map[string]any{

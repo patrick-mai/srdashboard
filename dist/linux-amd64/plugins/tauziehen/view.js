@@ -290,23 +290,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setTzSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setTzSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'tz-master-layout' : 'tz-shooter-layout';
-    const otherCls = isMaster ? 'tz-shooter-layout' : 'tz-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'tz-shooter-layout' : (isCompact ? 'tz-compact-layout' : 'tz-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="tz-header" data-header></header>' +
         '<div class="tz-main">' +
         '<div class="tz-target-col">' +
-        '<div class="tz-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="tz-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="tz-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="tz-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '<div data-actions></div>' +
@@ -333,26 +333,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="tz-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (tzPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="tz-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="tz-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="tz-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
 
     const footer = container.querySelector('[data-footer]');
     if (footer) {

@@ -358,6 +358,28 @@
       '</section>';
   }
 
+  function renderRecoverySection() {
+    return '<section class="config-section">' +
+      '<header class="config-section-head">' +
+      '<h3>Wiederherstellung</h3>' +
+      '<p class="config-hint">Konsolen-Ausgabe von <code>srdashboard.exe</code> und die Datei <code>log/&lt;Startzeit&gt;.txt</code> sind dasselbe Format. ' +
+      'Hier einfügen (oder OpticScore-JSON). Schüsse laufen durch die normale Prüfung; das aktive Spiel wertet sie mit aus. ' +
+      'Zufallsereignisse (z. B. Reifenplatzer) stehen nicht im Log und lassen sich nicht originalgetreu wiederholen. ' +
+      'Danach <a href="/">Live-Ansicht</a> öffnen.</p>' +
+      '</header>' +
+      '<label class="config-check config-field-full"><input type="checkbox" id="recovery-clear-ranges" checked> ' +
+      '<span>Bahnen vor dem Nachspielen leeren</span></label>' +
+      '<label class="config-field config-field-full">Log einfügen' +
+      '<textarea id="recovery-log" class="config-recovery-log" rows="12" spellcheck="false" ' +
+      'placeholder="Konsolen-Ausgabe, log/&lt;Startzeit&gt;.txt oder OpticScore-JSON einfügen…"></textarea></label>' +
+      '<div class="config-actions">' +
+      '<button type="button" class="btn btn-primary" id="recovery-replay">Schüsse nachspielen</button>' +
+      '<button type="button" class="btn btn-ghost" id="recovery-clear-text">Leeren</button>' +
+      '<span id="recovery-status" class="config-editor-status"></span>' +
+      '</div>' +
+      '</section>';
+  }
+
   function renderPluginSection() {
     if (!pluginId) {
       return '<section class="config-section">' +
@@ -401,6 +423,7 @@
       panel.innerHTML =
         '<div class="config-page-body">' +
         renderGlobalSection() +
+        renderRecoverySection() +
         renderPluginSection() +
         '</div>';
     } else {
@@ -426,6 +449,17 @@
     if (saveGlobal) saveGlobal.onclick = saveGlobalConfig;
     const savePlugin = panel.querySelector('#config-save-plugin');
     if (savePlugin) savePlugin.onclick = savePluginConfig;
+    const replayBtn = panel.querySelector('#recovery-replay');
+    if (replayBtn) replayBtn.onclick = replayRecoveryLog;
+    const clearBtn = panel.querySelector('#recovery-clear-text');
+    if (clearBtn) {
+      clearBtn.onclick = function () {
+        const ta = panel.querySelector('#recovery-log');
+        const status = panel.querySelector('#recovery-status');
+        if (ta) ta.value = '';
+        setStatus(status, '', false);
+      };
+    }
     const addPin = panel.querySelector('.config-add-pin');
     if (addPin) {
       addPin.onclick = function () {
@@ -477,6 +511,39 @@
     } else {
       setStatus(status, 'Gespeichert.', false);
       if (window.SRCore && window.SRCore.fetchConfig) await window.SRCore.fetchConfig();
+    }
+  }
+
+  async function replayRecoveryLog() {
+    const status = panel.querySelector('#recovery-status');
+    const ta = panel.querySelector('#recovery-log');
+    if (!ta) return;
+    const logText = ta.value.trim();
+    if (!logText) {
+      setStatus(status, 'Bitte zuerst ein Log einfügen.', true);
+      return;
+    }
+    setStatus(status, 'Spiele Schüsse nach…', false);
+    const res = await controlFetch('/api/recovery/replay', {
+      method: 'POST',
+      body: JSON.stringify({
+        log: logText,
+        clear: !!(panel.querySelector('#recovery-clear-ranges') && panel.querySelector('#recovery-clear-ranges').checked)
+      })
+    });
+    if (!res.ok) {
+      setStatus(status, 'Fehler: ' + (await res.text()), true);
+      return;
+    }
+    const result = await res.json();
+    const lines = result && result.lines != null ? result.lines : 0;
+    const applied = result && result.applied != null ? result.applied : 0;
+    if (lines === 0) {
+      setStatus(status, 'Keine Schuss-Zeilen erkannt. Log aus log/ oder OpticScore OUT-JSONInterface einfügen.', true);
+    } else if (applied === 0) {
+      setStatus(status, lines + ' Zeile(n) erkannt, aber kein Schuss übernommen (Bahn aktiv? Daten gültig?).', true);
+    } else {
+      setStatus(status, applied + ' von ' + lines + ' Schuss' + (lines === 1 ? '' : 'en') + ' nachgespielt (Live + Spiel). Live-Ansicht aktualisieren.', false);
     }
   }
 

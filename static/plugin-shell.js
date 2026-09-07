@@ -159,6 +159,7 @@ window.SRAudio = (function () {
 window.SRPluginShell = (function () {
   // Loads a plugin's view.js, then delegates to SRPlugins / SRPluginViews.
   const loadedScripts = {}; // pluginId -> <script> element
+  const loadingScripts = {}; // pluginId -> in-flight Promise
   const loadedThemes = {}; // pluginId -> <link> element
 
   function removeTheme(pluginId) {
@@ -185,17 +186,27 @@ window.SRPluginShell = (function () {
 
   async function ensureViewScript(pluginId, viewUrl) {
     if (loadedScripts[pluginId]) return;
+    if (loadingScripts[pluginId]) return loadingScripts[pluginId];
     const url = resolveViewUrl(pluginId, viewUrl);
     if (!url) throw new Error('refusing to load plugin view from ' + viewUrl);
     url.searchParams.set('t', String(Date.now()));
     const script = document.createElement('script');
-    await new Promise(function (resolve, reject) {
+    // Six hall lanes used to race this check and insert view.js six times.
+    // Classic scripts share the window scope, so a second load with top-level
+    // const/let throws "Identifier has already been declared".
+    loadingScripts[pluginId] = new Promise(function (resolve, reject) {
       script.src = url.pathname + url.search;
       script.onload = resolve;
       script.onerror = reject;
       document.head.appendChild(script);
+    }).then(function () {
+      loadedScripts[pluginId] = script;
+      delete loadingScripts[pluginId];
+    }, function (err) {
+      delete loadingScripts[pluginId];
+      throw err;
     });
-    loadedScripts[pluginId] = script;
+    return loadingScripts[pluginId];
   }
 
   function ensureTheme(pluginId, themeUrl) {
@@ -269,6 +280,7 @@ window.SRPluginShell = (function () {
     const script = loadedScripts[pluginId];
     if (script && script.parentNode) script.parentNode.removeChild(script);
     delete loadedScripts[pluginId];
+    delete loadingScripts[pluginId];
   }
 
   function clearCache(pluginId) {

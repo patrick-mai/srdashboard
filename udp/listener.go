@@ -97,6 +97,21 @@ func (l *Listener) SetShotFilter(f ShotFilter) {
 	l.pipe.Filter = f
 }
 
+// Ingest applies one OpticScore datagram without UDP (replay / recovery).
+func (l *Listener) Ingest(data []byte) int {
+	return l.pipe.Ingest(data)
+}
+
+// ReplayLog bulk-applies recovered packets through the validated ingest path,
+// including OnShot so game plugins reconstruct from the same shots.
+func (l *Listener) ReplayLog(packets [][]byte) int {
+	applied := 0
+	for _, pkt := range packets {
+		applied += l.pipe.IngestReplay(pkt)
+	}
+	return applied
+}
+
 // Start begins reading UDP packets
 func (l *Listener) Start() {
 	go l.readLoop()

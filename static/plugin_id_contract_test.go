@@ -65,7 +65,7 @@ func TestEveryPluginIdMatchesFolderManifestAndView(t *testing.T) {
 	}
 	want := []string{
 		"ansage-duell", "autorennen", "bank-oder-risiko", "barrikade", "biathlon",
-		"classic-range", "fox-on-the-run", "kettenreaktion", "ko-pokal",
+		"classic-range", "classic-range-condensed", "fox-on-the-run", "kettenreaktion", "ko-pokal",
 		"kronen-duell", "ludo", "schiessgolf", "schrumpfender-kreis",
 		"tannebaum-einzel", "tannebaum-team", "tauziehen", "turmbau", "zehner-bingo",
 	}
@@ -85,6 +85,43 @@ func TestEveryPluginIdMatchesFolderManifestAndView(t *testing.T) {
 			t.Errorf("missing bundled plugin folder %s", id)
 		}
 	}
+}
+
+func TestPluginViewScriptsAvoidTopLevelLexicalBindings(t *testing.T) {
+	// Classic <script> tags share the window scope. A second insert of the same
+	// view.js (hall lanes racing ensureViewScript) throws
+	// "Identifier 'PLUGIN_ID' has already been declared" unless the file is an IIFE.
+	pluginsDir := filepath.Join(staticRoot(t), "..", "plugins")
+	entries, err := os.ReadDir(pluginsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		viewPath := filepath.Join(pluginsDir, e.Name(), "view.js")
+		raw, err := os.ReadFile(viewPath)
+		if err != nil {
+			continue
+		}
+		body := strings.TrimSpace(string(raw))
+		if strings.HasPrefix(body, "(function") {
+			continue
+		}
+		for i, line := range strings.Split(body, "\n") {
+			trim := strings.TrimRight(line, " \t\r")
+			if strings.HasPrefix(trim, "const ") || strings.HasPrefix(trim, "let ") {
+				t.Errorf("%s:%d top-level %q — wrap view.js in an IIFE so a second <script> insert does not throw", e.Name(), i+1, strings.TrimSpace(trim))
+			}
+		}
+	}
+}
+
+func TestPluginShellDedupesInFlightViewLoads(t *testing.T) {
+	js := readRepoFile(t, "static", "plugin-shell.js")
+	mustContain(t, js, "loadingScripts[pluginId]",
+		"parallel hall mounts must share one in-flight view.js load")
 }
 
 func TestAutorennenCircuitAssetsMatchViewMap(t *testing.T) {

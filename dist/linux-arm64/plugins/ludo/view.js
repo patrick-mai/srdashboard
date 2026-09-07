@@ -262,9 +262,9 @@ window.SRPluginViews = window.SRPluginViews || {};
       else if (!p.inYard) pos = 'Feld ' + (p.ringCell != null ? p.ringCell : '—');
       return '<li class="' + cls + '">' +
         '<span class="ld-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
-        '<span>' + esc(p.label) + '</span>' +
-        '<strong>' + esc(pos) + '</strong>' +
-        '<span>' + esc(p.hint || '') + '</span></li>';
+        '<span class="ld-who">' + esc(p.label) + '</span>' +
+        '<strong class="ld-pos">' + esc(pos) + '</strong>' +
+        '<span class="ld-hint">' + esc(p.hint || '') + '</span></li>';
     }).join('') + '</ul>';
   }
 
@@ -710,23 +710,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setLdSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setLdSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'ld-master-layout' : 'ld-shooter-layout';
-    const otherCls = isMaster ? 'ld-shooter-layout' : 'ld-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'ld-shooter-layout' : (isCompact ? 'ld-compact-layout' : 'ld-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="ld-header" data-header></header>' +
         '<div class="ld-main">' +
         '<div class="ld-target-col">' +
-        '<div class="ld-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="ld-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="ld-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="ld-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '</div>' +
@@ -752,26 +752,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="ld-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (ldPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="ld-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="ld-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="ld-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
     const footer = container.querySelector('[data-footer]');
     if (footer) {
       footer.innerHTML = '<span class="ld-meta">10.0 setzt ein · 9+ ein Feld · 10.5 zwei · landen schickt in den Hof · 6–7 tun nichts</span>';

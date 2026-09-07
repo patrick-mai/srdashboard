@@ -74,6 +74,7 @@ func (h *Handlers) PluginGet(w http.ResponseWriter, r *http.Request) {
 }
 
 var rangePath = regexp.MustCompile(`^/(\d+)/?$`)
+var compactPath = regexp.MustCompile(`^/compact/?$`)
 
 // StaticOptions configures SPA + static file serving for a mux.
 type StaticOptions struct {
@@ -94,6 +95,7 @@ func RegisterAdminRoutes(mux *http.ServeMux, h *Handlers, hub *Hub, static Stati
 	mux.HandleFunc("/api/qr/formats", h.QRFormats)
 	mux.HandleFunc("/api/config", h.Config)
 	mux.HandleFunc("/api/historic", h.Historic)
+	mux.HandleFunc("/api/recovery/replay", h.RecoveryReplay)
 	mux.HandleFunc("/api/plugins/active", h.PluginsActiveList)
 	mux.HandleFunc("/api/plugins/session", h.PluginSession)
 	mux.HandleFunc("/api/plugins/control", h.PluginControl)
@@ -123,6 +125,7 @@ func RegisterPublicRoutes(mux *http.ServeMux, h *Handlers, hub *Hub, static Stat
 	mux.HandleFunc("/api/plugins/activate", http.NotFound)
 	mux.HandleFunc("/api/plugins/control", http.NotFound)
 	mux.HandleFunc("/api/plugins/reload", http.NotFound)
+	mux.HandleFunc("/api/recovery/replay", http.NotFound)
 	mux.HandleFunc("/api/plugins/", h.PluginGet)
 	mux.HandleFunc("/ws", hub.ServeWS)
 	mux.HandleFunc("/plugins/", h.ServePlugin)
@@ -173,7 +176,7 @@ func registerStatic(mux *http.ServeMux, opt StaticOptions) {
 			serveIndex(w, r)
 			return
 		}
-		if rangePath.MatchString(path) || path == "/" || path == "/index.html" {
+		if rangePath.MatchString(path) || compactPath.MatchString(path) || path == "/" || path == "/index.html" {
 			serveIndex(w, r)
 			return
 		}

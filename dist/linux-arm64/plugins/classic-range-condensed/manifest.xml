@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="classic-range-condensed" label="Classic Range Condensed" version="1.0.0" mode="per-range" kind="display">
+  <description>Compact hall display — lane header, target, and essential scores only (no chart or detailed stats table).</description>
+  <entrypoints view="view.js" theme="theme.css"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <hideIdleRanges>true</hideIdleRanges>
+    <defaultTargetProfile>air_rifle_10m</defaultTargetProfile>
+    <disciplineTargets>
+      <Luftgewehr>air_rifle_10m</Luftgewehr>
+      <LG>air_rifle_10m</LG>
+      <Luftpistole>air_pistol_10m</Luftpistole>
+      <LP>air_pistol_10m</LP>
+      <Kleinkaliber>smallbore_50m_prone</Kleinkaliber>
+      <KK-Gewehr>smallbore_50m_prone</KK-Gewehr>
+      <KK>smallbore_50m_prone</KK>
+    </disciplineTargets>
+  </config>
+</plugin>

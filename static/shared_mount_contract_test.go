@@ -167,6 +167,12 @@ func TestNewSharedGamesPreserveHostClassAndLayout(t *testing.T) {
 			"shared host must stay opaque under "+g.id+" so the classic grid cannot ghost through")
 		mustContain(t, master, g.startLabel,
 			g.id+" start button label")
+		mustContain(t, js, g.prefix+"-compact-layout",
+			g.id+" compact hall skeleton must exist")
+		mustContain(t, js, "isCompact ? '' : '<div class=\""+g.prefix+"-scheibe-wrap\"",
+			g.id+" compact skeleton must omit the target disc")
+		mustContain(t, css, g.prefix+"-compact-layout ."+g.prefix+"-main",
+			g.id+" compact CSS must give the board the leftover width")
 	}
 }
 
@@ -214,11 +220,59 @@ func TestFoxScheibeKeepsRoundRings(t *testing.T) {
 	}
 }
 
+func TestZehnerBingoHallUsesFillGrid(t *testing.T) {
+	js := readRepoFile(t, "plugins", "zehner-bingo", "view.js")
+	css := readRepoFile(t, "plugins", "zehner-bingo", "theme.css")
+	mustContain(t, js, "zb-cards-' + cardsCols(ordered.length)",
+		"card grid column count must follow seated players (6 → 3×2)")
+	mustContain(t, css, ".zb-cards-3",
+		"6-stand halls use a 3-column card grid")
+	mustNotContain(t, css, "minmax(150px",
+		"150px auto-fit left bingo cards small in the leftover board column")
+}
+
+func TestSharedGamesFillLeftoverBoardColumn(t *testing.T) {
+	tiles := []struct{ dir, pfx string }{
+		{"biathlon", "bt"},
+		{"kettenreaktion", "kr"},
+		{"schiessgolf", "sg"},
+		{"ansage-duell", "ad"},
+		{"kronen-duell", "kd"},
+		{"bank-oder-risiko", "bk"},
+		{"turmbau", "tw"},
+	}
+	for _, g := range tiles {
+		js := readRepoFile(t, "plugins", g.dir, "view.js")
+		css := readRepoFile(t, "plugins", g.dir, "theme.css")
+		mustContain(t, js, "function cardsCols",
+			g.dir+" must pick grid columns from seated stands (6 → 3×2)")
+		mustContain(t, css, "."+g.pfx+"-cards-3",
+			g.dir+" 6-stand hall must use a 3-column tile grid")
+		mustContain(t, css, "minmax(0, 1.45fr)",
+			g.dir+" board column must get the leftover width")
+		mustContain(t, css, "minmax(12.5rem, 13.75rem)",
+			g.dir+" compact stats rail must stay slim")
+	}
+	boards := []string{"barrikade", "ludo", "schrumpfender-kreis", "tauziehen"}
+	for _, dir := range boards {
+		css := readRepoFile(t, "plugins", dir, "theme.css")
+		mustContain(t, css, "minmax(0, 1.45fr)",
+			dir+" shared board must get leftover width, not a 3×2 of copies")
+		mustContain(t, css, "minmax(12.5rem, 13.75rem)",
+			dir+" compact stats rail must stay slim")
+	}
+	br := readRepoFile(t, "plugins", "barrikade", "theme.css")
+	mustNotContain(t, br, ".br-board-svg { width: 100%; height: auto;",
+		"height:auto on the citadel SVG left the path small in the leftover column")
+}
+
 func TestTannebaumEinzelHallShowsEqualTrees(t *testing.T) {
 	js := readRepoFile(t, "plugins", "tannebaum-einzel", "view.js")
 	css := readRepoFile(t, "plugins", "tannebaum-einzel", "theme.css")
 	mustContain(t, js, "tb-trees-gallery",
 		"hall must paint every stand's tree at equal size instead of a clipped mini row")
+	mustContain(t, css, "minmax(0, 1.45fr)",
+		"team and shooter tree columns must get more than half of .tb-main")
 	mustNotContain(t, css, "max-height: 36%",
 		"capping the mini tree row at 36% plus overflow-y:hidden cut off the trunks")
 	mustNotContain(t, css, "max-height: 220px",
@@ -230,3 +284,65 @@ func TestLudoViewHonorsBoardArms(t *testing.T) {
 	mustContain(t, js, "game.boardArms",
 		"2-player matches send boardArms=4; ignoring it draws a 2-point star with almost no fields")
 }
+
+func TestCompactHallIsADedicatedView(t *testing.T) {
+	app := readRepoFile(t, "static", "app.js")
+	master := readRepoFile(t, "static", "master.js")
+	mustContain(t, app, "/^\\/compact\\/?$/",
+		"pathname /compact must resolve as display compact like /1 is shooter")
+	mustContain(t, app, "qDisplay === 'compact'",
+		"?display=compact must resolve the compact hall")
+	mustContain(t, master, "btn-compact-toggle",
+		"Compact lives next to Vollbild in the master menu")
+	mustContain(t, master, "location.assign(compactOn ? '/' : '/compact')",
+		"Compact loads /compact; it must not restyle the current master DOM")
+}
+
+func TestFoxAndTannebaumCompactOmitScheibe(t *testing.T) {
+	fox := readRepoFile(t, "plugins", "fox-on-the-run", "view.js")
+	mustContain(t, fox, "fox-compact-layout",
+		"fox compact hall skeleton must exist")
+	mustContain(t, fox, "compact ? '' : '<div class=\"fox-scheibe-wrap\"",
+		"fox compact must omit the target disc")
+	css := readRepoFile(t, "plugins", "fox-on-the-run", "theme.css")
+	mustContain(t, css, ".fox-compact-layout .fox-main",
+		"fox compact CSS must give the chase map the leftover width")
+
+	for _, dir := range []string{"tannebaum-einzel", "tannebaum-team"} {
+		js := readRepoFile(t, "plugins", dir, "view.js")
+		tbCSS := readRepoFile(t, "plugins", dir, "theme.css")
+		mustContain(t, js, "tb-compact-layout",
+			dir+" compact hall skeleton must exist")
+		mustContain(t, js, "isCompact ? '' : '<div class=\"tb-scheibe-wrap\"",
+			dir+" compact must omit the target disc")
+		mustContain(t, tbCSS, ".tb-compact-layout .tb-main",
+			dir+" compact CSS must give the trees the leftover width")
+	}
+}
+
+func TestClassicCondensedHeaderSwitchDoesNotMixChrome(t *testing.T) {
+	core := readRepoFile(t, "static", "target-core.js")
+	master := readRepoFile(t, "static", "master.js")
+	crc := readRepoFile(t, "plugins", "classic-range-condensed", "view.js")
+	classic := readRepoFile(t, "plugins", "classic-range", "view.js")
+
+	mustContain(t, core, "function setHallPluginId",
+		"header paint must know which hall plugin is active, not only the crc-panel class")
+	mustContain(t, core, `hallPluginId === 'classic-range-condensed'`,
+		"Classic QR/chip/title chrome must not paint while Condensed is the hall plugin")
+	mustContain(t, core, "delete header._crcHtml",
+		"Classic header rebuild must drop the Condensed HTML cache or the next fill skips")
+	mustContain(t, core, `header.querySelector('.crc-header-line')`,
+		"switching back to Classic must wipe the Condensed header line, not reuse it")
+	mustContain(t, master, "core.setHallPluginId(id || '')",
+		"activate must set the hall plugin id before live frames paint mixed headers")
+	mustContain(t, crc, "header.querySelector('.range-header-top')",
+		"Condensed must treat a Classic header (QR/chip) as stale even when _crcHtml matches")
+	mustContain(t, crc, "return ensureTargetRegistry(assetsBase).then",
+		"plugin-shell must await Condensed paint or some lanes keep Classic headers")
+	mustContain(t, crc, "if (hall && hall !== PLUGIN_ID) return",
+		"a late Condensed paint after switching back to Classic must not rewrite the header")
+	mustContain(t, classic, "return ensureClassicTargetRegistry(assetsBase).then(paint)",
+		"plugin-shell must await Classic paint the same way as Condensed")
+}
+

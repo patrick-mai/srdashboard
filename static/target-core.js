@@ -51,6 +51,15 @@ const DEFAULT_SHOT_SAT = 48;
 const DEFAULT_SHOT_LIGHT = 52;
 
 let lastLiveData = null;
+let hallPluginId = '';
+
+function setHallPluginId(id) {
+  hallPluginId = String(id || '');
+}
+
+function getHallPluginId() {
+  return hallPluginId;
+}
 
 function readCssNumber(name, fallback) {
   const styles = getComputedStyle(document.documentElement);
@@ -309,10 +318,19 @@ function getTargetScale(rangeNum) {
   };
 }
 
-function getShotFillRadius(rangeNum) {
+function getShotPelletRadius(rangeNum) {
   const ts = getTargetScale(rangeNum);
-  const r = ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
-  return Math.max(0.05, r - getShotStrokeWidth() / 2);
+  return ts.shotRadiusSvg != null ? ts.shotRadiusSvg : SHOT_RADIUS_SVG;
+}
+
+function getShotFillRadius(rangeNum) {
+  // Fill stays inside the stroke so the outline sits around the disk, not in it.
+  return Math.max(0.05, getShotPelletRadius(rangeNum) - getShotStrokeWidth());
+}
+
+function getShotRingRadius(rangeNum) {
+  // SVG stroke is centered on r; this puts the outer edge at the pellet radius.
+  return Math.max(0.05, getShotPelletRadius(rangeNum) - getShotStrokeWidth() / 2);
 }
 
 function getShotStrokeWidth() {
@@ -685,10 +703,9 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     ringG.setAttribute('class', 'target-shots-ring');
     shotsGroup.appendChild(ringG);
   } else {
-    shotsGroup.appendChild(ringG); // outlines always above fills
+    shotsGroup.appendChild(ringG); // outlines always above fills so covered shots keep a visible border
   }
 
-  // Migrate legacy single-circle children into the fill layer once.
   Array.prototype.slice.call(shotsGroup.children).forEach(function (n) {
     if (n === fillG || n === ringG) return;
     if (n.classList && (n.classList.contains('target-shot-hover-halo') || n.classList.contains('target-shot-hover-label'))) return;
@@ -698,6 +715,10 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
 
   shots.forEach((s, i) => {
     const pt = dsgToSvg(Number(s.x), Number(s.y), rangeNum);
+    const paint = colorForShotIndex(i);
+    const fillR = getShotFillRadius(rangeNum);
+    const ringR = getShotRingRadius(rangeNum);
+
     let fill = fillG.querySelector('circle[data-shot-idx="' + i + '"]');
     if (!fill) {
       fill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -707,8 +728,7 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     }
     fill.setAttribute('cx', String(pt.x));
     fill.setAttribute('cy', String(pt.y));
-    const paint = colorForShotIndex(i);
-    fill.setAttribute('r', String(getShotFillRadius(rangeNum)));
+    fill.setAttribute('r', String(fillR));
     fill.setAttribute('fill', paint);
     fill.setAttribute('fill-opacity', '1');
     fill.setAttribute('stroke', 'none');
@@ -727,12 +747,12 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     }
     ring.setAttribute('cx', String(pt.x));
     ring.setAttribute('cy', String(pt.y));
-    ring.setAttribute('r', String(getShotFillRadius(rangeNum)));
+    ring.setAttribute('r', String(ringR));
     ring.setAttribute('stroke', paint);
-    ring.classList.toggle('is-last', i === shots.length - 1);
     ring.setAttribute('stroke-width', String(getShotStrokeWidth()));
     ring.setAttribute('stroke-opacity', '1');
     ring.setAttribute('pointer-events', 'none');
+    ring.classList.toggle('is-last', i === shots.length - 1);
   });
 
   Array.prototype.slice.call(fillG.querySelectorAll('circle')).forEach(function (c) {
@@ -1576,6 +1596,12 @@ if (typeof document !== 'undefined') {
 }
 
 function fillRangeHeader(header, rangeData) {
+  delete header._crcHtml;
+  header.style.backgroundColor = '';
+  header.removeAttribute('title');
+  if (header.classList.contains('crc-header') || header.querySelector('.crc-header-line')) {
+    header.innerHTML = '';
+  }
   header.className = 'range-header' + (rangeData.shooterName ? '' : ' empty');
   const h = formatRangeHeader(rangeData);
   const chip = formatShotChip(rangeData);
@@ -1877,7 +1903,22 @@ function updatePluginPanelHeader(rangeNum, rangeData) {
   const panel = grid.querySelector(`.range-panel[data-range="${rangeNum}"]`);
   if (!panel) return;
   const header = panel.querySelector('.range-header');
-  if (header) fillRangeHeader(header, rangeData || { rangeNum: rangeNum });
+  if (!header) return;
+  const data = rangeData || { rangeNum: rangeNum };
+  const mount = panel.querySelector('.range-plugin-view');
+  const condensed = hallPluginId === 'classic-range-condensed' ||
+    (mount && mount.dataset.pluginId === 'classic-range-condensed');
+  if (condensed) {
+    // Do not paint Classic QR/chip/title chrome while Condensed is active —
+    // a live frame before crc-panel is set used to mix the two headers.
+    if (window.SRClassicRangeCondensed) {
+      panel.classList.add('crc-panel');
+      window.SRClassicRangeCondensed.fillHeader(header, data);
+    }
+    return;
+  }
+  panel.classList.remove('crc-panel');
+  fillRangeHeader(header, data);
 }
 
 function render(data) {
@@ -1925,6 +1966,8 @@ window.SRCore = {
   render,
   ensurePluginPanels,
   updatePluginPanelHeader,
+  setHallPluginId,
+  getHallPluginId,
   renderRangePanel,
   syncRangePanel,
   renderClassicRangeView,

@@ -389,23 +389,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setBrSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setBrSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'br-master-layout' : 'br-shooter-layout';
-    const otherCls = isMaster ? 'br-shooter-layout' : 'br-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'br-shooter-layout' : (isCompact ? 'br-compact-layout' : 'br-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="br-header" data-header></header>' +
         '<div class="br-main">' +
         '<div class="br-target-col">' +
-        '<div class="br-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="br-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="br-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="br-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '</div>' +
@@ -431,26 +431,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="br-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (brPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="br-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="br-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="br-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
     const footer = container.querySelector('[data-footer]');
     if (footer) {
       footer.innerHTML = '<span class="br-meta">9+ ein Feld · 10.0 hebt die Mauer · 10.5 zwei Felder · 6–7 bleiben stehen</span>';

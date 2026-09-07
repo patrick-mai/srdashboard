@@ -301,17 +301,19 @@ window.SRPluginViews = window.SRPluginViews || {};
         esc(lbl) + '</text></g>';
     }).join('');
 
-    const caption = mini
-      ? ''
-      : ('<circle class="tb-tree-caption-dot" cx="110" cy="278" r="3.5" fill="' + esc(accent) +
-        '" stroke="#fffdf8" stroke-width="1.25"/>' +
-        '<text class="tb-label tb-tree-caption" x="110" y="294" text-anchor="middle">' +
-        esc((contender && contender.label) || '') +
-        (finished ? ' · geräumt!' : '') +
-        '</text>');
+    const plateLabel = esc((contender && contender.label) || '') +
+      (finished ? ' · geräumt!' : '');
+    // Nameplate sits on the trunk/shadow so the viewBox is only the tree.
+    const caption =
+      '<g class="tb-tree-nameplate">' +
+      '<rect x="34" y="252" width="152" height="22" rx="11" fill="rgba(18,28,20,0.78)"/>' +
+      '<circle cx="48" cy="263" r="4" fill="' + esc(accent) +
+      '" stroke="#fffdf8" stroke-width="1.2"/>' +
+      '<text class="tb-label tb-tree-caption" x="122" y="267" text-anchor="middle" dominant-baseline="middle">' +
+      plateLabel + '</text></g>';
 
     return '<svg class="tb-tree-svg' + (mini ? ' is-mini' : '') + (finished ? ' is-finished' : '') +
-      '" viewBox="-10 -8 240 ' + (mini ? '292' : '324') + '" preserveAspectRatio="xMidYMid meet" aria-label="Tannebaum">' +
+      '" viewBox="-10 -6 240 282" preserveAspectRatio="xMidYMid meet" aria-label="Tannebaum">' +
       '<defs>' +
       '<linearGradient id="tb-needles-' + esc(contender && contender.id || 'x') + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0%" stop-color="#3f8f4a"/><stop offset="55%" stop-color="#246334"/><stop offset="100%" stop-color="#1a4726"/>' +
@@ -391,13 +393,16 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function hudHtml(tree) {
-    const phase = tree && tree.phase;
-    return '<div class="tb-panel tb-hud-row">' +
-      '<span class="tb-badge">' + esc(PHASE_LABEL[phase] || phase || '') + '</span>' +
-      '<span class="tb-meta">' + esc((tree && tree.statusLine) || '') + '</span>' +
-      '<span class="tb-legend">' +
+    // Header already shows phase + status; footer shows the A/B/C legend.
+    return (tree && tree.startBlockedReason)
+      ? '<div class="tb-block">' + esc(tree.startBlockedReason) + '</div>'
+      : '';
+  }
+
+  function legendHtml() {
+    return '<span class="tb-legend">' +
       '<i style="background:#2f6b3a"></i>A <i style="background:#b33a2b"></i>B <i style="background:#d4a017"></i>C' +
-      '</span></div>';
+      '</span>';
   }
 
   function treeFrameHtml(c, tree, focusContenderId, mini) {
@@ -407,16 +412,8 @@ window.SRPluginViews = window.SRPluginViews || {};
       .concat(c.finished ? ['is-winner'] : [])
       .concat(c.id === focusContenderId ? ['is-me'] : [])
       .join(' ');
-    const accent = c.color || '#2f6b3a';
-    const captionExt = mini
-      ? ('<div class="tb-tree-caption-ext">' +
-        '<span class="tb-tree-caption-swatch" style="background:' + esc(accent) + '"></span>' +
-        '<span class="tb-tree-caption-text">' + esc(c.label || '') +
-        (c.finished ? ' · geräumt!' : '') + '</span></div>')
-      : '';
     return '<div class="' + cls + '">' +
       treeSvgMarkup(c, { mini: !!mini, highlight: lastHighlight(tree, c.id) }) +
-      captionExt +
       '</div>';
   }
 
@@ -481,8 +478,9 @@ window.SRPluginViews = window.SRPluginViews || {};
       const tree = vm.tree || {};
       const isShooter = document.body.classList.contains('shooter-display') ||
         (window.SRDisplay && window.SRDisplay.display === 'shooter');
+      const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
       const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
-      const isMaster = !isShooter;
+      const isMaster = !isShooter && !isCompact;
       const myTree = vm.myTree || null;
       const focusContenderId = myTree && myTree.id;
       const modeLabel = tree.gameMode === 'team' ? 'Team' : 'Einzel';
@@ -493,16 +491,27 @@ window.SRPluginViews = window.SRPluginViews || {};
       const core = window.SRCore;
       if (core && core.setTargetAssetBase && assetsBase) core.setTargetAssetBase(assetsBase);
 
-      container.className = 'range-plugin-view tb-view' + (isMaster ? ' tb-race-master' : ' tb-race-shooter');
+      container.classList.add('range-plugin-view', 'tb-view');
+      if (container.id === 'shared-master-host') {
+        container.classList.add('shared-master-host');
+      }
+      if (isShooter) {
+        container.classList.add('tb-race-shooter');
+        container.classList.remove('tb-race-master');
+      } else {
+        container.classList.add('tb-race-master');
+        container.classList.remove('tb-race-shooter');
+      }
 
-      if (isMaster) {
-        if (!container.querySelector('.tb-master-layout')) {
+      if (isMaster || isCompact) {
+        const layoutCls = isCompact ? 'tb-compact-layout' : 'tb-master-layout';
+        if (!container.querySelector('.' + layoutCls)) {
           container.innerHTML =
-            '<div class="tb-master-layout">' +
+            '<div class="' + layoutCls + '">' +
             '<header class="tb-header" data-header></header>' +
             '<div class="tb-main">' +
             '<div class="tb-target-col">' +
-            '<div class="tb-scheibe-wrap" data-scheibe></div>' +
+            (isCompact ? '' : '<div class="tb-scheibe-wrap" data-scheibe></div>') +
             '<div data-recent></div>' +
             '<div data-standings></div>' +
             '</div>' +
@@ -516,15 +525,20 @@ window.SRPluginViews = window.SRPluginViews || {};
           '<span class="tb-title">Tannebaum · ' + esc(modeLabel) + '</span>' +
           '<span class="tb-badge">' + esc(PHASE_LABEL[tree.phase] || tree.phase || '') + '</span>' +
           '<span class="tb-status">' + esc(tree.statusLine || '') + '</span>';
-        container.querySelector('[data-hud]').innerHTML = hudHtml(tree) +
-          (tree.startBlockedReason ? '<div class="tb-block">' + esc(tree.startBlockedReason) + '</div>' : '');
+        container.querySelector('[data-hud]').innerHTML = hudHtml(tree);
         renderTreesHost(container.querySelector('[data-trees]'), tree, null, mode);
-        await renderScheibe(container.querySelector('[data-scheibe]'), assetsBase, tree, null, null, null);
+        const scheibe = container.querySelector('[data-scheibe]');
+        if (scheibe) {
+          await renderScheibe(scheibe, assetsBase, tree, null, null, null);
+        }
         container.querySelector('[data-recent]').innerHTML = recentHtml(tree, null);
         container.querySelector('[data-standings]').innerHTML =
           '<div class="tb-panel tb-panel-solid"><h3>Stand</h3>' + standingsHtml(tree, null) + '</div>';
         container.querySelector('[data-footer]').innerHTML =
           '<span class="tb-meta">Grün = A · Rot = B · Gold = C · durchgestrichen = geräumt</span>';
+        if (container.id === 'shared-master-host') {
+          container._sharedReady = true;
+        }
         return;
       }
 
@@ -537,11 +551,11 @@ window.SRPluginViews = window.SRPluginViews || {};
           '<div class="tb-scheibe-wrap" data-scheibe></div>' +
           '<div class="tb-shot-hud" data-shothud></div>' +
           '<div data-recent></div>' +
+          '<div data-standings></div>' +
           '</div>' +
           '<div class="tb-tree-col">' +
           '<div data-hud></div>' +
           '<div class="tb-tree-host" data-trees></div>' +
-          '<div data-standings></div>' +
           '</div></div>' +
           '<footer class="tb-footer" data-footer></footer></div>';
       }
@@ -553,8 +567,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         '<span class="tb-meta">Stand ' + esc(focusRange) +
         (me && me.shooterName ? ' · ' + esc(me.shooterName) : '') + '</span>' +
         '<span class="tb-status">' + esc(tree.statusLine || '') + '</span>';
-      container.querySelector('[data-hud]').innerHTML = hudHtml(tree) +
-        (tree.startBlockedReason ? '<div class="tb-block">' + esc(tree.startBlockedReason) + '</div>' : '');
+      container.querySelector('[data-hud]').innerHTML = hudHtml(tree);
       renderTreesHost(container.querySelector('[data-trees]'), tree, focusContenderId, mode);
       await renderScheibe(
         container.querySelector('[data-scheibe]'),
@@ -568,7 +581,8 @@ window.SRPluginViews = window.SRPluginViews || {};
         '<div class="tb-panel tb-panel-solid"><h3>Stand</h3>' + standingsHtml(tree, focusContenderId) + '</div>';
       container.querySelector('[data-footer]').innerHTML =
         '<span class="tb-meta">Offen: ' + esc(myTree && myTree.remaining != null ? myTree.remaining : '—') +
-        ' · Fokus Stufe ' + esc((myTree && myTree.currentStage) || '—') + '</span>';
+        ' · Fokus Stufe ' + esc((myTree && myTree.currentStage) || '—') + '</span>' +
+        legendHtml();
     };
   }
 

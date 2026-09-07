@@ -239,20 +239,30 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
+  function cardsCols(n) {
+    if (n <= 1) return 1;
+    if (n <= 4) return 2;
+    if (n <= 6) return 3;
+    if (n <= 9) return 3;
+    return 4;
+  }
+
   function boardSvg(game, focusRange) {
     const holder = Number(game.holderRange) || 0;
     const bar = fmt1(game.bar);
     const players = visiblePlayers(game);
-    const bars = players.map(function (pl) {
+    const latte = '<div class="kd-panel kd-card-hero"><h3>Latte</h3><div class="kd-shot-val">' + bar + '</div></div>';
+    if (!players.length) {
+      return latte + '<div class="kd-muted">Keine Spieler</div>';
+    }
+    return latte + '<div class="kd-cards kd-cards-' + cardsCols(players.length) + '">' + players.map(function (pl) {
       const sec = Number(pl.holdSeconds) || 0;
       const w = Math.min(100, sec);
-      return '<div class="kd-panel' + (pl.rangeNum === holder ? ' is-me' : '') + '"><h3>' +
-        (pl.rangeNum === holder ? '👑 ' : '') + esc(pl.label) + '</h3>' +
-        '<div style="height:12px;background:rgba(255,255,255,0.12);border-radius:8px;overflow:hidden">' +
-        '<div style="width:' + w + '%;height:100%;background:' + esc(pl.color || '#e8c35a') + '"></div></div>' +
+      return '<div class="kd-card' + (pl.rangeNum === holder ? ' is-me' : '') + '">' +
+        '<div class="kd-card-label">' + (pl.rangeNum === holder ? '👑 ' : '') + esc(pl.label) + '</div>' +
+        '<div class="kd-bar"><div class="kd-bar-fill" style="width:' + w + '%;background:' + esc(pl.color || '#e8c35a') + '"></div></div>' +
         '<div class="kd-meta">' + fmt1(sec) + 's mit der Krone</div></div>';
-    }).join('');
-    return '<div class="kd-panel"><h3>Latte</h3><div class="kd-shot-val">' + bar + '</div></div>' + bars;
+    }).join('') + '</div>';
   }
 
   function setKdSurfaceClasses(container, mode) {
@@ -286,23 +296,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setKdSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setKdSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'kd-master-layout' : 'kd-shooter-layout';
-    const otherCls = isMaster ? 'kd-shooter-layout' : 'kd-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'kd-shooter-layout' : (isCompact ? 'kd-compact-layout' : 'kd-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="kd-header" data-header></header>' +
         '<div class="kd-main">' +
         '<div class="kd-target-col">' +
-        '<div class="kd-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="kd-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="kd-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="kd-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '<div data-actions></div>' +
@@ -329,26 +339,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="kd-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (kdPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="kd-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="kd-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="kd-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
 
     const footer = container.querySelector('[data-footer]');
     if (footer) {

@@ -29,6 +29,7 @@ type FileCheck struct {
 // Adding a game: append here AND in Catalog(). Removing an ID is a regression.
 var frozenIDs = []string{
 	"classic-range",
+	"classic-range-condensed",
 	"ludo-2p",
 	"ludo-6p",
 	"barrikade-2p",
@@ -64,6 +65,17 @@ func Catalog() []Scenario {
 			}},
 		},
 		{
+			ID:        "classic-range-condensed",
+			PluginID:  "classic-range-condensed",
+			NumRanges: 2,
+			Play:      playClassicRange,
+			UI: []FileCheck{{
+				Rel: []string{"plugins", "classic-range-condensed", "view.js"},
+				Has: []string{"const PLUGIN_ID = 'classic-range-condensed'", "SRPluginViews[PLUGIN_ID]"},
+				Why: "condensed hall/shooter lookup must keep the current plugin id",
+			}},
+		},
+		{
 			ID:        "ludo-2p",
 			PluginID:  "ludo",
 			NumRanges: 2,
@@ -72,7 +84,7 @@ func Catalog() []Scenario {
 			Play:      playLudo,
 			UI: []FileCheck{{
 				Rel: []string{"plugins", "ludo", "view.js"},
-				Has: []string{"game.boardArms", "const classic = n === 4"},
+				Has: []string{"game.boardArms", "const classic = n === 4", "ld-compact-layout"},
 				Why: "2-player Ludo must draw the 4-arm classic board, not a 2-point star",
 			}},
 		},
@@ -83,11 +95,18 @@ func Catalog() []Scenario {
 			PhasePath: []string{"game", "phase"},
 			Finished:  "finished",
 			Play:      playLudo,
-			UI: []FileCheck{{
-				Rel: []string{"plugins", "ludo", "view.js"},
-				Has: []string{"starRingPts"},
-				Why: "6-player Ludo keeps the star track with evenly spaced cells",
-			}},
+			UI: []FileCheck{
+				{
+					Rel: []string{"plugins", "ludo", "view.js"},
+					Has: []string{"starRingPts", "ld-who", "ld-hint"},
+					Why: "6-player Ludo keeps the star track; standings must tag name/hint so they cannot wrap in the 4-col grid",
+				},
+				{
+					Rel: []string{"plugins", "ludo", "theme.css"},
+					Has: []string{".ld-standings .ld-hint", "white-space: nowrap"},
+					Why: "Ludo Stand hint '9+ geht, 10.5 geht zwei' wrapped 'zwei' onto its own line in the compact rail",
+				},
+			},
 		},
 		{
 			ID:        "barrikade-2p",
@@ -98,7 +117,7 @@ func Catalog() []Scenario {
 			Play:      playBarrikade,
 			UI: []FileCheck{{
 				Rel: []string{"plugins", "barrikade", "view.js"},
-				Has: []string{"const PLUGIN_ID = 'barrikade'", "SRPluginViews[PLUGIN_ID]"},
+				Has: []string{"const PLUGIN_ID = 'barrikade'", "SRPluginViews[PLUGIN_ID]", "br-compact-layout"},
 				Why: "barrikade paint must stay registered under the current id",
 			}},
 		},
@@ -111,7 +130,7 @@ func Catalog() []Scenario {
 			Play:      playBingo,
 			UI: []FileCheck{{
 				Rel: []string{"plugins", "zehner-bingo", "view.js"},
-				Has: []string{"const PLUGIN_ID = 'zehner-bingo'", "SRPluginViews[PLUGIN_ID]"},
+				Has: []string{"const PLUGIN_ID = 'zehner-bingo'", "SRPluginViews[PLUGIN_ID]", "zb-compact-layout", "zb-cards-"},
 				Why: "bingo paint must stay registered under the current id",
 			}},
 		},
@@ -125,7 +144,7 @@ func Catalog() []Scenario {
 			UI: []FileCheck{
 				{
 					Rel: []string{"plugins", "tannebaum-einzel", "view.js"},
-					Has: []string{"tb-trees-gallery", "SRPluginViews['tannebaum-einzel']"},
+					Has: []string{"tb-trees-gallery", "SRPluginViews['tannebaum-einzel']", "tb-compact-layout"},
 					Why: "hall must show every stand's tree at equal size",
 				},
 				{
@@ -144,7 +163,7 @@ func Catalog() []Scenario {
 			Play:      playTannebaumTeam,
 			UI: []FileCheck{{
 				Rel: []string{"plugins", "tannebaum-team", "view.js"},
-				Has: []string{"tb-trees-duo", "SRPluginViews['tannebaum-team']"},
+				Has: []string{"tb-trees-duo", "SRPluginViews['tannebaum-team']", "tb-compact-layout"},
 				Why: "team mode paints two equal trees, never a clipped mini row",
 			}},
 		},
@@ -164,9 +183,19 @@ func Catalog() []Scenario {
 				},
 				{
 					Rel:    []string{"plugins", "fox-on-the-run", "view.js"},
-					Has:    []string{"fox-scheibe-frame", "xMidYMid meet", "huntIsLive", "SRPluginViews['fox-on-the-run']"},
+					Has:    []string{"fox-scheibe-frame", "xMidYMid meet", "huntIsLive", "SRPluginViews['fox-on-the-run']", "fox-compact-layout"},
 					HasNot: []string{"Fuchs S' + esc(hunt && hunt.currentFox)"},
 					Why:    "calibration must not print Fuchs S0; disc must keep a square meet frame",
+				},
+				{
+					Rel: []string{"plugins", "fox-on-the-run", "view.js"},
+					Has: []string{"esc(fmt1(p.foxScore))", "esc(out) + '</span></li>'"},
+					Why: "fox score and gestellt/Bau must stay in separate cells so 0.0 cannot sit on the status word",
+				},
+				{
+					Rel: []string{"plugins", "fox-on-the-run", "theme.css"},
+					Has: []string{"grid-template-columns: 14px 1.4rem 1fr auto auto"},
+					Why: "fox standings keep score and gestellt/Bau in their own auto columns",
 				},
 			},
 		},
@@ -207,7 +236,7 @@ func conceptScenario(id, pluginID string, play func(*testing.T, *Host)) Scenario
 		Play:      play,
 		UI: []FileCheck{{
 			Rel: []string{"plugins", pluginID, "view.js"},
-			Has: []string{"const PLUGIN_ID = '" + pluginID + "'", "SRPluginViews[PLUGIN_ID]", "classList.add('shared-master-host')"},
+			Has: []string{"const PLUGIN_ID = '" + pluginID + "'", "SRPluginViews[PLUGIN_ID]", "classList.add('shared-master-host')", "compact-layout"},
 			Why: pluginID + " hall paint must keep the shared host class and current plugin id",
 		}},
 	}

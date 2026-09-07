@@ -97,8 +97,8 @@ func startRace(t *testing.T, m *Manager, ranges int) {
 }
 
 // A shared-mode update reaches range-filtered clients through BroadcastAll
-	// already, so sending it once (not once per range) is enough.
-	func TestSharedModeBroadcastsSessionOnce(t *testing.T) {
+// already, so sending it once (not once per range) is enough.
+func TestSharedModeBroadcastsSessionOnce(t *testing.T) {
 	m, b := newSharedManager(t, 2)
 	startRace(t, m, 2)
 	b.reset()
@@ -247,6 +247,53 @@ func TestActivateUnknownPluginKeepsPreviousSessions(t *testing.T) {
 		if snap := m.SnapshotRange(i); snap.PluginID != before {
 			t.Fatalf("range %d plugin = %q, want %q", i, snap.PluginID, before)
 		}
+	}
+}
+
+func TestReplaySuppressesPerShotBroadcast(t *testing.T) {
+	m, b := newSharedManager(t, 2)
+	startRace(t, m, 2)
+	b.reset()
+
+	m.BeginReplay()
+	m.OnShot(1, state.Shot{DecValue: 10.5, FullValue: 10, ReceivedAt: time.Now()}, 1)
+	m.OnShot(2, state.Shot{DecValue: 9.8, FullValue: 9, ReceivedAt: time.Now()}, 1)
+	if n := b.sessionMessages(); n != 0 {
+		t.Fatalf("replay leaked %d plugin_session messages", n)
+	}
+	m.EndReplay()
+	if n := b.sessionMessages(); n == 0 {
+		t.Fatal("EndReplay should notify clients once")
+	}
+}
+
+func TestReplayOnShotStartsAutorennenWithoutProgram(t *testing.T) {
+	m, b := newSharedManager(t, 2)
+	b.reset()
+	m.BeginReplay()
+	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	m.OnShot(1, state.Shot{DecValue: 10.9, FullValue: 10, At: now, ReceivedAt: now}, 1)
+	m.OnShot(2, state.Shot{DecValue: 10.8, FullValue: 10, At: now.Add(time.Second), ReceivedAt: now.Add(time.Second)}, 1)
+	m.EndReplay()
+
+	snap := m.SnapshotRange(1)
+	if snap.ViewModel == nil {
+		t.Fatal("missing view model after replay")
+	}
+	race, _ := snap.ViewModel["race"].(map[string]any)
+	if race == nil {
+		t.Fatalf("race missing: %#v", snap.ViewModel)
+	}
+	if race["phase"] != "racing" {
+		t.Fatalf("phase=%v, want racing (replay should auto-start without OpticScore program length)", race["phase"])
+	}
+	me, _ := snap.ViewModel["me"].(map[string]any)
+	if me == nil {
+		t.Fatalf("me missing: %#v", snap.ViewModel)
+	}
+	fired, _ := me["shotsFired"].(int)
+	if fired < 1 {
+		t.Fatalf("shotsFired=%v, want at least the recovered grid shot", me["shotsFired"])
 	}
 }
 

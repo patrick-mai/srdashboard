@@ -305,7 +305,15 @@ window.SRPluginViews = window.SRPluginViews || {};
         '<text x="' + (x + cell / 2) + '" y="' + (y + cell * 0.64) + '" text-anchor="middle" font-size="11" font-weight="700" fill="' + text + '">' +
         esc(fmt1(cardValues[i])) + '</text></g>';
     }
-    return '<svg class="zb-card-svg" viewBox="0 0 ' + box + ' ' + box + '" aria-label="Bingo-Karte">' + cells + '</svg>';
+    return '<svg class="zb-card-svg" viewBox="0 0 ' + box + ' ' + box + '" preserveAspectRatio="xMidYMid meet" aria-label="Bingo-Karte">' + cells + '</svg>';
+  }
+
+  function cardsCols(n) {
+    if (n <= 1) return 1;
+    if (n <= 4) return 2;
+    if (n <= 6) return 3; // 6 stands → 3×2, the usual hall
+    if (n <= 9) return 3;
+    return 4;
   }
 
   function cardsHtml(game, focusRange, isMaster) {
@@ -322,7 +330,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         return am - bm;
       });
     }
-    return '<div class="zb-cards">' + ordered.map(function (p) {
+    return '<div class="zb-cards zb-cards-' + cardsCols(ordered.length) + '">' + ordered.map(function (p) {
       const mine = Number(p.rangeNum) === Number(focusRange);
       const cls = ['zb-card']
         .concat(mine ? ['is-me'] : [])
@@ -382,23 +390,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setZbSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setZbSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'zb-master-layout' : 'zb-shooter-layout';
-    const otherCls = isMaster ? 'zb-shooter-layout' : 'zb-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'zb-shooter-layout' : (isCompact ? 'zb-compact-layout' : 'zb-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="zb-header" data-header></header>' +
         '<div class="zb-main">' +
         '<div class="zb-target-col">' +
-        '<div class="zb-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="zb-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="zb-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="zb-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '</div>' +
@@ -424,26 +432,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="zb-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (zbPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="zb-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="zb-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="zb-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      cardsHtml(game, focusRange, isMaster);
+      cardsHtml(game, focusRange, !isShooter);
     const footer = container.querySelector('[data-footer]');
     if (footer) {
       footer.innerHTML = '<span class="zb-meta">' +

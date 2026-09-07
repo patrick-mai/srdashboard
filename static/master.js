@@ -66,6 +66,17 @@
   function clearRangePluginMounts() {
     const grid = document.getElementById('ranges-grid');
     if (!grid) return;
+    grid.querySelectorAll('.range-panel').forEach(function (panel) {
+      panel.classList.remove('crc-panel');
+      const header = panel.querySelector('.range-header');
+      if (header) {
+        delete header._crcHtml;
+        header.className = 'range-header';
+        header.removeAttribute('style');
+        header.removeAttribute('title');
+        header.innerHTML = '';
+      }
+    });
     grid.querySelectorAll('.range-plugin-view').forEach(function (mount) {
       mount.innerHTML = '';
       delete mount.dataset.pluginId;
@@ -73,16 +84,21 @@
     });
   }
 
-  async function loadTargetRegistry(assetsBase) {
+  function isInlineDisplayPlugin(id) {
+    return id === 'classic-range' || id === 'classic-range-condensed';
+  }
+
+  async function loadTargetRegistry(assetsBase, pluginId) {
     // assetsBase is /plugins/<id>/assets — registry lives one level up.
-    const root = (assetsBase || '/plugins/classic-range/assets')
+    const pid = pluginId || 'classic-range';
+    const root = (assetsBase || '/plugins/' + pid + '/assets')
       .replace(/\/assets\/?$/, '/')
       .replace(/\/?$/, '/');
     await new Promise(function (resolve, reject) {
       const script = document.createElement('script');
       script.src = root + 'target-registry.js?t=' + Date.now();
       script.onload = function () {
-        if (window.SRTargetRegistry) window.SRTargetRegistry.ownerPluginId = 'classic-range';
+        if (window.SRTargetRegistry) window.SRTargetRegistry.ownerPluginId = pid;
         resolve();
       };
       script.onerror = reject;
@@ -98,8 +114,11 @@
     if (activePlugin) {
       activeMeta = { active: true, pluginId: activePlugin.id || '' };
     }
-    if (activePlugin && activePlugin.id === 'classic-range') {
-      await loadTargetRegistry(activePlugin.assetsBase);
+    if (core.setHallPluginId) {
+      core.setHallPluginId((activePlugin && activePlugin.id) || activeMeta.pluginId || '');
+    }
+    if (activePlugin && isInlineDisplayPlugin(activePlugin.id)) {
+      await loadTargetRegistry(activePlugin.assetsBase, activePlugin.id);
       if (activePlugin.assetsBase && core.setTargetAssetBase) {
         core.setTargetAssetBase(activePlugin.assetsBase);
       }
@@ -183,6 +202,7 @@
   /** In-place classic update — no plugin remount / no script reload. */
   function paintLiveRange(range) {
     if (!range) return;
+    const id = currentPluginId();
     core.updatePluginPanelHeader(range.rangeNum, range);
     // Shared plugins own the stage; never paint into hidden per-range mounts.
     if (isSharedPlugin()) return;
@@ -192,7 +212,6 @@
     const mount = panel.querySelector('.range-plugin-view');
     if (!mount) return;
 
-    const id = currentPluginId();
     if (id === 'classic-range' && typeof core.renderClassicRangeView === 'function') {
       if (activePlugin && activePlugin.assetsBase && core.setTargetAssetBase) {
         core.setTargetAssetBase(activePlugin.assetsBase);
@@ -200,6 +219,18 @@
       mount.className = 'range-plugin-view classic-range-view';
       mount.dataset.range = String(range.rangeNum);
       core.renderClassicRangeView(mount, range);
+      return;
+    }
+    if (id === 'classic-range-condensed' && window.SRClassicRangeCondensed) {
+      if (activePlugin && activePlugin.assetsBase && core.setTargetAssetBase) {
+        core.setTargetAssetBase(activePlugin.assetsBase);
+      }
+      const header = panel.querySelector('.range-header');
+      if (header) window.SRClassicRangeCondensed.fillHeader(header, range);
+      mount.className = 'range-plugin-view crc-view';
+      mount.dataset.range = String(range.rangeNum);
+      mount.dataset.pluginId = 'classic-range-condensed';
+      window.SRClassicRangeCondensed.paint(mount, range);
       return;
     }
     // Per-range non-classic plugins: remount (async, fire-and-forget).
@@ -239,6 +270,13 @@
     if (gen != null && gen !== mountGen) {
       mount.innerHTML = '';
       delete mount.dataset.pluginId;
+      const header = panel.querySelector('.range-header');
+      if (header) {
+        delete header._crcHtml;
+        header.className = 'range-header';
+        header.removeAttribute('style');
+        header.innerHTML = '';
+      }
     }
   }
 
@@ -385,7 +423,7 @@
           pluginSessions[msg.session.rangeNum] = msg.session;
           if (isSharedPlugin()) {
             updateSharedPluginView(msg.session);
-          } else if (currentPluginId() !== 'classic-range') {
+          } else if (!isInlineDisplayPlugin(currentPluginId())) {
             mountRangePlugin(msg.session.rangeNum, mountGen);
           }
         }
@@ -452,6 +490,7 @@
     mountGen += 1;
     activeMeta = { active: true, pluginId: id || '' };
     if (activePlugin && activePlugin.id !== id) activePlugin = null;
+    if (core.setHallPluginId) core.setHallPluginId(id || '');
     teardownSharedHost();
     clearRangePluginMounts();
     refreshControls();
@@ -674,7 +713,8 @@
       }).join('') +
       '<button type="button" class="shot-hue-swatch shot-hue-rainbow" data-shot-mode="rainbow" title="Regenbogen" aria-label="Regenbogen" aria-pressed="false"></button>' +
       '</div></label>' +
-      '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>';
+      '<button type="button" class="btn btn-ghost" id="btn-fullscreen-toggle">Vollbild</button>' +
+      '<button type="button" class="btn btn-ghost" id="btn-compact-toggle">Compact</button>';
   }
 
   function buildControls() {
@@ -868,6 +908,15 @@
       document.addEventListener('fullscreenchange', syncFullscreenButton);
       document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
     }
+    const compactBtn = document.getElementById('btn-compact-toggle');
+    if (compactBtn) {
+      const compactOn = window.SRDisplay && window.SRDisplay.display === 'compact';
+      compactBtn.setAttribute('aria-pressed', compactOn ? 'true' : 'false');
+      compactBtn.title = compactOn ? 'Zur vollen Halle mit Scheibe' : 'Kompakt-Halle ohne Scheibe';
+      compactBtn.onclick = function () {
+        location.assign(compactOn ? '/' : '/compact');
+      };
+    }
     refreshControls();
   }
 
@@ -993,6 +1042,9 @@
     if (live) core.render(live);
     else core.ensurePluginPanels((core.config && core.config.ranges) || 1);
     await mountAllPluginViews();
+    if (isInlineDisplayPlugin(currentPluginId()) && core.lastLiveData) {
+      (core.lastLiveData.ranges || []).forEach(function (r) { paintLiveRange(r); });
+    }
   }
 
   async function pollFallback() {

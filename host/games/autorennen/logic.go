@@ -308,6 +308,17 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	}
 	if openNow {
 		rs.openCompetitionField()
+		if ctx.Replay {
+			n := car.TotalShots
+			if n <= 0 {
+				n = 60
+			}
+			for _, c := range rs.Cars {
+				if c != nil && c.Active && c.TotalShots <= 0 {
+					c.TotalShots = n
+				}
+			}
+		}
 		events = append(events, logicapi.PluginEvent{Type: "ready", Data: map[string]any{"rangeNum": ctx.RangeNum}})
 		if auto, reason := rs.canAutoStart(); auto {
 			evs := rs.forceStart(ctx.Now)
@@ -398,7 +409,9 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 	rs.refreshPlaceReasons()
 	events = append(events, rs.maybeAdvanceRound(ctx.Now)...)
 	rs.maybeFinish()
-	rs.maybeRandomFieldEvent(ctx.Now, &events)
+	if !ctx.Replay {
+		rs.maybeRandomFieldEvent(ctx.Now, &events)
+	}
 
 	return marshalWithEvents(rs, events)
 }

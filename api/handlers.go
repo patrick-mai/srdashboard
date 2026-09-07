@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"srdashboard/config"
 	"srdashboard/host/loader"
@@ -34,6 +35,9 @@ type Handlers struct {
 	runtimeMu sync.RWMutex
 	// saveMu serialises read-modify-write cycles against config.xml.
 	saveMu sync.Mutex
+
+	// ReplayLog bulk-replays recovered packets (game OnShot included; one WS notify at the end).
+	ReplayLog func(packets [][]byte) int
 }
 
 // cfgSnapshot returns a copy of the current config so callers can read fields
@@ -95,6 +99,7 @@ type RangeResponse struct {
 	WarmupShots      []state.Shot   `json:"warmupShots"`
 	Last10Values     []float64      `json:"last10Values"`
 	TotalShotsToFire int            `json:"totalShotsToFire"`
+	StartedAt        time.Time      `json:"startedAt,omitempty"`
 }
 
 // Live returns the current live state for all ranges. Uses a thread-safe snapshot to avoid data races with UDP.
@@ -209,6 +214,15 @@ func (h *Handlers) broadcastLiveRange(rng int) {
 	}
 }
 
+func (h *Handlers) broadcastAllLiveRanges() {
+	for _, rs := range h.State.Snapshot() {
+		if h.isRangeInactive(rs.RangeNum) {
+			continue
+		}
+		h.broadcastLiveRange(rs.RangeNum)
+	}
+}
+
 func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 	return RangeResponse{
 		RangeNum:         s.RangeNum,
@@ -233,6 +247,7 @@ func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 		WarmupShots:      s.WarmupShots,
 		Last10Values:     s.Last10Values,
 		TotalShotsToFire: s.TotalShotsToFire,
+		StartedAt:        s.StartedAt,
 	}
 }
 
@@ -260,5 +275,6 @@ func responseToSnapshot(r RangeResponse) state.RangeSnapshot {
 		WarmupShots:      r.WarmupShots,
 		Last10Values:     r.Last10Values,
 		TotalShotsToFire: r.TotalShotsToFire,
+		StartedAt:        r.StartedAt,
 	}
 }

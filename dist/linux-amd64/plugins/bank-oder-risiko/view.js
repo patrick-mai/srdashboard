@@ -239,14 +239,25 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
+  function cardsCols(n) {
+    if (n <= 1) return 1;
+    if (n <= 4) return 2;
+    if (n <= 6) return 3;
+    if (n <= 9) return 3;
+    return 4;
+  }
+
   function boardSvg(game, focusRange) {
     const players = visiblePlayers(game);
-    return players.map(function (pl) {
-      return '<div class="bk-panel' + (focusRange && pl.rangeNum === focusRange ? ' is-me' : '') + '">' +
-        '<h3>' + esc(pl.label) + ' · Boden ' + fmt1(pl.floor) + '</h3>' +
+    if (!players.length) {
+      return '<div class="bk-muted">Keine Spieler</div>';
+    }
+    return '<div class="bk-cards bk-cards-' + cardsCols(players.length) + '">' + players.map(function (pl) {
+      return '<div class="bk-card' + (focusRange && pl.rangeNum === focusRange ? ' is-me' : '') + '">' +
+        '<div class="bk-card-label">' + esc(pl.label) + ' · Boden ' + fmt1(pl.floor) + '</div>' +
         '<div class="bk-shot-val">Pot ' + fmt1(pl.pot) + '</div>' +
         '<div class="bk-meta">Bank ' + fmt1(pl.banked) + '</div></div>';
-    }).join('');
+    }).join('') + '</div>';
   }
 
   function setBkSurfaceClasses(container, mode) {
@@ -280,23 +291,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setBkSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setBkSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'bk-master-layout' : 'bk-shooter-layout';
-    const otherCls = isMaster ? 'bk-shooter-layout' : 'bk-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'bk-shooter-layout' : (isCompact ? 'bk-compact-layout' : 'bk-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="bk-header" data-header></header>' +
         '<div class="bk-main">' +
         '<div class="bk-target-col">' +
-        '<div class="bk-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="bk-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="bk-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="bk-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '<div data-actions></div>' +
@@ -323,28 +334,31 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="bk-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (bkPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="bk-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="bk-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="bk-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
 
-    if (!isMaster && me && game.phase === 'playing') {
+    if (isShooter && me && game.phase === 'playing') {
       const actions = container.querySelector('[data-actions]');
       if (actions) {
         actions.innerHTML = '<div class="bk-actions"><button class="bk-btn" type="button" data-bank>Pot banken</button></div>';

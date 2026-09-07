@@ -33,7 +33,7 @@
   min-height: 0;
 }
 
-.ld-master-layout, .ld-shooter-layout {
+.ld-master-layout, .ld-shooter-layout, .ld-compact-layout {
   display: flex; flex-direction: column; height: 100%; min-height: 100%;
 }
 .ld-header {
@@ -54,8 +54,8 @@
   background: var(--ld-solid); border-radius: 999px;
 }
 .ld-main {
-  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+  flex: 1; display: grid; grid-template-columns: minmax(17rem, 0.55fr) minmax(0, 1.45fr);
+  gap: 0.4rem; padding: 0.4rem 0.45rem; min-height: 0;
 }
 .ld-target-col, .ld-board-col {
   min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
@@ -86,12 +86,39 @@
 }
 .ld-board-svg {
   width: 100%; height: 100%; flex: 1 1 auto; min-height: 0; display: block;
+  object-fit: contain;
   overflow: visible;
 }
 .ld-hat.is-me { filter: drop-shadow(0 0 5px rgba(232, 185, 35, 0.95)); }
 .ld-recent, .ld-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.ld-recent li, .ld-standings li {
+.ld-recent li {
   display: grid; grid-template-columns: 14px 1fr auto auto; gap: 0.45rem; align-items: center; font-size: 0.86rem;
+}
+.ld-standings li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "swatch who pos"
+    ". hint hint";
+  column-gap: 0.45rem;
+  row-gap: 0.08rem;
+  align-items: center;
+  font-size: 0.86rem;
+}
+.ld-standings .ld-swatch { grid-area: swatch; }
+.ld-standings .ld-who {
+  grid-area: who;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ld-standings .ld-pos { grid-area: pos; white-space: nowrap; }
+.ld-standings .ld-hint {
+  grid-area: hint;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--ld-muted);
 }
 .ld-recent li.is-me, .ld-standings li.is-me {
   background: rgba(232, 185, 35, 0.22); border-radius: 8px; padding: 0.12rem 0.28rem;
@@ -100,8 +127,18 @@
 .ld-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .ld-footer {
   flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
-  background: var(--ld-glass); border: 1px solid var(--ld-line); border-radius: 14px;
+  /* Solid cream: --ld-muted on glass over the wood scene is ~1.6:1 */
+  background: var(--ld-solid); border: 1px solid rgba(42, 24, 16, 0.12); border-radius: 14px;
+  color: var(--ld-ink);
 }
+
+.ld-compact-layout .ld-main {
+  grid-template-columns: minmax(12.5rem, 13.75rem) minmax(0, 1fr);
+}
+.ld-compact-layout .ld-target-col {
+  justify-content: flex-start;
+}
+
 @media (max-width: 900px) {
   .ld-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
 }

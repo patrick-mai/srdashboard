@@ -32,7 +32,7 @@
       } catch (e) { /* ignore */ }
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=less-colors7">
+  <link rel="stylesheet" href="/style.css?v=justitia">
 </head>
 <body>
   <div id="shooter-app" hidden></div>
@@ -44,7 +44,19 @@
           <span class="menu-toggle-icon" aria-hidden="true"></span>
           <span class="menu-toggle-label">Menü</span>
         </button>
-        <button type="button" class="rulebook-btn" id="rulebook-btn" hidden title="Regelbuch" aria-label="Regelbuch">Regeln</button>
+        <button type="button" class="rulebook-btn" id="rulebook-btn" hidden title="Regelbuch" aria-label="Regelbuch">
+          <span class="rulebook-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" focusable="false">
+              <circle cx="8" cy="1.55" r="0.85"/>
+              <path d="M8 2.2v10.4"/>
+              <path d="M2.1 4.85h11.8"/>
+              <path d="M2.1 4.85L.6 9.35h3z"/>
+              <path d="M13.9 4.85l1.5 4.5h-3z"/>
+              <path d="M5.1 12.6h5.8M3.4 14.2h9.2"/>
+            </svg>
+          </span>
+          <span class="rulebook-btn-label">Regeln</span>
+        </button>
         <div id="match-status-compact" class="match-status-compact" aria-live="polite">
           <span class="status-idle">Live</span>
         </div>
@@ -70,10 +82,10 @@
     </div>
   </div>
   <script src="/auth.js"></script>
-  <script src="/target-core.js?v=less-colors7"></script>
-  <script src="/plugin-shell.js?v=sfx2"></script>
+  <script src="/target-core.js?v=crc-header-switch"></script>
+  <script src="/plugin-shell.js?v=view-dedupe"></script>
   <script src="/rulebook.js?v=rulebook"></script>
-  <script src="/config-editor.js"></script>
+  <script src="/config-editor.js?v=recovery-games"></script>
   <script src="/app.js"></script>
   <script>
     (function () {
@@ -83,7 +95,7 @@
         const s = document.createElement('script');
         if (display === 'shooter') s.src = '/shooter.js';
         else if (display === 'config') s.src = '/config-page.js';
-        else s.src = '/master.js?v=less-colors7';
+        else s.src = '/master.js?v=crc-header-switch';
         document.body.appendChild(s);
       });
     })();

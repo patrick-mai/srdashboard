@@ -85,6 +85,33 @@ func TestValidateShotAccepts10_9Centre(t *testing.T) {
 	}
 }
 
+func TestIngestReplayDropsInconsistentAndKeepsValid(t *testing.T) {
+	st := state.NewLiveState(1)
+	n := 0
+	p := Pipeline{State: st, OnShot: func(int, state.Shot, int) { n++ }}
+	if p.IngestReplay([]byte(
+		`{"MessageType":"Event","MessageVerb":"Shot","Ranges":1,"Objects":[{"X":800,"Y":0,"Distance":0.2,"FullValue":10,"DecValue":10.3,"Range":1}]}`)) != 0 {
+		t.Fatal("inconsistent shot applied via IngestReplay")
+	}
+	if n != 0 || len(st.Snapshot()[0].Shots) != 0 {
+		t.Fatalf("inconsistent shot leaked: notify=%d shots=%d", n, len(st.Snapshot()[0].Shots))
+	}
+	x, y, d := PlaceShot(10.3, 2)
+	data, err := BuildShotPacket(ShotPacketOpts{Range: 1, X: x, Y: y, Distance: d, DecValue: 10.3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.IngestReplay(data) != 1 {
+		t.Fatal("valid shot dropped by IngestReplay")
+	}
+	if n != 1 {
+		t.Fatalf("IngestReplay must call OnShot, notify=%d", n)
+	}
+	if len(st.Snapshot()[0].Shots) != 1 {
+		t.Fatalf("valid replay shot missing, shots=%d", len(st.Snapshot()[0].Shots))
+	}
+}
+
 func TestIngestDropsInconsistentAndKeepsValid(t *testing.T) {
 	st := state.NewLiveState(1)
 	n := 0

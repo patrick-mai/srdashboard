@@ -93,4 +93,12 @@ func TestRulebookOverlayMatchesQRModal(t *testing.T) {
 	style := readRepoFile(t, "static", "style.css")
 	mustContain(t, style, ".rulebook-dialog",
 		"rulebook overlay needs CSS next to the QR modal")
+	mustContain(t, index, "rulebook-btn-label",
+		"slim rail must hide the Regeln word until the menu opens, or it clips the 2.85rem rail")
+	mustContain(t, style, ".side-rail.is-menu-open .rulebook-btn-label",
+		"open menu shows the full Regeln label")
+	mustContain(t, style, ".rulebook-btn-icon",
+		"collapsed rail uses an icon so Regeln does not overflow the button")
+	mustContain(t, index, "viewBox=\"0 0 16 16\"",
+		"Regeln uses a Justitia scale, not a book, because the overlay is the game rules")
 }

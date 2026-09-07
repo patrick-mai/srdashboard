@@ -26,6 +26,7 @@ window.SRPluginViews['classic-range'] = function render(container, viewModel, as
   if (!core || !container) return;
 
   const paint = function () {
+    if (core.getHallPluginId && core.getHallPluginId() && core.getHallPluginId() !== 'classic-range') return;
     if (typeof core.setTargetAssetBase === 'function' && assetsBase) {
       core.setTargetAssetBase(assetsBase);
     }
@@ -56,7 +57,7 @@ window.SRPluginViews['classic-range'] = function render(container, viewModel, as
     }
   };
 
-  ensureClassicTargetRegistry(assetsBase).then(paint);
+  return ensureClassicTargetRegistry(assetsBase).then(paint);
 };
 
 window.SRPlugins.render = function (id, container, viewModel, assetsBase) {

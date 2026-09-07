@@ -239,18 +239,41 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
+  function cardsCols(n) {
+    if (n <= 1) return 1;
+    if (n <= 4) return 2;
+    if (n <= 6) return 3;
+    if (n <= 9) return 3;
+    return 4;
+  }
+
+  function towerSvg(pl) {
+    const h = Math.min(280, (Number(pl.height) || 0) * 14);
+    const lean = Number(pl.lean) || 0;
+    const tilt = Math.max(-18, Math.min(18, lean / 4));
+    return '<svg class="tw-card-svg" viewBox="0 0 80 320" preserveAspectRatio="xMidYMid meet">' +
+      '<g transform="translate(40 292) rotate(' + tilt.toFixed(1) + ')">' +
+      '<rect x="-18" y="' + (-h) + '" width="36" height="' + h + '" rx="4" fill="' +
+      esc(pl.color || '#e0b070') + '"/>' +
+      '<text x="0" y="22" text-anchor="middle" font-size="11" fill="#f6ead8">' +
+      esc(String(pl.rangeNum != null ? pl.rangeNum : (pl.label || ''))) + '</text></g></svg>';
+  }
+
   function boardSvg(game, focusRange) {
     const players = visiblePlayers(game);
-    return '<svg class="tw-board-svg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet">' +
-      players.map(function (pl, i) {
-        const x = 50 + i * 75;
-        const h = Math.min(280, (Number(pl.height) || 0) * 14);
-        const lean = Number(pl.lean) || 0;
-        const tilt = Math.max(-18, Math.min(18, lean / 4));
-        return '<g transform="translate(' + x + ' 330) rotate(' + tilt.toFixed(1) + ')">' +
-          '<rect x="-18" y="' + (-h) + '" width="36" height="' + h + '" rx="4" fill="' + esc(pl.color || '#e0b070') + '"/>' +
-          '<text x="0" y="22" text-anchor="middle" font-size="11" fill="#f6ead8">' + esc(String(pl.rangeNum)) + '</text></g>';
-      }).join('') + '</svg>';
+    if (!players.length) {
+      return '<div class="tw-muted">Keine Türme</div>';
+    }
+    return '<div class="tw-cards tw-cards-' + cardsCols(players.length) + '">' + players.map(function (pl) {
+      const mine = focusRange && Number(pl.rangeNum) === Number(focusRange);
+      return '<div class="tw-card' + (mine ? ' is-me' : '') + '">' +
+        '<div class="tw-card-label">' +
+        '<span class="tw-swatch" style="background:' + esc(pl.color || '#888') + '"></span>' +
+        esc(pl.label || ('Stand ' + pl.rangeNum)) +
+        '</div>' +
+        towerSvg(pl) +
+        '</div>';
+    }).join('') + '</div>';
   }
 
   function setTwSurfaceClasses(container, mode) {
@@ -284,23 +307,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setTwSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setTwSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'tw-master-layout' : 'tw-shooter-layout';
-    const otherCls = isMaster ? 'tw-shooter-layout' : 'tw-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'tw-shooter-layout' : (isCompact ? 'tw-compact-layout' : 'tw-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="tw-header" data-header></header>' +
         '<div class="tw-main">' +
         '<div class="tw-target-col">' +
-        '<div class="tw-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="tw-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="tw-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="tw-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '<div data-actions></div>' +
@@ -327,26 +350,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="tw-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (twPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="tw-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="tw-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="tw-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
 
     const footer = container.querySelector('[data-footer]');
     if (footer) {

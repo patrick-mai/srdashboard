@@ -59,7 +59,8 @@
 .fox-view * { box-sizing: border-box; }
 
 .fox-shooter-layout,
-.fox-master-layout {
+.fox-master-layout,
+.fox-compact-layout {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -495,14 +496,13 @@
   gap: 1rem;
   align-items: center;
   font-size: 0.95rem;
-  background: var(--fox-glass);
-  backdrop-filter: var(--fox-blur);
-  -webkit-backdrop-filter: var(--fox-blur);
-  border: 1px solid var(--fox-line);
+  background: var(--fox-solid);
+  color: var(--fox-solid-ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(28, 46, 34, 0.12);
   border-radius: var(--fox-radius);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    0 8px 24px rgba(28, 46, 34, 0.1);
+  box-shadow: 0 6px 18px rgba(28, 46, 34, 0.12);
 }
 
 .fox-terrain {
@@ -528,6 +528,14 @@
 .fox-master-layout .fox-main {
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
 }
+
+.fox-compact-layout .fox-main {
+  grid-template-columns: minmax(13.5rem, 0.2fr) minmax(0, 1fr);
+}
+.fox-compact-layout .fox-target-col {
+  justify-content: flex-start;
+}
+
 
 .fox-blocked {
   color: #9b2226;

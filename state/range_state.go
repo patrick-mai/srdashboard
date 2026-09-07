@@ -46,6 +46,8 @@ type RangeState struct {
 	WarmupShots      []Shot    `json:"warmupShots"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
+	// StartedAt is the first shot of this shooter (Probe or competition). Cleared on shooter change.
+	StartedAt time.Time `json:"startedAt,omitempty"`
 }
 
 // LiveState holds state for all ranges. Safe for concurrent use: UDP applies shots under mu, HTTP reads via Snapshot().
@@ -116,6 +118,31 @@ func appendSeriesCapped(s [][]Shot, series []Shot, max int) [][]Shot {
 	return s
 }
 
+// ResetAllRanges clears every configured lane.
+func (ls *LiveState) ResetAllRanges() {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	for k := range ls.Ranges {
+		ls.Ranges[k] = emptyRangeState(k)
+	}
+}
+
+// SeedMissingProgramLength sets TotalShotsToFire on lanes that have none.
+// Console recovery logs do not include the OpticScore program length; games
+// that refuse to start without it (e.g. Autorennen) need a stand-in.
+func (ls *LiveState) SeedMissingProgramLength(n int) {
+	if n <= 0 {
+		n = 60
+	}
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	for _, rs := range ls.Ranges {
+		if rs != nil && rs.TotalShotsToFire <= 0 {
+			rs.TotalShotsToFire = n
+		}
+	}
+}
+
 // ResetRange restores one range to the empty default (no shooter, shots, or sums).
 func (ls *LiveState) ResetRange(rng int) bool {
 	ls.mu.Lock()
@@ -155,6 +182,7 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		WarmupShots:      append([]Shot(nil), snap.WarmupShots...),
 		Last10Values:     append([]float64(nil), snap.Last10Values...),
 		TotalShotsToFire: snap.TotalShotsToFire,
+		StartedAt:        snap.StartedAt,
 	}
 	return true
 }
@@ -297,6 +325,55 @@ func isConcreteProgramLabel(s string) bool {
 // already 1000 shots; beyond that the oldest series drop off.
 const maxSeriesSums = 100
 
+func shotStartTime(at, receivedAt time.Time) time.Time {
+	if !at.IsZero() {
+		return at
+	}
+	if !receivedAt.IsZero() {
+		return receivedAt
+	}
+	return time.Now()
+}
+
+func shotInstant(s Shot) time.Time {
+	if !s.At.IsZero() {
+		return s.At
+	}
+	return s.ReceivedAt
+}
+
+func earliestShotTime(rs *RangeState) time.Time {
+	var best time.Time
+	consider := func(s Shot) {
+		t := shotInstant(s)
+		if t.IsZero() {
+			return
+		}
+		if best.IsZero() || t.Before(best) {
+			best = t
+		}
+	}
+	for _, s := range rs.WarmupShots {
+		consider(s)
+	}
+	for _, series := range rs.SeriesShots {
+		for _, s := range series {
+			consider(s)
+		}
+	}
+	for _, s := range rs.Shots {
+		consider(s)
+	}
+	return best
+}
+
+func snapshotStartedAt(rs *RangeState) time.Time {
+	if !rs.StartedAt.IsZero() {
+		return rs.StartedAt
+	}
+	return earliestShotTime(rs)
+}
+
 // ApplyShot updates range state with a new shot, timestamped from the payload
 // when it carries a ShotDateTime. Call from UDP handler only.
 // Reports whether the range exists.
@@ -344,6 +421,7 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		if newShooterName != rs.ShooterName {
 			rs.ShooterName = newShooterName
 			rs.WarmupShots = nil
+			rs.StartedAt = time.Time{}
 			resetRangeFooter(rs)
 		} else {
 			rs.ShooterName = newShooterName
@@ -368,6 +446,10 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	}
 	if d := disciplineLabelFromShot(sp); d != "" {
 		rs.Discipline = d
+	}
+
+	if rs.StartedAt.IsZero() {
+		rs.StartedAt = shotStartTime(at, receivedAt)
 	}
 
 	rs.ShotNumber++
@@ -473,6 +555,7 @@ type RangeSnapshot struct {
 	WarmupShots      []Shot    `json:"warmupShots"`
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
+	StartedAt        time.Time `json:"startedAt,omitempty"`
 }
 
 // ShotNumber returns the current shot count for a range without copying state.
@@ -517,6 +600,7 @@ func (ls *LiveState) RangeSnapshot(rng int) (RangeSnapshot, bool) {
 		WarmupShots:      append([]Shot(nil), rs.WarmupShots...),
 		Last10Values:     append([]float64(nil), rs.Last10Values...),
 		TotalShotsToFire: rs.TotalShotsToFire,
+		StartedAt:        snapshotStartedAt(rs),
 	}, true
 }
 
@@ -563,6 +647,7 @@ func (ls *LiveState) Snapshot() []RangeSnapshot {
 			WarmupShots:      warmupShots,
 			Last10Values:     last10,
 			TotalShotsToFire: rs.TotalShotsToFire,
+			StartedAt:        snapshotStartedAt(rs),
 		})
 	}
 	return out

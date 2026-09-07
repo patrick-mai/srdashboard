@@ -25,9 +25,7 @@ plugins/
 ```
 
 Host code lives under `host/` (`loader/`, `rangestate/`, `logicapi/`).  
-Plugins ship with the release package under `plugins/`. Special or custom plugins are added the same way: place a folder under `plugins/{id}/` and reload (or restart) the host.
-
-Distribution zips for packaging are built to `dist/plugins/` via `go run ./cmd/zip-bundled`.
+Shipped plugins go out as folders in each release tree (`dist/<platform>/plugins/{id}/`). Extra / third-party plugins are added the same way: place a folder under `plugins/{id}/` and reload (or restart) the host.
 
 ## manifest.xml
 
@@ -64,13 +62,15 @@ window.SRPluginViews.myplugin = function render(container, viewModel, assetsBase
 };
 ```
 
-## Build a distribution zip
+## Extra plugin zip (optional)
+
+Shipped plugins are not zipped. For a plugin that is not part of the default set, you can pack a single folder:
 
 ```bash
-go run ./cmd/zip-bundled
+go run ./cmd/zip-plugin plugins/my-extra-plugin
 ```
 
-Creates `dist/plugins/{id}-{version}.srplugin.zip` from each `plugins/{id}/` with a `manifest.xml` (excludes `config.xml` and `logic/`).
+That writes `{id}-{version}.srplugin.zip` (excludes `config.xml` and `logic/`). Drop the unpacked folder under `plugins/`, or install the zip through the host loader.
 
 ## Load / activate
 

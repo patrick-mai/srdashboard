@@ -1386,6 +1386,7 @@ body::before {
 
 .config-field input,
 .config-field select,
+.config-field textarea,
 .plugin-pin-row input,
 .plugin-active-label select {
   font: inherit;
@@ -1402,9 +1403,22 @@ body::before {
 
 .config-field input:focus,
 .config-field select:focus,
+.config-field textarea:focus,
 .plugin-pin-row input:focus {
   outline: 2px solid var(--accent-soft);
   border-color: var(--accent);
+}
+
+.config-field-full {
+  grid-column: 1 / -1;
+}
+
+.config-recovery-log {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  min-height: 12rem;
+  resize: vertical;
 }
 
 .plugin-active-label .range-lane-list {
@@ -1747,6 +1761,11 @@ body.config-display {
   background: #343a28;
 }
 
+#shared-master-host.tb-view,
+#shared-master-host:has(.tb-view) {
+  background: #6f9fc4;
+}
+
 #shared-master-host.zb-view,
 #shared-master-host:has(.zb-view) {
   background: #3d6b4a;
@@ -2067,11 +2086,15 @@ body.config-display {
 }
 
 .rulebook-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  padding: 4px 2px;
+  padding: 0.4rem 0.35rem;
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -2080,6 +2103,34 @@ body.config-display {
   cursor: pointer;
   line-height: 1.2;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+.rulebook-btn-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.rulebook-btn-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rulebook-btn-icon circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.rulebook-btn-label {
+  display: none;
 }
 
 .rulebook-btn:hover:not(:disabled),
@@ -2094,8 +2145,14 @@ body.config-display {
 }
 
 .side-rail.is-menu-open .rulebook-btn {
-  padding: 4px 8px;
+  justify-content: flex-start;
+  padding: 0.4rem 0.55rem;
   font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.side-rail.is-menu-open .rulebook-btn-label {
+  display: inline;
 }
 
 .rulebook-dialog {

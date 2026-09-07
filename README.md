@@ -2,7 +2,9 @@
 
 Live hall display for **DISAG OpticScore**. It shows every stand on a large screen (or one stand on a tablet), plots shots on the target, and can switch from the classic range view into game plugins.
 
-**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.2](CHANGELOG.md).
+**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.3](CHANGELOG.md).
+
+Comments at the [meisterschuetzen.org](https://meisterschuetzen.org) forum or here.
 
 ---
 
@@ -10,7 +12,7 @@ Live hall display for **DISAG OpticScore**. It shows every stand on a large scre
 
 The default plugin is **Classic Range View** — a competition display for air rifle, air pistol and 50 m smallbore.
 
-<img src="./screenshots/classic-range-master.png" alt="Classic Range master display with six stands">
+![Classic Range master display with six stands](./screenshots/classic-range-master.png)
 
 Each lane shows:
 
@@ -25,17 +27,27 @@ Each lane shows:
 
 The same view on a stand tablet (`/1`, `/2`, …):
 
-<img src="./screenshots/classic-range-shooter.png" alt="Classic Range shooter tablet">
+![Classic Range shooter tablet](./screenshots/classic-range-shooter.png)
+
+**Classic Range Condensed** especially for Daniel, who has ears like a bat but the eyes of a mole, is the same live hall without the last-10 chart or the full stats table — header, target, last shot, Teiler, Summe and Serien only. Switch to it from **Menü**.
+
+![Classic Range Condensed hall with six stands](./screenshots/classic-range-condensed.png)
 
 Open **Einstellungen** (`/config`) to toggle footer fields, pellet outline width, lane count and per-plugin target faces.
 
+The side **Menü** also sets **Farbsättigung** and pellet fill: rainbow (default) or one hue from light to deep, plus **Compact** for the hall without the target disc.
+
+![Classic Range with side menu open](./screenshots/classic-range-menu.png)
+
 ---
+
+
 
 ## Ring Reader QR
 
 Every stand with shots has a **QR** button in the lane header. It encodes the current result for [Ring Reader](https://ringreader.app) (`https://ringreader.app/import/qr#…`).
 
-<img src="./screenshots/classic-range-qr-dialog.png" alt="Ring Reader result QR dialog">
+![Ring Reader result QR dialog](./screenshots/classic-range-qr-dialog.png)
 
 1. Finish (or pause) the series on OpticScore.
 2. Tap **QR** on that stand.
@@ -45,9 +57,11 @@ The dialog can also show the JSON payload (debug / copy). PNG and metadata are a
 
 The hall overlay looks like this when a QR is open:
 
-<img src="./screenshots/classic-range-qr.png" alt="Ring Reader QR on the master display">
+![Ring Reader QR on the master display](./screenshots/classic-range-qr.png)
 
 ---
+
+
 
 ## Game plugins
 
@@ -61,7 +75,7 @@ All lanes race the same circuit. Each Wertungsschuss is a push — higher rings 
 
 Every ten shots there is a 5-second box window: the stop-shot’s value and reaction gain or lose places, and a zero in the box costs a place. Marked DRS stretches make overtaking easier, especially from further back. Random field events (puncture, oil) send a car to the pits. A hole-in-hole gives a small bonus push. First across the line wins.
 
-<img src="./screenshots/autorennen.jpg" alt="Autorennen on Hafenpark">
+![Autorennen on Hafenpark](./screenshots/autorennen.jpg)
 
 ### Fox on the Run (Fuchsjagd)
 
@@ -69,7 +83,7 @@ Each stand is fox once; the others are the pack. Five calibration shots set an e
 
 Vorsprung 30: the fox reaches the Bau and escapes. Vorsprung 0: the fox is caught. The evening ranks how often each shooter escaped as fox, and how close the hunts were.
 
-<img src="./screenshots/fox-on-the-run.jpg" alt="Fox on the Run hunt">
+![Fox on the Run hunt](./screenshots/fox-on-the-run.jpg)
 
 ### Tannebaum Einzel
 
@@ -77,7 +91,7 @@ Each stand has its own kegel tree in three stages: whole rings 5–10, half ring
 
 First empty tree wins.
 
-<img src="./screenshots/tannebaum-einzel.png" alt="Tannebaum Einzel">
+![Tannebaum Einzel](./screenshots/tannebaum-einzel.png)
 
 ### Tannebaum Team
 
@@ -85,7 +99,7 @@ Same needle rules as Einzel, but two teams share one tree each (odd/even stands 
 
 The team that empties its tree first wins.
 
-<img src="./screenshots/tannebaum-team.png" alt="Tannebaum Team">
+![Tannebaum Team](./screenshots/tannebaum-team.png)
 
 ### Ludo
 
@@ -93,7 +107,7 @@ One hat per stand, all starting in the Hof. **10.0** (or better) enters onto you
 
 Landing on an occupied cell sends that hat back; jumping over without landing does not. After one lap come four house cells: there is no exact-count (overshoots are clipped) and no capturing in the house. First to fill the house wins.
 
-<img src="./screenshots/ludo.png" alt="Ludo">
+![Ludo](./screenshots/ludo.png)
 
 ### Barrikade
 
@@ -101,7 +115,7 @@ Everyone runs the same track to the Burg (cell 25). Move rules match Ludo: **9+*
 
 First to the Burg wins.
 
-<img src="./screenshots/barrikade.png" alt="Barrikade">
+![Barrikade](./screenshots/barrikade.png)
 
 ### Zehner-Bingo
 
@@ -109,7 +123,11 @@ Every stand plays the same 5×5 card of tenths from 8.5 to 10.9, shuffled at mat
 
 First full line (row, column, or diagonal) wins. Optional full-card mode requires all 25 cells.
 
-<img src="./screenshots/zehner-bingo.png" alt="Zehner-Bingo">
+![Zehner-Bingo](./screenshots/zehner-bingo.png)
+
+On `/compact` the cards keep the leftover space; the target disc is omitted.
+
+![Zehner-Bingo compact hall](./screenshots/zehner-bingo-compact.png)
 
 ### Tauziehen
 
@@ -173,28 +191,36 @@ Highest points after all rounds wins.
 
 ---
 
+
+
+## Session recovery
+
+If the dashboard was restarted mid-match, **Einstellungen → Wiederherstellung** replays shots from the console log (`log/<start-time>.txt`) or pasted OpticScore JSON. Shots go through the same UDP checks as live fire; the active game scores them again. Random field events (for example a puncture in Autorennen) are not in the log and will not repeat.
+
+![Einstellungen Wiederherstellung](./screenshots/config-recovery.png)
+
+---
+
+
+
 ## Windows installation
 
 You need a Windows PC on the same network as OpticScore (hall PC or a dedicated display PC).
 
 1. Copy the Windows package so these stay **in the same folder**:
-   - `srdashboard.exe`
-   - `config.xml`
-   - `plugins\`
-   
-   A pre-built tree lives at [`dist/windows-amd64/`](dist/windows-amd64/) in this repo. You can copy that folder to e.g. `C:\SRDashboard`.
-
-2. Double-click `srdashboard.exe`.  
-   If Windows Firewall asks, allow it on the **private** range network.
-
-3. Open a browser on the display PC: **http://localhost:8080**
-
+  - `srdashboard.exe`
+  - `config.xml`
+  - `plugins\` (one folder per plugin, not zip files)
+   A pre-built tree lives at `[dist/windows-amd64/](dist/windows-amd64/)` in this repo. You can copy that folder to e.g. `C:\SRDashboard`.
+2. Double-click `srdashboard.exe`.
+  If Windows Firewall asks, allow it on the **private** range network.
+3. Open a browser on the display PC: **[http://localhost:8080](http://localhost:8080)**
 4. In **DISAG OpticScore**, enable **JSON Live** and send it to this PC on UDP port **30169** (the default in `config.xml`). As soon as a stand fires, the matching panel fills.
-
 5. Tablets / extra screens on the LAN:
-   - Hall grid: `http://<pc-ip>:8080`
-   - Stand 1: `http://<pc-ip>:8080/1` (same for `/2`, `/3`, …)
-   - Settings: `http://<pc-ip>:8080/config`
+  - Hall grid: `http://<pc-ip>:8080`
+  - Compact hall (no target disc): `http://<pc-ip>:8080/compact`
+  - Stand 1: `http://<pc-ip>:8080/1` (same for `/2`, `/3`, …)
+  - Settings: `http://<pc-ip>:8080/config`
 
 Optional: listen on another HTTP port with an environment variable, then start the exe from that same prompt:
 
@@ -207,10 +233,12 @@ Pass a custom config path as the first argument: `srdashboard.exe D:\range\confi
 
 ### Admin vs public HTTP ports
 
-| Port | Config | Role |
-|------|--------|------|
-| **Admin** (default **8080**) | `display/adminPort` (or `PORT` env) | Full control: master, stands, `/config`, plugin switch, live reset. On the controlled hall LAN an empty `controlToken` is fine. |
-| **Public** (optional) | `display/publicPort` — `0` = off, e.g. `8081` | Read-only **master + stands**. No `/config`, no mutations. Safe to put behind a reverse proxy / publish elsewhere. |
+
+| Port                         | Config                                        | Role                                                                                                                            |
+| ---------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Admin** (default **8080**) | `display/adminPort` (or `PORT` env)           | Full control: master, stands, `/config`, plugin switch, live reset. On the controlled hall LAN an empty `controlToken` is fine. |
+| **Public** (optional)        | `display/publicPort` — `0` = off, e.g. `8081` | Read-only **master + stands**. No `/config`, no mutations. Safe to put behind a reverse proxy / publish elsewhere.              |
+
 
 Example — enable the public view port in `config.xml`:
 
@@ -228,23 +256,34 @@ On a network that is not only the range LAN **and** you only use the admin port,
 
 ---
 
+
+
 ## Displays
 
-| URL | Role |
-|-----|------|
-| `/?display=master` | All ranges (default) |
-| `/?display=shooter&range=2` or `/2` | Single-range tablet |
-| `/config` | Site + plugin settings (**admin port only**) |
-| `GET /api/mode` | `{ "role": "admin" }` or `{ "role": "public" }` |
+
+| URL                                 | Role                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `/?display=master`                  | All ranges (default)                                                            |
+| `/compact` or `/?display=compact`   | Compact hall without the target disc (board/trees/cards use the leftover space) |
+| `/?display=shooter&range=2` or `/2` | Single-range tablet                                                             |
+| `/config`                           | Site + plugin settings (**admin port only**)                                    |
+| `GET /api/mode`                     | `{ "role": "admin" }` or `{ "role": "public" }`                                 |
+
 
 ---
 
+
+
 ## Developers
+
+
 
 ### Prerequisites
 
 - Go 1.24+ ([go.dev/dl](https://go.dev/dl/))
 - OpticScore JSON Live on UDP **30169** (or synthetic shots via `go run ./cmd/send-shot`)
+
+
 
 ### Build & run
 
@@ -274,6 +313,8 @@ OpticScore JSON is parsed in `udp/`, live state in `state/`, game logic in `host
 Shot fields (coordinates → Teiler → DecValue → IntValue) and the LG/LP/KK Teiler tables: [docs/shot-scoring.md](docs/shot-scoring.md).
 
 ---
+
+
 
 ## License
 

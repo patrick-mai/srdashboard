@@ -35,6 +35,10 @@ type ShotContext struct {
 	NumRanges      int
 	InactiveRanges []int
 	Now            time.Time
+	// Replay is set while a pasted session log is being applied. Games should
+	// still score shots, but must not invent random field events that were
+	// never in the log.
+	Replay bool
 }
 
 // Logic is the host-side contract for WASM (or in-process) plugin scoring logic.

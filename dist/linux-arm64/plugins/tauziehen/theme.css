@@ -31,7 +31,7 @@
   background: #3a4a38;
 }
 
-.tz-master-layout, .tz-shooter-layout {
+.tz-master-layout, .tz-shooter-layout, .tz-compact-layout {
   display: flex; flex-direction: column; height: 100%; min-height: 100%;
 }
 .tz-header {
@@ -52,8 +52,8 @@
   background: var(--tz-solid); border-radius: 999px;
 }
 .tz-main {
-  flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 0.55rem; padding: 0.5rem 0.55rem; min-height: 0;
+  flex: 1; display: grid; grid-template-columns: minmax(17rem, 0.55fr) minmax(0, 1.45fr);
+  gap: 0.4rem; padding: 0.4rem 0.45rem; min-height: 0;
 }
 .tz-target-col, .tz-board-col {
   min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
@@ -84,6 +84,7 @@
 }
 .tz-board-svg {
   width: 100%; height: 100%; flex: 1 1 auto; min-height: 0; display: block;
+  object-fit: contain;
 }
 .tz-recent, .tz-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; overflow: hidden; }
 .tz-recent li, .tz-standings li {
@@ -102,6 +103,14 @@
   border: 0; border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 700;
   background: var(--tz-accent); color: #1a1a1a; cursor: pointer;
 }
+
+.tz-compact-layout .tz-main {
+  grid-template-columns: minmax(12.5rem, 13.75rem) minmax(0, 1fr);
+}
+.tz-compact-layout .tz-target-col {
+  justify-content: flex-start;
+}
+
 @media (max-width: 900px) {
   .tz-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
 }

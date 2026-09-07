@@ -1,0 +1,216 @@
+/* Classic Range Condensed — compact hall display (legacy OpticScore layout).
+ * Sized for 100% browser zoom to match the previous 125% zoom look. */
+.range-panel.crc-panel,
+.range-plugin-view.crc-view {
+  --crc-ui-scale: 1.25;
+  font-family: Bahnschrift, "Segoe UI", system-ui, sans-serif;
+}
+
+.range-panel.crc-panel {
+  overflow: visible;
+}
+
+.range-panel.crc-panel .range-header.crc-header {
+  position: relative;
+  z-index: 5;
+  overflow: visible;
+  padding: calc(6px * var(--crc-ui-scale)) calc(10px * var(--crc-ui-scale));
+  background: #3d4f4c;
+  border-bottom: none;
+  color: #fff;
+  font-size: calc(22px * var(--crc-ui-scale));
+  line-height: 1.2;
+  min-height: 0;
+  font-family: inherit;
+}
+
+.crc-header-line {
+  display: flex;
+  align-items: baseline;
+  gap: calc(8px * var(--crc-ui-scale, 1.25));
+  min-width: 0;
+}
+
+.crc-lane {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.crc-sep {
+  opacity: 0.65;
+  font-weight: 300;
+}
+
+.crc-name-wrap {
+  position: relative;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: visible;
+}
+
+.crc-name {
+  display: block;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crc-tip {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 6;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 8em;
+  max-width: min(280px, 70vw);
+  padding: 6px 10px;
+  background: rgba(18, 22, 20, 0.94);
+  color: #fff;
+  font-size: calc(13px * var(--crc-ui-scale, 1.25));
+  font-weight: 500;
+  line-height: 1.25;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  white-space: normal;
+}
+
+.crc-tip-club,
+.crc-tip-start {
+  display: block;
+}
+
+.crc-name-wrap:hover .crc-tip {
+  display: flex;
+}
+
+.crc-disc {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.range-plugin-view.crc-view {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: #ececec;
+  overflow: hidden;
+}
+
+#shooter-plugin-view > .range-plugin-view.crc-view {
+  padding: 0;
+}
+
+.range-plugin-view.crc-view .range-target {
+  flex: 1 1 auto;
+  min-height: 48px;
+  background: #f5f5f5;
+}
+
+.range-plugin-view.crc-view .crc-footer {
+  flex: 0 0 auto;
+  background: #d4d4d4;
+  color: #111;
+  padding: 4px 12px 3px;
+  border-top: 1px solid #bbb;
+  overflow: hidden;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.range-plugin-view.crc-view .crc-footer.crc-footer-hit {
+  background: var(--crc-hit-bg, #3d4f4c) !important;
+  color: #fff !important;
+  border-top-color: transparent !important;
+}
+
+.crc-footer-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.crc-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: calc(12px * var(--crc-ui-scale, 1.25));
+  color: inherit;
+}
+
+.crc-footer-primary .crc-val {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.crc-footer-secondary .crc-val {
+  font-size: clamp(1.2rem, 2.75vw, 1.45rem);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.crc-footer-tertiary .crc-val {
+  font-size: clamp(1.05rem, 2.25vw, 1.25rem);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.crc-series {
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62%;
+}
+
+.crc-total,
+.crc-hr,
+.crc-series {
+  text-align: right;
+}
+
+/*
+ * Fills in shot order; all rims live in .target-shots-ring above every fill
+ * so covered pellets keep a visible outline through the stack.
+ */
+.crc-view .target-shots-fill circle {
+  stroke: none !important;
+}
+
+.crc-view .target-shots-fill circle:not(.is-last) {
+  fill: #9a9a9a !important;
+}
+
+.crc-view .target-shots-fill circle.is-last,
+.crc-view .target-shots > circle.crc-last-fill {
+  fill: #d62828 !important;
+  stroke: none !important;
+}
+
+.crc-view .target-shots-ring circle {
+  stroke: #e6e6e6 !important;
+  stroke-width: 0.12 !important;
+}
+
+.crc-view .target-shots-ring circle.is-last,
+.crc-view .target-shots > circle.crc-last-ring {
+  fill: none !important;
+  stroke: #f5f5f5 !important;
+  stroke-width: 0.12 !important;
+}
+
+.crc-view .classic-range-loading {
+  padding: 1.25rem;
+  opacity: 0.7;
+  font-size: 0.95rem;
+  color: #333;
+}

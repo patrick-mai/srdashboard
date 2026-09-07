@@ -528,7 +528,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     applyMeadowBackdrop(container, assetsBase);
 
     // Build skeleton before any await so concurrent paints share one DOM tree.
-    if (container.querySelector('.fox-master-layout') || !container.querySelector('.fox-shooter-layout')) {
+    if (container.querySelector('.fox-master-layout') || container.querySelector('.fox-compact-layout') || !container.querySelector('.fox-shooter-layout')) {
       container.innerHTML =
         '<div class="fox-shooter-layout">' +
         '<header class="fox-header" data-header></header>' +
@@ -589,20 +589,22 @@ window.SRPluginViews = window.SRPluginViews || {};
   async function renderMaster(container, viewModel, assetsBase) {
     const paintGen = beginFoxPaint(container);
     const hunt = (viewModel && viewModel.hunt) || {};
+    const compact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const layoutCls = compact ? 'fox-compact-layout' : 'fox-master-layout';
     setFoxSurfaceClasses(container, 'master');
     applyMeadowBackdrop(container, assetsBase);
 
     if (
       container.querySelector('.fox-shooter-layout') ||
-      !container.querySelector('.fox-master-layout') ||
+      !container.querySelector('.' + layoutCls) ||
       container.querySelector('.fox-footer')
     ) {
       container.innerHTML =
-        '<div class="fox-master-layout">' +
+        '<div class="' + layoutCls + '">' +
         '<header class="fox-header" data-header></header>' +
         '<div class="fox-main">' +
         '<div class="fox-target-col">' +
-        '<div class="fox-scheibe-wrap" data-scheibe></div>' +
+        (compact ? '' : '<div class="fox-scheibe-wrap" data-scheibe></div>') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '</div>' +
@@ -629,8 +631,11 @@ window.SRPluginViews = window.SRPluginViews || {};
     const terr = hunt.terrain;
     container.querySelector('[data-terrain]').innerHTML = terr && terr.label
       ? '<div class="fox-terrain fox-panel">' + esc(terr.label) + '</div>' : '';
-    await renderScheibe(container.querySelector('[data-scheibe]'), assetsBase, hunt, hunt.currentFox, null, null);
-    if (foxPaintStale(container, paintGen)) return;
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
+      await renderScheibe(scheibe, assetsBase, hunt, hunt.currentFox, null, null);
+      if (foxPaintStale(container, paintGen)) return;
+    }
     container.querySelector('[data-recent]').innerHTML = recentList(hunt, hunt.currentFox);
     container.querySelector('[data-standings]').innerHTML = standingsHtml(hunt, null);
     // Enable in-place live updates (master used to remount fox every shot).

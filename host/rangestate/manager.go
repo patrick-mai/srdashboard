@@ -34,6 +34,7 @@ type Manager struct {
 	live           LiveSource
 	tickStop       chan struct{}
 	tickRunning    bool
+	replaying      bool
 }
 
 func NewManager(numRanges int, pm *loader.Manager, activePluginID string) *Manager {
@@ -51,6 +52,52 @@ func NewManager(numRanges int, pm *loader.Manager, activePluginID string) *Manag
 
 func (m *Manager) SetBroadcaster(b Broadcaster)  { m.broadcast = b }
 func (m *Manager) SetLiveSource(live LiveSource) { m.live = live }
+
+// BeginReplay pauses the shared ticker and suppresses per-shot WebSocket
+// notifies so a pasted log can drive game logic without flooding clients.
+func (m *Manager) BeginReplay() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.replaying = true
+	m.stopTickerLocked()
+}
+
+// InReplay is true between BeginReplay and EndReplay.
+func (m *Manager) InReplay() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.replaying
+}
+
+// EndReplay rebuilds view models, resumes the ticker, and notifies clients once.
+func (m *Manager) EndReplay() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.replaying = false
+	if m.activeID == "" {
+		return
+	}
+	ap, err := m.plugins.Get(m.activeID)
+	if err == nil {
+		if ap.Manifest.HasLogic() {
+			m.refreshAllViewModelsLocked(ap)
+		} else {
+			now := time.Now()
+			for i := 1; i <= m.numRanges; i++ {
+				s := m.sessions[i]
+				if s == nil || s.PluginID != m.activeID {
+					continue
+				}
+				s.ViewModel = m.displayViewModelLocked(i, ap)
+				s.UpdatedAt = now
+			}
+		}
+		if m.sharedMode && ap.Manifest.HasLogic() {
+			m.startTickerLocked()
+		}
+	}
+	m.notifyLocked()
+}
 
 // SetNumRanges updates how many lanes the manager tracks and re-inits the
 // active plugin so shared games (e.g. autorennen) drop/add cars to match.
@@ -120,6 +167,9 @@ func (m *Manager) stopTickerLocked() {
 }
 
 func (m *Manager) startTickerLocked() {
+	if m.replaying {
+		return
+	}
 	m.stopTickerLocked()
 	stop := make(chan struct{})
 	m.tickStop = stop
@@ -290,14 +340,28 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 	}
 
 	if ap.Manifest.HasLogic() {
+		now := time.Now()
+		if m.replaying {
+			if !shot.At.IsZero() {
+				now = shot.At
+			} else if !shot.ReceivedAt.IsZero() {
+				now = shot.ReceivedAt
+			}
+		}
+		live := m.liveInfo(rangeNum)
+		if m.replaying && live.TotalShotsToFire <= 0 {
+			// Console logs have no OpticScore program length.
+			live.TotalShotsToFire = 60
+		}
 		ctx := logicapi.ShotContext{
 			RangeNum:       rangeNum,
 			Shot:           shot,
 			ShotIndex:      shotIndex,
-			Live:           m.liveInfo(rangeNum),
+			Live:           live,
 			NumRanges:      m.numRanges,
 			InactiveRanges: append([]int(nil), m.inactiveRanges...),
-			Now:            time.Now(),
+			Now:            now,
+			Replay:         m.replaying,
 		}
 		var newState logicapi.SessionState
 		var events []logicapi.PluginEvent
@@ -316,6 +380,9 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 		}
 		s.ShotCount++
 		s.UpdatedAt = time.Now()
+		if m.replaying {
+			return
+		}
 		if shared {
 			// Shared games broadcast range 1's session to every client
 			// (hall + all tablets). Events must live on that session, not
@@ -332,8 +399,11 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 		return
 	}
 	s.ShotCount++
-	s.ViewModel = m.displayViewModelLocked(rangeNum, ap)
 	s.UpdatedAt = time.Now()
+	if m.replaying {
+		return
+	}
+	s.ViewModel = m.displayViewModelLocked(rangeNum, ap)
 }
 
 func (m *Manager) sessionStateLocked(s *RangePluginSession) logicapi.SessionState {
@@ -409,7 +479,7 @@ func (m *Manager) notifyAllSessionsLocked() {
 func (m *Manager) Tick(now time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.sharedMode || m.activeID == "" {
+	if m.replaying || !m.sharedMode || m.activeID == "" {
 		return
 	}
 	ap, err := m.plugins.Get(m.activeID)
@@ -557,7 +627,7 @@ func (m *Manager) Notify() {
 }
 
 func (m *Manager) notifyLocked() {
-	if m.broadcast == nil {
+	if m.replaying || m.broadcast == nil {
 		return
 	}
 	active := m.activeSnapshotUnlocked()
@@ -585,11 +655,15 @@ func (m *Manager) activeSnapshotUnlocked() ActiveSnapshot {
 }
 
 func (m *Manager) notifyRangeLocked(rangeNum int) {
-	if m.broadcast == nil {
-		return
-	}
 	s, ok := m.sessions[rangeNum]
 	if !ok {
+		return
+	}
+	if m.replaying {
+		s.clearEvents()
+		return
+	}
+	if m.broadcast == nil {
 		return
 	}
 	snap := s.snapshot()
@@ -658,6 +732,9 @@ func (m *Manager) syncLiveReady(onlyIfArming bool) {
 		return
 	}
 	m.applyStateLocked(newState, true)
+	if m.replaying {
+		return
+	}
 	m.appendEventsAllLocked(events)
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()

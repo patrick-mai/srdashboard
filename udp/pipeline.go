@@ -21,28 +21,49 @@ type Pipeline struct {
 }
 
 // Ingest handles one OpticScore Event/Shot datagram (same as the listener read loop).
-func (p *Pipeline) Ingest(data []byte) {
+// It returns the number of shots applied to live state.
+func (p *Pipeline) Ingest(data []byte) int {
+	return p.ingest(data, true)
+}
+
+// IngestReplay is the same decode → filter → ValidateShot → ApplyShotAt → OnShot
+// path as Ingest. Diagnostic logs for ignored envelopes are skipped so a pasted
+// log can be applied in bulk; the recovery handler broadcasts once at the end.
+func (p *Pipeline) IngestReplay(data []byte) int {
+	return p.ingest(data, false)
+}
+
+func (p *Pipeline) ingest(data []byte, verbose bool) int {
 	if p == nil || p.State == nil {
-		return
+		return 0
 	}
 	var msg Message
 	if err := decodeOpticScoreJSON(data, &msg); err != nil {
-		log.Printf("UDP: invalid JSON (len=%d): %v", len(data), err)
-		return
+		if verbose {
+			log.Printf("UDP: invalid JSON (len=%d): %v", len(data), err)
+		}
+		return 0
 	}
 	if msg.MessageType != "Event" || msg.MessageVerb != "Shot" {
-		log.Printf("UDP: ignored message MessageType=%q MessageVerb=%q (expected Event/Shot)", msg.MessageType, msg.MessageVerb)
-		return
+		if verbose {
+			log.Printf("UDP: ignored message MessageType=%q MessageVerb=%q (expected Event/Shot)", msg.MessageType, msg.MessageVerb)
+		}
+		return 0
 	}
 	if len(msg.Objects) == 0 {
-		log.Printf("UDP: Shot message has no Objects")
-		return
+		if verbose {
+			log.Printf("UDP: Shot message has no Objects")
+		}
+		return 0
 	}
 	receivedAt := time.Now()
+	applied := 0
 	for oi, raw := range msg.Objects {
 		var shot state.ShotPayload
 		if err := decodeOpticScoreJSON(raw, &shot); err != nil {
-			log.Printf("UDP: failed to parse shot object[%d]: %v", oi, err)
+			if verbose {
+				log.Printf("UDP: failed to parse shot object[%d]: %v", oi, err)
+			}
 			continue
 		}
 		if shot.Shooter != nil {
@@ -56,7 +77,9 @@ func (p *Pipeline) Ingest(data []byte) {
 			rng = 1
 		}
 		if p.Filter != nil && !p.Filter.AllowShot(rng) {
-			log.Printf("UDP: dropped shot for unconfigured or inactive range=%d", rng)
+			if verbose {
+				log.Printf("UDP: dropped shot for unconfigured or inactive range=%d", rng)
+			}
 			continue
 		}
 		if err := ValidateShot(&shot); err != nil {
@@ -68,11 +91,20 @@ func (p *Pipeline) Ingest(data []byte) {
 		if !hasShotAt {
 			shotAt, hasShotAt = msg.EventTime()
 		}
-		if !p.State.ApplyShotAt(rng, &shot, shotAt, receivedAt) {
-			log.Printf("UDP: dropped shot for unknown range=%d (check <ranges> in config.xml)", rng)
+		applyReceived := receivedAt
+		if !verbose && hasShotAt && !shotAt.IsZero() {
+			applyReceived = shotAt
+		}
+		if !p.State.ApplyShotAt(rng, &shot, shotAt, applyReceived) {
+			if verbose {
+				log.Printf("UDP: dropped shot for unknown range=%d (check <ranges> in config.xml)", rng)
+			}
 			continue
 		}
-		log.Printf("UDP: shot applied range=%d X=%d Y=%d DecValue=%.1f at=%v", rng, shot.X, shot.Y, shot.DecValue, shotAtOrDash(shotAt, hasShotAt))
+		applied++
+		if verbose {
+			log.Printf("UDP: shot applied range=%d X=%d Y=%d DecValue=%.1f at=%v", rng, shot.X, shot.Y, shot.DecValue, shotAtOrDash(shotAt, hasShotAt))
+		}
 		if p.OnShot != nil {
 			s := state.Shot{
 				X:          shot.X,
@@ -81,7 +113,7 @@ func (p *Pipeline) Ingest(data []byte) {
 				FullValue:  shot.FullValue,
 				DecValue:   shot.DecValue,
 				IsWarmup:   shot.IsWarmup,
-				ReceivedAt: receivedAt,
+				ReceivedAt: applyReceived,
 			}
 			if hasShotAt {
 				s.At = shotAt
@@ -89,11 +121,12 @@ func (p *Pipeline) Ingest(data []byte) {
 			p.OnShot(rng, s, p.State.ShotNumber(rng))
 		}
 	}
+	return applied
 }
 
 // IngestPacket is the UDP pipeline without a socket — tests and simulators use this
 // instead of ApplyShot + OnShot so they cannot bypass validation.
-func IngestPacket(st *state.LiveState, onShot ShotNotifier, data []byte) {
+func IngestPacket(st *state.LiveState, onShot ShotNotifier, data []byte) int {
 	p := Pipeline{State: st, OnShot: onShot}
-	p.Ingest(data)
+	return p.Ingest(data)
 }

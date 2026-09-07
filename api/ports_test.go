@@ -71,6 +71,7 @@ func TestPublicMuxRejectsMutations(t *testing.T) {
 		{http.MethodPost, "/api/live/reset?range=1", ``, http.StatusNotFound},
 		{http.MethodPut, "/api/live", `{"ranges":[]}`, http.StatusMethodNotAllowed},
 		{http.MethodPut, "/api/config", `{}`, http.StatusMethodNotAllowed},
+		{http.MethodPost, "/api/recovery/replay", `{"log":""}`, http.StatusNotFound},
 		{http.MethodPut, "/api/runtime", `{"inactiveRanges":[]}`, http.StatusMethodNotAllowed},
 		{http.MethodGet, "/config", ``, http.StatusNotFound},
 	}
@@ -145,5 +146,42 @@ func TestAdminMuxModeAndConfig(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("activate on admin: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCompactPathServesIndexOnAdminAndPublic(t *testing.T) {
+	h := portTestHandlers(t)
+	index := []byte("<!doctype html><title>compact-index</title>")
+	opt := StaticOptions{
+		AllowConfig: true,
+		ReadIndex: func() ([]byte, error) {
+			return index, nil
+		},
+	}
+
+	admin := http.NewServeMux()
+	RegisterAdminRoutes(admin, h, h.Hub, opt)
+	for _, path := range []string{"/compact", "/compact/"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		admin.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("admin GET %s: %d", path, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "compact-index") {
+			t.Fatalf("admin GET %s did not serve index", path)
+		}
+	}
+
+	pub := http.NewServeMux()
+	RegisterPublicRoutes(pub, h, h.Hub, StaticOptions{ReadIndex: opt.ReadIndex})
+	req := httptest.NewRequest(http.MethodGet, "/compact", nil)
+	rec := httptest.NewRecorder()
+	pub.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("public GET /compact: %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "compact-index") {
+		t.Fatal("public GET /compact did not serve index")
 	}
 }

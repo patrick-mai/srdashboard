@@ -239,19 +239,29 @@ window.SRPluginViews = window.SRPluginViews || {};
     return (viewModel && (viewModel.range || viewModel.liveRange)) || null;
   }
 
+  function cardsCols(n) {
+    if (n <= 1) return 1;
+    if (n <= 4) return 2;
+    if (n <= 6) return 3; // 6 stands → 3×2
+    if (n <= 9) return 3;
+    return 4;
+  }
+
   function boardSvg(game, focusRange) {
     const hole = Number(game.hole) || 1;
     const dist = Number(game.holeDistance) || 400;
     const players = visiblePlayers(game);
-    return '<div class="sg-panel"><h3>Bahn ' + hole + '</h3></div>' +
-      players.map(function (pl) {
-        const rem = Math.max(0, Number(pl.remaining) || 0);
-        const pct = Math.max(4, 100 - (rem / Math.max(dist, 1)) * 100);
-        return '<div class="sg-panel"><h3>' + esc(pl.label) + ' · ' + esc(pl.strokes || 0) + ' Schläge</h3>' +
-          '<div style="height:16px;background:rgba(255,255,255,0.12);border-radius:8px;overflow:hidden">' +
-          '<div style="width:' + pct + '%;height:100%;background:' + esc(pl.color || '#b8e08a') + '"></div></div>' +
-          '<div class="sg-meta">' + (pl.holed ? 'eingelocht' : fmt1(rem) + ' übrig') + '</div></div>';
-      }).join('');
+    const title = '<div class="sg-hole-title">Bahn ' + hole + '</div>';
+    if (!players.length) return title + '<div class="sg-muted">Keine Stände</div>';
+    return title + '<div class="sg-cards sg-cards-' + cardsCols(players.length) + '">' + players.map(function (pl) {
+      const rem = Math.max(0, Number(pl.remaining) || 0);
+      const pct = Math.max(4, 100 - (rem / Math.max(dist, 1)) * 100);
+      const mine = Number(pl.rangeNum) === Number(focusRange);
+      return '<div class="sg-card' + (mine ? ' is-me' : '') + '">' +
+        '<div class="sg-card-label">' + esc(pl.label) + ' · ' + esc(pl.strokes || 0) + ' Schläge</div>' +
+        '<div class="sg-card-bar"><div class="sg-card-bar-fill" style="width:' + pct + '%;background:' + esc(pl.color || '#b8e08a') + '"></div></div>' +
+        '<div class="sg-card-meta">' + (pl.holed ? 'eingelocht' : fmt1(rem) + ' übrig') + '</div></div>';
+    }).join('') + '</div>';
   }
 
   function setSgSurfaceClasses(container, mode) {
@@ -285,23 +295,23 @@ window.SRPluginViews = window.SRPluginViews || {};
     const game = vm.game || {};
     const isShooter = document.body.classList.contains('shooter-display') ||
       (window.SRDisplay && window.SRDisplay.display === 'shooter');
-    const isMaster = !isShooter;
+    const isCompact = window.SRDisplay && window.SRDisplay.display === 'compact';
+    const isMaster = !isShooter && !isCompact;
     const focusRange = isShooter ? (Number(vm.rangeNum) || 0) : 0;
     const me = vm.me;
 
     playEvents(vm.events || [], focusRange || null);
-    setSgSurfaceClasses(container, isMaster ? 'master' : 'shooter');
+    setSgSurfaceClasses(container, isShooter ? 'shooter' : 'master');
 
-    const layoutCls = isMaster ? 'sg-master-layout' : 'sg-shooter-layout';
-    const otherCls = isMaster ? 'sg-shooter-layout' : 'sg-master-layout';
-    if (container.querySelector('.' + otherCls) || !container.querySelector('.' + layoutCls)) {
+    const layoutCls = isShooter ? 'sg-shooter-layout' : (isCompact ? 'sg-compact-layout' : 'sg-master-layout');
+    if (!container.querySelector('.' + layoutCls)) {
       container.innerHTML =
         '<div class="' + layoutCls + '">' +
         '<header class="sg-header" data-header></header>' +
         '<div class="sg-main">' +
         '<div class="sg-target-col">' +
-        '<div class="sg-scheibe-wrap" data-scheibe></div>' +
-        (isMaster ? '' : '<div class="sg-shot-hud" data-shothud></div>') +
+        (isCompact ? '' : '<div class="sg-scheibe-wrap" data-scheibe></div>') +
+        (isShooter ? '<div class="sg-shot-hud" data-shothud></div>' : '') +
         '<div data-recent></div>' +
         '<div data-standings></div>' +
         '<div data-actions></div>' +
@@ -328,26 +338,29 @@ window.SRPluginViews = window.SRPluginViews || {};
         : '') +
       '<span class="sg-status">' + esc(game.statusLine || '') + '</span>';
 
+    const scheibe = container.querySelector('[data-scheibe]');
+    if (scheibe) {
     await renderScheibe(
-      container.querySelector('[data-scheibe]'),
-      assetsBase, game, isMaster ? null : focusRange,
-      isMaster ? null : rangeDataFor(vm, focusRange), me
+      scheibe,
+      assetsBase, game, isShooter ? focusRange : null,
+      isShooter ? rangeDataFor(vm, focusRange) : null, me
     );
     if (sgPaintStale(container, paintGen)) return;
 
-    if (!isMaster) {
+    }
+    if (isShooter) {
       const hud = container.querySelector('[data-shothud]');
       if (hud) {
         hud.innerHTML = shotBlock('Dein letzter Schuss', vm.lastOwn) +
           shotBlock('Letzter Fremdschuss', vm.lastForeign);
       }
     }
-    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isMaster ? null : focusRange);
+    container.querySelector('[data-recent]').innerHTML = recentHtml(game, isShooter ? focusRange : null);
     container.querySelector('[data-standings]').innerHTML =
-      '<div class="sg-panel"><h3>Stand</h3>' + standingsHtml(game, isMaster ? null : focusRange) + '</div>';
+      '<div class="sg-panel"><h3>Stand</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     container.querySelector('[data-board]').innerHTML =
       (game.startBlockedReason ? '<div class="sg-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-      boardSvg(game, isMaster ? null : focusRange);
+      boardSvg(game, isShooter ? focusRange : null);
 
     const footer = container.querySelector('[data-footer]');
     if (footer) {

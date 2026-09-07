@@ -27,6 +27,13 @@ func TestApplyShotRecordsTimestamps(t *testing.T) {
 	if shot.ReceivedAt.Before(before) {
 		t.Errorf("shot.ReceivedAt = %v, want >= %v", shot.ReceivedAt, before)
 	}
+	started := ls.Snapshot()[0].StartedAt
+	if started.IsZero() {
+		t.Error("StartedAt is zero after the first shot")
+	}
+	if !started.Equal(shot.At) {
+		t.Errorf("StartedAt = %v, want shot.At %v", started, shot.At)
+	}
 }
 
 func TestApplyShotWithoutTimestampLeavesAtZero(t *testing.T) {
@@ -231,5 +238,57 @@ func TestApplyShotConcurrentWithSnapshot(t *testing.T) {
 				_ = rs.Shots
 			}
 		}
+	}
+}
+
+func testShooter(first, last, club string) *struct {
+	Firstname string `json:"Firstname"`
+	Lastname  string `json:"Lastname"`
+	Club      *struct {
+		Name string `json:"Name"`
+	} `json:"Club"`
+} {
+	s := &struct {
+		Firstname string `json:"Firstname"`
+		Lastname  string `json:"Lastname"`
+		Club      *struct {
+			Name string `json:"Name"`
+		} `json:"Club"`
+	}{Firstname: first, Lastname: last}
+	if club != "" {
+		s.Club = &struct {
+			Name string `json:"Name"`
+		}{Name: club}
+	}
+	return s
+}
+
+func TestStartedAt_ShooterChangeResets(t *testing.T) {
+	ls := NewLiveState(1)
+	t1 := time.Date(2026, 9, 7, 13, 45, 2, 0, time.Local)
+	ls.ApplyShotAt(1, &ShotPayload{
+		DecValue: 10, FullValue: 10,
+		Shooter: testShooter("Anna", "Müller", "SV Adler"),
+	}, t1, t1)
+	t2 := t1.Add(5 * time.Minute)
+	ls.ApplyShotAt(1, &ShotPayload{
+		DecValue: 9, FullValue: 9,
+		Shooter: testShooter("Jonas", "Becker", "KSG Mitte"),
+	}, t2, t2)
+	got := ls.Snapshot()[0]
+	if !got.StartedAt.Equal(t2) {
+		t.Fatalf("after shooter change StartedAt=%v, want %v", got.StartedAt, t2)
+	}
+}
+
+func TestStartedAt_WarmupToCompKeepsStart(t *testing.T) {
+	ls := NewLiveState(1)
+	t1 := time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC)
+	ls.ApplyShotAt(1, &ShotPayload{DecValue: 10, FullValue: 10, IsWarmup: true}, t1, t1)
+	t2 := t1.Add(time.Minute)
+	ls.ApplyShotAt(1, &ShotPayload{DecValue: 10, FullValue: 10, IsWarmup: false}, t2, t2)
+	got := ls.Snapshot()[0]
+	if !got.StartedAt.Equal(t1) {
+		t.Fatalf("warmup→comp StartedAt=%v, want %v", got.StartedAt, t1)
 	}
 }
