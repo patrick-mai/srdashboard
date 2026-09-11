@@ -241,24 +241,10 @@ func TestApplyShotConcurrentWithSnapshot(t *testing.T) {
 	}
 }
 
-func testShooter(first, last, club string) *struct {
-	Firstname string `json:"Firstname"`
-	Lastname  string `json:"Lastname"`
-	Club      *struct {
-		Name string `json:"Name"`
-	} `json:"Club"`
-} {
-	s := &struct {
-		Firstname string `json:"Firstname"`
-		Lastname  string `json:"Lastname"`
-		Club      *struct {
-			Name string `json:"Name"`
-		} `json:"Club"`
-	}{Firstname: first, Lastname: last}
+func testShooter(first, last, club string) *ShotShooter {
+	s := &ShotShooter{Firstname: first, Lastname: last}
 	if club != "" {
-		s.Club = &struct {
-			Name string `json:"Name"`
-		}{Name: club}
+		s.Club = &ShotClub{Name: club}
 	}
 	return s
 }

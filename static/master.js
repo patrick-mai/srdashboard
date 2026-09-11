@@ -38,7 +38,17 @@
       id === 'tauziehen' || id === 'kettenreaktion' || id === 'biathlon' ||
       id === 'schrumpfender-kreis' || id === 'kronen-duell' ||
       id === 'bank-oder-risiko' || id === 'ko-pokal' || id === 'schiessgolf' ||
-      id === 'turmbau' || id === 'ansage-duell';
+      id === 'turmbau' || id === 'ansage-duell' || id === 'analyse';
+  }
+
+  function isDisplayPlugin() {
+    const id = currentPluginId();
+    if (!id) return false;
+    if (activePlugin && activePlugin.id === id) {
+      return activePlugin.kind === 'display';
+    }
+    const installed = installedPlugins.find(function (p) { return p.id === id; });
+    return !!(installed && installed.kind === 'display');
   }
 
   function teardownSharedHost() {
@@ -470,7 +480,12 @@
             }
           } else {
             queueLiveRange(msg.range);
+            if (typeof core.paintWettkampfTile === 'function') core.paintWettkampfTile();
           }
+        }
+        if (msg.type === 'wettkampf' && msg.wettkampf) {
+          core.lastWettkampf = msg.wettkampf;
+          if (typeof core.paintWettkampfTile === 'function') core.paintWettkampfTile();
         }
         if (msg.type === 'plugins_changed' || msg.type === 'config_changed') {
           refreshAll();
@@ -520,10 +535,12 @@
     return !!inactiveRangeSet()[n];
   }
 
-  async function putInactiveRanges(inactive) {
+  async function putInactiveRanges(inactive, wettkampfVisible) {
+    const body = { inactiveRanges: inactive };
+    if (typeof wettkampfVisible === 'boolean') body.wettkampfVisible = wettkampfVisible;
     const res = await controlFetch('/api/runtime', {
       method: 'PUT',
-      body: JSON.stringify({ inactiveRanges: inactive })
+      body: JSON.stringify(body)
     });
     if (!res.ok) {
       alert('Bahnen: ' + (await res.text()));
@@ -545,6 +562,7 @@
         tasks.push(mountRangePlugin(i, mountGen));
       }
       await Promise.all(tasks);
+      if (typeof core.paintWettkampfTile === 'function') core.paintWettkampfTile();
     }
     return true;
   }
@@ -560,7 +578,13 @@
       const rn = parseInt(boxes[i].getAttribute('data-range'), 10);
       if (rn >= 1 && rn <= max && !boxes[i].checked) next.push(rn);
     }
-    putInactiveRanges(next);
+    putInactiveRanges(next, wettkampfBoxChecked(rangeList));
+  }
+
+  function wettkampfBoxChecked(rangeList) {
+    const box = rangeList && rangeList.querySelector('input[data-slot="wettkampf"]');
+    if (box) return !!box.checked;
+    return !(core.config && core.config.wettkampfVisible === false);
   }
 
   function closeRangeConfirm(ok) {
@@ -684,13 +708,20 @@
     if (!list || rangeConfirmPending) return;
     const n = Math.max(1, (core.config && core.config.ranges) || 1);
     const inactive = inactiveRangeSet();
-    const sig = n + ':' + Object.keys(inactive).filter(function (k) { return inactive[k]; }).sort().join(',');
+    const crc = currentPluginId() === 'classic-range-condensed';
+    const wkOn = !(core.config && core.config.wettkampfVisible === false);
+    const sig = n + ':' + Object.keys(inactive).filter(function (k) { return inactive[k]; }).sort().join(',') +
+      ':' + (crc ? (wkOn ? 'w1' : 'w0') : 'wx');
     if (list.dataset.laneSig === sig && list.querySelector('input[data-range]')) return;
     let html = '';
     for (let i = 1; i <= n; i++) {
       const off = !!inactive[i];
       html += '<label class="range-lane-item' + (off ? ' is-inactive' : '') + '">' +
         '<input type="checkbox" data-range="' + i + '"' + (off ? '' : ' checked') + '>Bahn ' + i + '</label>';
+    }
+    if (crc) {
+      html += '<label class="range-lane-item' + (wkOn ? '' : ' is-inactive') + '">' +
+        '<input type="checkbox" data-slot="wettkampf"' + (wkOn ? ' checked' : '') + '>Wettkampf</label>';
     }
     list.innerHTML = html;
     list.dataset.laneSig = sig;
@@ -797,7 +828,12 @@
       });
       rangeList.addEventListener('change', function (ev) {
         const box = ev.target;
-        if (!box || box.type !== 'checkbox' || !box.getAttribute('data-range')) return;
+        if (!box || box.type !== 'checkbox') return;
+        if (box.getAttribute('data-slot') === 'wettkampf') {
+          putInactiveFromList(rangeList);
+          return;
+        }
+        if (!box.getAttribute('data-range')) return;
         if (!box.checked) {
           requestDeactivateBahn(box, rangeList);
           return;
@@ -941,7 +977,7 @@
     if (race) {
       const shared = isSharedPlugin();
       const id = currentPluginId();
-      race.hidden = !shared || !canControlUI();
+      race.hidden = !shared || !canControlUI() || isDisplayPlugin();
       const startBtn = document.getElementById('race-start-btn');
       const punctureBtn = document.getElementById('race-puncture-btn');
       const oilBtn = document.getElementById('race-oil-btn');
@@ -1030,8 +1066,17 @@
     rb.syncButton(menuBtn, activePlugin);
   }
 
+  async function fetchWettkampf() {
+    try {
+      const res = await fetch('/api/wettkampf', { cache: 'no-store' });
+      if (!res.ok) return;
+      core.lastWettkampf = await res.json();
+    } catch (e) {}
+  }
+
   async function refreshAll() {
     await core.fetchConfig();
+    await fetchWettkampf();
     await fetchActivePlugin();
     await fetchInstalledPlugins();
     await fetchSessions();
@@ -1044,6 +1089,7 @@
     await mountAllPluginViews();
     if (isInlineDisplayPlugin(currentPluginId()) && core.lastLiveData) {
       (core.lastLiveData.ranges || []).forEach(function (r) { paintLiveRange(r); });
+      if (typeof core.paintWettkampfTile === 'function') core.paintWettkampfTile();
     }
   }
 

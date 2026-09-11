@@ -61,13 +61,13 @@ func TestValidateShotAcceptsRealOpticScoreKK(t *testing.T) {
 }
 
 func TestValidateShotAcceptsLPBand(t *testing.T) {
-	x, y, d := placeShotBand(10.3, 3, pistolBandDSG)
+	x, y, d := PlaceShotForDisc("LP", 10.3, 3)
 	sp := &state.ShotPayload{
 		X: x, Y: y, Distance: d, FullValue: 10, DecValue: 10.3,
 		DiscType: "LP",
 	}
 	if err := ValidateShot(sp); err != nil {
-		t.Fatalf("LP 10.3 rejected: %v (D=%.1f)", err, d)
+		t.Fatalf("LP 10.3 rejected: %v (X=%d Y=%d D=%.1f)", err, x, y, d)
 	}
 }
 

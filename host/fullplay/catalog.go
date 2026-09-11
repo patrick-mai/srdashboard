@@ -48,6 +48,7 @@ var frozenIDs = []string{
 	"schiessgolf-2p",
 	"turmbau-2p",
 	"ansage-duell-2p",
+	"analyse",
 }
 
 // Catalog is the single list of full games. go test ./host/fullplay runs all of them.
@@ -223,6 +224,17 @@ func Catalog() []Scenario {
 		conceptScenario("schiessgolf-2p", "schiessgolf", playHighValueProgram),
 		conceptScenario("turmbau-2p", "turmbau", playHighValueProgram),
 		conceptScenario("ansage-duell-2p", "ansage-duell", playHighValueProgram),
+		{
+			ID:        "analyse",
+			PluginID:  "analyse",
+			NumRanges: 2,
+			Play:      playClassicRange,
+			UI: []FileCheck{{
+				Rel: []string{"plugins", "analyse", "view.js"},
+				Has: []string{"const PLUGIN_ID = 'analyse'", "SRPluginViews[PLUGIN_ID]", "analyse-select", "renderClassicRangeView"},
+				Why: "Analyse hall must register as a shared display and reuse Classic Range paint",
+			}},
+		},
 	}
 }
 

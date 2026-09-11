@@ -27,6 +27,7 @@ type RangeState struct {
 	RangeNum       int       `json:"rangeNum"`
 	ShooterName    string    `json:"shooterName"`
 	ClubName       string    `json:"clubName"`
+	TeamName       string    `json:"teamName"`
 	Discipline     string    `json:"discipline"`
 	DiscType       string    `json:"discType"`
 	IsWarmup       bool      `json:"isWarmup"`
@@ -52,8 +53,10 @@ type RangeState struct {
 
 // LiveState holds state for all ranges. Safe for concurrent use: UDP applies shots under mu, HTTP reads via Snapshot().
 type LiveState struct {
-	mu     sync.RWMutex
-	Ranges map[int]*RangeState
+	mu          sync.RWMutex
+	Ranges      map[int]*RangeState
+	archive     []archivedSession
+	nextArchive int
 }
 
 // NewLiveState creates a new LiveState with the given number of ranges
@@ -123,6 +126,7 @@ func (ls *LiveState) ResetAllRanges() {
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
 	for k := range ls.Ranges {
+		archiveRangeLocked(ls, ls.Ranges[k])
 		ls.Ranges[k] = emptyRangeState(k)
 	}
 }
@@ -147,9 +151,11 @@ func (ls *LiveState) SeedMissingProgramLength(n int) {
 func (ls *LiveState) ResetRange(rng int) bool {
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
-	if _, ok := ls.Ranges[rng]; !ok {
+	rs, ok := ls.Ranges[rng]
+	if !ok {
 		return false
 	}
+	archiveRangeLocked(ls, rs)
 	ls.Ranges[rng] = emptyRangeState(rng)
 	return true
 }
@@ -165,6 +171,7 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		RangeNum:         snap.RangeNum,
 		ShooterName:      snap.ShooterName,
 		ClubName:         snap.ClubName,
+		TeamName:         snap.TeamName,
 		Discipline:       snap.Discipline,
 		DiscType:         snap.DiscType,
 		IsWarmup:         snap.IsWarmup,
@@ -202,17 +209,11 @@ type ShotPayload struct {
 	TLStatus     string `json:"TLStatus"`
 	LastTLChange int    `json:"LastTLChange"`
 	// Legacy/alternate timestamp keys seen in some exports.
-	Timestamp string `json:"Timestamp"`
-	DateTime  string `json:"DateTime"`
-	Time      string `json:"Time"`
-	DATETIME  string `json:"DATETIME"`
-	Shooter   *struct {
-		Firstname string `json:"Firstname"`
-		Lastname  string `json:"Lastname"`
-		Club      *struct {
-			Name string `json:"Name"`
-		} `json:"Club"`
-	} `json:"Shooter"`
+	Timestamp string       `json:"Timestamp"`
+	DateTime  string       `json:"DateTime"`
+	Time      string       `json:"Time"`
+	DATETIME  string       `json:"DATETIME"`
+	Shooter   *ShotShooter `json:"Shooter"`
 	// DiscType is OpticScore's short discipline code (e.g. LG, LP, KK).
 	DiscType    string `json:"DiscType"`
 	DiscTypeRaw string `json:"DiscTypeRaw"`
@@ -220,6 +221,25 @@ type ShotPayload struct {
 		MenuPointName string `json:"MenuPointName"`
 		MenuItemName  string `json:"MenuItemName"`
 	} `json:"MenuItem"`
+}
+
+// ShotShooter is the DISAG Shooter object nested on a Shot.
+type ShotShooter struct {
+	Firstname string    `json:"Firstname"`
+	Lastname  string    `json:"Lastname"`
+	Club      *ShotClub `json:"Club"`
+	Team      *ShotTeam `json:"Team"`
+}
+
+// ShotClub is the DISAG Club object nested on Shooter.
+type ShotClub struct {
+	Name string `json:"Name"`
+}
+
+// ShotTeam is the DISAG Team / Mannschaft object nested on Shooter.
+type ShotTeam struct {
+	Name      string `json:"Name"`
+	ShortName string `json:"ShortName"`
 }
 
 // EventTime returns the OpticScore timestamp on this shot object, if present.
@@ -403,6 +423,17 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		ReceivedAt: receivedAt,
 	}
 
+	enteringWarmup := !rs.IsWarmup && sp.IsWarmup
+	var newShooterName string
+	shooterChanging := false
+	if sp.Shooter != nil {
+		newShooterName = sp.Shooter.Firstname + " " + sp.Shooter.Lastname
+		shooterChanging = newShooterName != rs.ShooterName
+	}
+	if shooterChanging || enteringWarmup {
+		archiveRangeLocked(ls, rs)
+	}
+
 	// Mode switch: Warmup ↔ Competition clears target and resets footer.
 	// Leaving warmup keeps WarmupShots for QR export; entering warmup starts a new Probe list.
 	wasWarmup := rs.IsWarmup
@@ -415,10 +446,8 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	}
 
 	// Shooter change: reset footer, target, and retained warmup for the new shooter
-	var newShooterName string
 	if sp.Shooter != nil {
-		newShooterName = sp.Shooter.Firstname + " " + sp.Shooter.Lastname
-		if newShooterName != rs.ShooterName {
+		if shooterChanging {
 			rs.ShooterName = newShooterName
 			rs.WarmupShots = nil
 			rs.StartedAt = time.Time{}
@@ -428,6 +457,13 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		}
 		if sp.Shooter.Club != nil && sp.Shooter.Club.Name != "" {
 			rs.ClubName = sp.Shooter.Club.Name
+		}
+		if sp.Shooter.Team != nil {
+			if name := strings.TrimSpace(sp.Shooter.Team.Name); name != "" {
+				rs.TeamName = name
+			} else if short := strings.TrimSpace(sp.Shooter.Team.ShortName); short != "" {
+				rs.TeamName = short
+			}
 		}
 	}
 
@@ -536,6 +572,7 @@ type RangeSnapshot struct {
 	RangeNum         int       `json:"rangeNum"`
 	ShooterName      string    `json:"shooterName"`
 	ClubName         string    `json:"clubName"`
+	TeamName         string    `json:"teamName"`
 	Discipline       string    `json:"discipline"`
 	DiscType         string    `json:"discType"`
 	IsWarmup         bool      `json:"isWarmup"`
@@ -576,11 +613,35 @@ func (ls *LiveState) RangeSnapshot(rng int) (RangeSnapshot, bool) {
 	if !ok {
 		return RangeSnapshot{}, false
 	}
+	return snapshotFromRange(rs), true
+}
+
+// Snapshot returns a consistent copy of all ranges for API responses. Safe to call from HTTP handlers.
+func (ls *LiveState) Snapshot() []RangeSnapshot {
+	ls.mu.RLock()
+	defer ls.mu.RUnlock()
+	keys := make([]int, 0, len(ls.Ranges))
+	for k := range ls.Ranges {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	out := make([]RangeSnapshot, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, snapshotFromRange(ls.Ranges[k]))
+	}
+	return out
+}
+
+func snapshotFromRange(rs *RangeState) RangeSnapshot {
+	if rs == nil {
+		return RangeSnapshot{}
+	}
 	predInt, predDec := rs.Prediction()
 	return RangeSnapshot{
 		RangeNum:         rs.RangeNum,
 		ShooterName:      rs.ShooterName,
 		ClubName:         rs.ClubName,
+		TeamName:         rs.TeamName,
 		Discipline:       rs.Discipline,
 		DiscType:         rs.DiscType,
 		IsWarmup:         rs.IsWarmup,
@@ -601,54 +662,5 @@ func (ls *LiveState) RangeSnapshot(rng int) (RangeSnapshot, bool) {
 		Last10Values:     append([]float64(nil), rs.Last10Values...),
 		TotalShotsToFire: rs.TotalShotsToFire,
 		StartedAt:        snapshotStartedAt(rs),
-	}, true
-}
-
-// Snapshot returns a consistent copy of all ranges for API responses. Safe to call from HTTP handlers.
-func (ls *LiveState) Snapshot() []RangeSnapshot {
-	ls.mu.RLock()
-	defer ls.mu.RUnlock()
-	keys := make([]int, 0, len(ls.Ranges))
-	for k := range ls.Ranges {
-		keys = append(keys, k)
 	}
-	sort.Ints(keys)
-	out := make([]RangeSnapshot, 0, len(keys))
-	for _, k := range keys {
-		rs := ls.Ranges[k]
-		predInt, predDec := rs.Prediction()
-		// Copy slices so caller can use result after unlock
-		shots := append([]Shot(nil), rs.Shots...)
-		seriesSumsInt := append([]int(nil), rs.SeriesSumsInt...)
-		seriesSums := append([]float64(nil), rs.SeriesSums...)
-		seriesShots := copySeriesShots(rs.SeriesShots)
-		warmupShots := append([]Shot(nil), rs.WarmupShots...)
-		last10 := append([]float64(nil), rs.Last10Values...)
-		out = append(out, RangeSnapshot{
-			RangeNum:         rs.RangeNum,
-			ShooterName:      rs.ShooterName,
-			ClubName:         rs.ClubName,
-			Discipline:       rs.Discipline,
-			DiscType:         rs.DiscType,
-			IsWarmup:         rs.IsWarmup,
-			Shots:            shots,
-			ShotNumber:       rs.ShotNumber,
-			CurrentValue:     rs.CurrentValue,
-			CurrentTeiler:    rs.CurrentTeiler,
-			BestTeiler:       rs.BestTeiler,
-			BestTeilerShot:   rs.BestTeilerShot,
-			OverallSumInt:    rs.OverallSumInt,
-			OverallSumDec:    rs.OverallSumDec,
-			PredictionInt:    predInt,
-			PredictionDec:    predDec,
-			SeriesSumsInt:    seriesSumsInt,
-			SeriesSums:       seriesSums,
-			SeriesShots:      seriesShots,
-			WarmupShots:      warmupShots,
-			Last10Values:     last10,
-			TotalShotsToFire: rs.TotalShotsToFire,
-			StartedAt:        snapshotStartedAt(rs),
-		})
-	}
-	return out
 }

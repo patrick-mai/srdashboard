@@ -40,7 +40,7 @@ func TestAllBundledPluginsLoadAndActivate(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"ansage-duell", "autorennen", "bank-oder-risiko", "barrikade", "biathlon",
+		"analyse", "ansage-duell", "autorennen", "bank-oder-risiko", "barrikade", "biathlon",
 		"classic-range", "classic-range-condensed", "fox-on-the-run", "kettenreaktion", "ko-pokal",
 		"kronen-duell", "ludo", "schiessgolf", "schrumpfender-kreis",
 		"tannebaum-einzel", "tannebaum-team", "tauziehen", "turmbau", "zehner-bingo",

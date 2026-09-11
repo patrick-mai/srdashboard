@@ -51,6 +51,7 @@ const DEFAULT_SHOT_SAT = 48;
 const DEFAULT_SHOT_LIGHT = 52;
 
 let lastLiveData = null;
+let lastWettkampf = null;
 let hallPluginId = '';
 
 function setHallPluginId(id) {
@@ -147,6 +148,7 @@ let config = {
   ranges: 6,
   layoutColumns: 4,
   inactiveRanges: [],
+  wettkampfVisible: true,
   shotStrokeWidth: DEFAULT_SHOT_STROKE_SVG,
   footer: {
     currentShotValue: true,
@@ -198,6 +200,14 @@ function inactiveRangeSet() {
 
 function isRangeInactive(num) {
   return !!inactiveRangeSet()[Number(num)];
+}
+
+function wettkampfTileEnabled() {
+  return hallPluginId === 'classic-range-condensed' && config.wettkampfVisible !== false;
+}
+
+function isWettkampfPanel(panel) {
+  return !!(panel && panel.getAttribute && panel.getAttribute('data-slot') === 'wettkampf');
 }
 
 function resolveTargetProfileId(rangeNum, rangeData) {
@@ -422,6 +432,7 @@ function syncRangeVisibility(data) {
   const panels = Array.prototype.slice.call(grid.querySelectorAll('.range-panel'));
   let activeCount = 0;
   for (let i = 0; i < panels.length; i++) {
+    if (isWettkampfPanel(panels[i])) continue;
     const num = parseInt(panels[i].dataset.range, 10);
     if (rangeHasActivity(byNum[num])) activeCount++;
   }
@@ -429,6 +440,14 @@ function syncRangeVisibility(data) {
   let changed = false;
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
+    if (isWettkampfPanel(panel)) {
+      const hideWk = !wettkampfTileEnabled();
+      if (panel.hidden !== hideWk) {
+        panel.hidden = hideWk;
+        changed = true;
+      }
+      continue;
+    }
     const num = parseInt(panel.dataset.range, 10);
       const hide = isRangeInactive(num) || (hideIdle && !rangeHasActivity(byNum[num]));
     const wasHidden = panel.hidden;
@@ -453,11 +472,59 @@ function applyLayout() {
   const visible = Array.prototype.slice.call(grid.querySelectorAll('.range-panel')).filter(function (p) {
     return !p.hidden;
   });
-  const n = Math.max(1, visible.length || config.ranges || 1);
-  const cols = Math.min(preferredCols, n);
+  const wk = visible.filter(isWettkampfPanel)[0] || null;
+  const ranges = visible.filter(function (p) { return !isWettkampfPanel(p); });
+  ranges.forEach(function (p) {
+    p.style.gridColumn = '';
+    p.style.gridRow = '';
+  });
+  const wkDom = grid.querySelector('.range-panel[data-slot="wettkampf"]');
+  if (wkDom && wkDom !== wk) {
+    wkDom.style.gridColumn = '';
+    wkDom.style.gridRow = '';
+  }
+  grid.classList.toggle('has-wettkampf', !!wk);
+
+  if (wk && ranges.length === 0) {
+    grid.style.gridTemplateColumns = 'minmax(0, 1fr)';
+    grid.style.gridTemplateRows = 'minmax(0, 1fr)';
+    wk.style.gridColumn = '1';
+    wk.style.gridRow = '1';
+    return;
+  }
+
+  const n = Math.max(1, ranges.length || config.ranges || 1);
+  const cols = packRangeColumns(n, preferredCols);
   const rows = Math.max(1, Math.ceil(n / cols));
-  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-  grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+  if (wk) {
+    // Bahn tiles pack into a hole-free grid (e.g. 4 live → 2×2, not 3+1).
+    // Wettkampf is a fixed-ish right column spanning the hall height.
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr)) minmax(15rem, 22rem)';
+    grid.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
+    wk.style.gridColumn = String(cols + 1);
+    wk.style.gridRow = '1 / -1';
+    return;
+  }
+  grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+  grid.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
+}
+
+/** Prefer a hole-free Bahn grid under layoutColumns (4 live → 2×2, not 3+1). */
+function packRangeColumns(n, preferredCols) {
+  n = Math.max(1, n);
+  const maxCols = Math.max(1, Math.min(preferredCols, n));
+  let best = maxCols;
+  let bestScore = -Infinity;
+  for (let c = 1; c <= maxCols; c++) {
+    const rows = Math.ceil(n / c);
+    const empty = c * rows - n;
+    const score = -empty * 1000 - Math.abs(c - preferredCols);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best;
 }
 
 async function fetchLive() {
@@ -732,6 +799,9 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     fill.setAttribute('fill', paint);
     fill.setAttribute('fill-opacity', '1');
     fill.setAttribute('stroke', 'none');
+    const dec = Number(s.decValue);
+    if (Number.isFinite(dec)) fill.setAttribute('data-dec-value', String(dec));
+    else fill.removeAttribute('data-dec-value');
     fill.classList.toggle('is-last', i === shots.length - 1);
     const title = fill.querySelector('title');
     if (title) {
@@ -1651,6 +1721,11 @@ function fillRangeHeader(header, rangeData) {
   const qrBtn = header.querySelector('.range-qr-btn');
   if (qrBtn) {
     qrBtn.dataset.range = String(rangeData.rangeNum || '');
+    if (rangeData.sessionResultId) {
+      qrBtn.dataset.result = String(rangeData.sessionResultId);
+    } else {
+      delete qrBtn.dataset.result;
+    }
     const canExport = !!(
       (rangeData.warmupShots && rangeData.warmupShots.length) ||
       (rangeData.seriesShots && rangeData.seriesShots.length) ||
@@ -1885,6 +1960,7 @@ function ensurePluginPanels(numRanges) {
     stripLegacyPanelChrome(panel);
   }
   grid.querySelectorAll('.range-panel').forEach(function (panel) {
+    if (isWettkampfPanel(panel)) return;
     const num = parseInt(panel.dataset.range, 10);
     if (!keep.has(num)) panel.remove();
   });
@@ -1895,6 +1971,32 @@ function ensurePluginPanels(numRanges) {
     const panel = grid.querySelector('.range-panel[data-range="' + i + '"]');
     if (panel) grid.appendChild(panel);
   }
+  ensureWettkampfPanel(grid);
+}
+
+function ensureWettkampfPanel(grid) {
+  if (!grid) return;
+  let panel = grid.querySelector('.range-panel[data-slot="wettkampf"]');
+  if (!wettkampfTileEnabled()) {
+    if (panel) panel.remove();
+    return;
+  }
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.className = 'range-panel plugin-hosted crc-panel crc-wettkampf-panel';
+    panel.setAttribute('data-slot', 'wettkampf');
+    const header = document.createElement('div');
+    header.className = 'range-header crc-header';
+    panel.appendChild(header);
+    const mount = document.createElement('div');
+    mount.className = 'range-plugin-view crc-wettkampf-view';
+    mount.dataset.pluginId = 'classic-range-condensed';
+    panel.appendChild(mount);
+    grid.appendChild(panel);
+  }
+  panel.classList.add('plugin-hosted', 'crc-panel', 'crc-wettkampf-panel');
+  stripLegacyPanelChrome(panel);
+  grid.appendChild(panel);
 }
 
 function updatePluginPanelHeader(rangeNum, rangeData) {
@@ -1938,6 +2040,18 @@ function render(data) {
     updatePluginPanelHeader(i, byNum[i] || { rangeNum: i });
   }
   syncRangeVisibility(data);
+  paintWettkampfTile();
+}
+
+function paintWettkampfTile() {
+  if (!wettkampfTileEnabled()) return;
+  const fn = window.SRClassicRangeCondensed && window.SRClassicRangeCondensed.paintWettkampf;
+  if (typeof fn !== 'function') return;
+  const panel = document.querySelector('.range-panel[data-slot="wettkampf"]');
+  if (!panel) return;
+  const mount = panel.querySelector('.range-plugin-view');
+  const header = panel.querySelector('.range-header');
+  fn(mount, header, lastWettkampf, lastLiveData);
 }
 
 async function poll() {
@@ -1955,6 +2069,8 @@ window.SRCore = {
   get config() { return config; },
   get lastLiveData() { return lastLiveData; },
   set lastLiveData(v) { lastLiveData = v; },
+  get lastWettkampf() { return lastWettkampf; },
+  set lastWettkampf(v) { lastWettkampf = v; },
   bumpLiveGen,
   getLiveGen,
   fetchConfig,
@@ -1963,6 +2079,8 @@ window.SRCore = {
   syncRangeVisibility,
   rangeHasActivity,
   isRangeInactive,
+  wettkampfTileEnabled,
+  paintWettkampfTile,
   render,
   ensurePluginPanels,
   updatePluginPanelHeader,
@@ -1973,6 +2091,7 @@ window.SRCore = {
   renderClassicRangeView,
   renderTarget,
   renderFooter,
+  fillRangeHeader,
   formatRangeHeader,
   getShotOrderColors,
   getShotSwatchColors,
@@ -2078,7 +2197,7 @@ function ensureQRModal() {
   return modal;
 }
 
-async function openResultQRModal(rangeNum, fmtId) {
+async function openResultQRModal(rangeNum, fmtId, resultId) {
   const modal = ensureQRModal();
   const img = modal.querySelector('#qr-result-img');
   const hint = modal.querySelector('#qr-result-hint');
@@ -2107,25 +2226,30 @@ async function openResultQRModal(rangeNum, fmtId) {
     btn.className = 'qr-format-btn' + (f.id === activeFmt ? ' is-active' : '');
     btn.textContent = f.label || f.id;
     btn.addEventListener('click', function () {
-      openResultQRModal(rangeNum, f.id);
+      openResultQRModal(rangeNum, f.id, resultId);
     });
     formatsEl.appendChild(btn);
   });
 
   modal.hidden = false;
-  modal.dataset.range = String(rangeNum);
+  modal.dataset.range = String(rangeNum || '');
+  modal.dataset.result = resultId || '';
   modal.dataset.fmt = activeFmt;
+  const q = resultId
+    ? ('result=' + encodeURIComponent(resultId))
+    : ('range=' + encodeURIComponent(rangeNum));
 
   try {
-    const metaRes = await fetch('/api/qr?range=' + encodeURIComponent(rangeNum) + '&fmt=' + encodeURIComponent(activeFmt));
+    const metaRes = await fetch('/api/qr?' + q + '&fmt=' + encodeURIComponent(activeFmt));
     if (!metaRes.ok) {
       const text = await metaRes.text();
       throw new Error(text || ('HTTP ' + metaRes.status));
     }
     const meta = await metaRes.json();
-    document.getElementById('qr-result-title').textContent = (meta.label || 'QR') + ' · Bahn ' + rangeNum;
+    const bahn = meta.range || rangeNum;
+    document.getElementById('qr-result-title').textContent = (meta.label || 'QR') + ' · Bahn ' + bahn;
     hint.textContent = 'Mit dem Handy scannen → ' + (meta.label || activeFmt);
-    img.src = '/api/qr.png?range=' + encodeURIComponent(rangeNum) +
+    img.src = '/api/qr.png?' + q +
       '&fmt=' + encodeURIComponent(activeFmt) + '&t=' + Date.now();
     if (meta.json) {
       jsonEl.textContent = meta.json;
@@ -2145,8 +2269,9 @@ async function openResultQRModal(rangeNum, fmtId) {
 document.addEventListener('click', function (ev) {
   const btn = ev.target && ev.target.closest && ev.target.closest('.range-qr-btn');
   if (!btn || btn.disabled) return;
+  const resultId = btn.dataset.result || '';
   const rangeNum = parseInt(btn.dataset.range || btn.closest('[data-range]')?.dataset?.range || '', 10);
-  if (!rangeNum) return;
+  if (!resultId && !rangeNum) return;
   ev.preventDefault();
-  openResultQRModal(rangeNum);
+  openResultQRModal(rangeNum, undefined, resultId);
 });

@@ -346,3 +346,105 @@ func TestClassicCondensedHeaderSwitchDoesNotMixChrome(t *testing.T) {
 		"plugin-shell must await Classic paint the same way as Condensed")
 }
 
+func TestClassicCondensedCurrentShotColorByValue(t *testing.T) {
+	crc := readRepoFile(t, "plugins", "classic-range-condensed", "view.js")
+	css := readRepoFile(t, "plugins", "classic-range-condensed", "theme.css")
+	core := readRepoFile(t, "static", "target-core.js")
+
+	mustContain(t, core, "data-dec-value",
+		"shot circles must expose DecValue so Condensed can color the current pellet")
+	mustContain(t, crc, "function shotBandClass(value)",
+		"Condensed must classify the current shot as 10 / 9 / other")
+	mustContain(t, crc, "if (value >= 10) return 'crc-shot-10'",
+		"10.0–10.9 stay red")
+	mustContain(t, crc, "if (value >= 9) return 'crc-shot-9'",
+		"all 9s become yellow")
+	mustContain(t, crc, "return 'crc-shot-low'",
+		"every other current shot is green")
+	mustContain(t, css, "circle:not(.is-last)",
+		"older pellets stay grey")
+	mustContain(t, css, "fill: #9a9a9a !important",
+		"older pellets keep the existing grey fill")
+	mustContain(t, css, "fill: #d62828 !important",
+		"current 10.0–10.9 stay red")
+	mustContain(t, css, ".crc-shot-9",
+		"current 9s are yellow")
+	mustContain(t, css, "fill: #e8b923 !important",
+		"current 9s are yellow")
+	mustContain(t, css, ".crc-shot-low",
+		"current 8-and-below are green")
+	mustContain(t, css, "fill: #2d9e4f !important",
+		"current 8-and-below are green")
+}
+
+func TestClassicCondensedWettkampfTileSlot(t *testing.T) {
+	core := readRepoFile(t, "static", "target-core.js")
+	master := readRepoFile(t, "static", "master.js")
+	crc := readRepoFile(t, "plugins", "classic-range-condensed", "view.js")
+	css := readRepoFile(t, "plugins", "classic-range-condensed", "theme.css")
+
+	mustContain(t, master, ">Wettkampf</label>",
+		"Bahnwahl must offer a Wettkampf checkbox next to Bahnen")
+	mustContain(t, master, `data-slot="wettkampf"`,
+		"Wettkampf must not use data-range or Bahn deactivate would ResetRange")
+	mustContain(t, core, "function ensureWettkampfPanel",
+		"the extra grid cell must be created beside Bahn 1…N")
+	mustContain(t, core, `data-slot="wettkampf"`,
+		"the Wettkampf panel must be a named slot, not a fake Bahn number")
+	mustContain(t, core, "if (isWettkampfPanel(panel)) return;",
+		"ensurePluginPanels 1…N cleanup must keep the Wettkampf slot")
+	mustContain(t, core, "if (isWettkampfPanel(panel)) {",
+		"hideIdleRanges must not treat the Wettkampf tile as an idle Bahn")
+	mustContain(t, core, "grid.classList.toggle('has-wettkampf', !!wk)",
+		"Wettkampf must not count as a 7th Bahn cell in applyLayout")
+	mustContain(t, core, `wk.style.gridRow = '1 / -1'`,
+		"Wettkampf sits in an extra right-hand column spanning the hall rows")
+	mustContain(t, core, "function packRangeColumns",
+		"hidden idle Bahnen must not leave empty 3+1 holes beside Wettkampf")
+	mustContain(t, crc, "paintWettkampf: paintWettkampf",
+		"live/WS updates must paint the Wettkampf tile in place")
+	mustContain(t, crc, "function openWettkampfModal",
+		"team assignment lives on the tile, not /config")
+	mustContain(t, crc, "function extrasByTeamId",
+		"excluded club shooters stay listed under their Mannschaft, separated")
+	mustContain(t, crc, "function extraTeamId",
+		"ohne Mannschaft grouping must work as soon as the shooter is marked, not after the program ends")
+	mustContain(t, crc, "function teamUsesDecimal",
+		"Auflage / LGA30 Wettkampf totals must use DecValue, not integer rings")
+	mustContain(t, crc, "function clubsWithMultipleTeams",
+		"one club with several Mannschaften must color Bahn and Wettkampf headers by team")
+	mustContain(t, css, ".crc-wk-extras",
+		"club shooters outside the Mannschaft sit below the team list, not in the Summe")
+	mustContain(t, css, ".crc-wettkampf-panel",
+		"the extra cell needs CRC layout chrome")
+	mustContain(t, crc, "const visible = teams.filter",
+		"empty leftover Mannschaften (Adler I / Mitte I) must not occupy the Wettkampf tile")
+	mustContain(t, css, ".crc-wk-teams",
+		"Mannschaften stack in the side column instead of sitting side by side")
+	mustContain(t, css, "flex: 0 0 auto",
+		"teams size to their shooters so a refresh cannot clip A/B/C/Z off the frame")
+}
+
+func TestAnalysePluginSelectsSessionResults(t *testing.T) {
+	js := readRepoFile(t, "plugins", "analyse", "view.js")
+	css := readRepoFile(t, "plugins", "analyse", "theme.css")
+	master := readRepoFile(t, "static", "master.js")
+	core := readRepoFile(t, "static", "target-core.js")
+	mustContain(t, js, "analyse-select",
+		"Analyse needs a session-result selector, not a live Bahn grid")
+	mustContain(t, js, "renderClassicRangeView",
+		"Analyse must reuse Classic Range paint for the selected result")
+	mustContain(t, js, "/api/analyse/results",
+		"Analyse reads frozen session results, not only live lanes")
+	mustContain(t, css, ".analyse-layout",
+		"one result fills the shared host")
+	mustContain(t, master, "id === 'analyse'",
+		"Analyse is shared or the hall stays on the range grid")
+	mustContain(t, master, "function isDisplayPlugin",
+		"Analyse must not show game Start on the side rail")
+	mustContain(t, core, "sessionResultId",
+		"QR on an archived result must not fetch the live Bahn")
+	mustContain(t, core, "result=",
+		"QR fetch must accept a frozen result id")
+}
+

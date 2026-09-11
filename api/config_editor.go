@@ -19,20 +19,21 @@ import (
 // token untouched. Clients read ControlTokenSet to know whether one is
 // configured. Sending an explicit empty string clears the token.
 type ConfigResponse struct {
-	UDPPort         int                `json:"udpPort"`
-	UDPForward      string             `json:"udpForward"`
-	ODBCName        string             `json:"odbcName"`
-	Ranges          int                `json:"ranges"`
-	LayoutColumns   int                `json:"layoutColumns"`
-	Footer          config.Footer      `json:"footer"`
-	PluginsDir      string             `json:"pluginsDir"`
-	ActivePlugin    string             `json:"activePlugin"`
-	PluginPins      []config.PluginRef `json:"pluginPins"`
-	ControlToken    *string            `json:"controlToken,omitempty"`
-	ControlTokenSet bool               `json:"controlTokenSet"`
-	DefaultMode     string             `json:"defaultDisplayMode"`
-	ShotStrokeWidth float64            `json:"shotStrokeWidth"`
-	InactiveRanges  []int              `json:"inactiveRanges"`
+	UDPPort          int                `json:"udpPort"`
+	UDPForward       string             `json:"udpForward"`
+	ODBCName         string             `json:"odbcName"`
+	Ranges           int                `json:"ranges"`
+	LayoutColumns    int                `json:"layoutColumns"`
+	Footer           config.Footer      `json:"footer"`
+	PluginsDir       string             `json:"pluginsDir"`
+	ActivePlugin     string             `json:"activePlugin"`
+	PluginPins       []config.PluginRef `json:"pluginPins"`
+	ControlToken     *string            `json:"controlToken,omitempty"`
+	ControlTokenSet  bool               `json:"controlTokenSet"`
+	DefaultMode      string             `json:"defaultDisplayMode"`
+	ShotStrokeWidth  float64            `json:"shotStrokeWidth"`
+	InactiveRanges   []int              `json:"inactiveRanges"`
+	WettkampfVisible bool               `json:"wettkampfVisible"`
 }
 
 type configSaveResponse struct {
@@ -57,19 +58,20 @@ func (h *Handlers) configResponse() ConfigResponse {
 		inactive = []int{}
 	}
 	return ConfigResponse{
-		UDPPort:         cfg.UDPPort,
-		UDPForward:      cfg.UDPForward,
-		ODBCName:        cfg.ODBCName,
-		Ranges:          cfg.Ranges,
-		LayoutColumns:   cfg.LayoutColumns,
-		Footer:          cfg.Footer,
-		PluginsDir:      cfg.Plugins.Dir,
-		ActivePlugin:    active,
-		PluginPins:      cfg.Plugins.Plugin,
-		ControlTokenSet: cfg.Display.ControlToken != "",
-		DefaultMode:     cfg.Display.DefaultMode,
-		ShotStrokeWidth: stroke,
-		InactiveRanges:  inactive,
+		UDPPort:          cfg.UDPPort,
+		UDPForward:       cfg.UDPForward,
+		ODBCName:         cfg.ODBCName,
+		Ranges:           cfg.Ranges,
+		LayoutColumns:    cfg.LayoutColumns,
+		Footer:           cfg.Footer,
+		PluginsDir:       cfg.Plugins.Dir,
+		ActivePlugin:     active,
+		PluginPins:       cfg.Plugins.Plugin,
+		ControlTokenSet:  cfg.Display.ControlToken != "",
+		DefaultMode:      cfg.Display.DefaultMode,
+		ShotStrokeWidth:  stroke,
+		InactiveRanges:   inactive,
+		WettkampfVisible: h.wettkampfVisible(),
 	}
 }
 

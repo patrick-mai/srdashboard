@@ -8,6 +8,7 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 
 	"srdashboard/qrformat"
+	"srdashboard/state"
 )
 
 // QRFormats lists available result QR formats.
@@ -31,17 +32,13 @@ func (h *Handlers) QRFormats(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// QR encodes a result QR for one range.
+// QR encodes a result QR for one range or a frozen session result.
 // GET /api/qr?range=N&fmt=rr → JSON { format, label, url, range, json? }
-// GET /api/qr.png?range=N&fmt=rr → PNG image (ECC M)
+// GET /api/qr?result=ID&fmt=rr → same, from the session archive
+// GET /api/qr.png?range=N|result=ID&fmt=rr → PNG image (ECC M)
 func (h *Handlers) QR(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	n, err := strconv.Atoi(r.URL.Query().Get("range"))
-	if err != nil || n < 1 {
-		http.Error(w, "invalid range", http.StatusBadRequest)
 		return
 	}
 	fmtID := r.URL.Query().Get("fmt")
@@ -53,9 +50,9 @@ func (h *Handlers) QR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown format", http.StatusBadRequest)
 		return
 	}
-	snap, ok := h.State.RangeSnapshot(n)
+
+	snap, n, ok := lookupQRSnapshot(h.State, w, r)
 	if !ok {
-		http.Error(w, "range not found", http.StatusNotFound)
 		return
 	}
 	in := qrformat.FromRangeSnapshot(snap)
@@ -83,6 +80,9 @@ func (h *Handlers) QR(w http.ResponseWriter, r *http.Request) {
 		"url":    url,
 		"range":  n,
 	}
+	if resultID := r.URL.Query().Get("result"); resultID != "" {
+		out["result"] = resultID
+	}
 	if pe, ok := enc.(qrformat.PayloadJSONExporter); ok {
 		if payload, err := pe.EncodePayloadJSON(in); err == nil {
 			out["json"] = string(payload)
@@ -92,4 +92,30 @@ func (h *Handlers) QR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func lookupQRSnapshot(st *state.LiveState, w http.ResponseWriter, r *http.Request) (state.RangeSnapshot, int, bool) {
+	if st == nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return state.RangeSnapshot{}, 0, false
+	}
+	if resultID := r.URL.Query().Get("result"); resultID != "" {
+		_, snap, found := st.SessionResult(resultID)
+		if !found {
+			http.Error(w, "result not found", http.StatusNotFound)
+			return state.RangeSnapshot{}, 0, false
+		}
+		return snap, snap.RangeNum, true
+	}
+	n, err := strconv.Atoi(r.URL.Query().Get("range"))
+	if err != nil || n < 1 {
+		http.Error(w, "invalid range", http.StatusBadRequest)
+		return state.RangeSnapshot{}, 0, false
+	}
+	snap, found := st.RangeSnapshot(n)
+	if !found {
+		http.Error(w, "range not found", http.StatusNotFound)
+		return state.RangeSnapshot{}, 0, false
+	}
+	return snap, n, true
 }

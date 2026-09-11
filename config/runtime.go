@@ -9,8 +9,9 @@ import (
 // Runtime is per-process membership: which hall lanes this instance does not serve.
 // Hall config.xml still holds the maximum N; missing file means all 1..N are active.
 type Runtime struct {
-	XMLName        xml.Name `xml:"runtime"`
-	InactiveRanges string   `xml:"inactiveRanges"`
+	XMLName          xml.Name `xml:"runtime"`
+	InactiveRanges   string   `xml:"inactiveRanges"`
+	WettkampfVisible *bool    `xml:"wettkampfVisible"`
 }
 
 // RuntimePath is runtime.xml beside the hall config file.
@@ -19,6 +20,23 @@ func RuntimePath(configPath string) string {
 		return "runtime.xml"
 	}
 	return filepath.Join(filepath.Dir(configPath), "runtime.xml")
+}
+
+// WettkampfPath is wettkampf.xml beside the hall config file.
+func WettkampfPath(configPath string) string {
+	if configPath == "" {
+		return "wettkampf.xml"
+	}
+	return filepath.Join(filepath.Dir(configPath), "wettkampf.xml")
+}
+
+// WettkampfIsVisible reports whether the CRC Wettkampf tile should show.
+// Missing file / omitted field defaults to visible.
+func (rt *Runtime) WettkampfIsVisible() bool {
+	if rt == nil || rt.WettkampfVisible == nil {
+		return true
+	}
+	return *rt.WettkampfVisible
 }
 
 // LoadRuntime reads path. A missing file is an empty runtime (all lanes active).

@@ -73,6 +73,7 @@ func TestPublicMuxRejectsMutations(t *testing.T) {
 		{http.MethodPut, "/api/config", `{}`, http.StatusMethodNotAllowed},
 		{http.MethodPost, "/api/recovery/replay", `{"log":""}`, http.StatusNotFound},
 		{http.MethodPut, "/api/runtime", `{"inactiveRanges":[]}`, http.StatusMethodNotAllowed},
+		{http.MethodPut, "/api/wettkampf", `{"reset":true}`, http.StatusMethodNotAllowed},
 		{http.MethodGet, "/config", ``, http.StatusNotFound},
 	}
 	for _, tc := range cases {
@@ -103,6 +104,7 @@ func TestPublicMuxAllowsReads(t *testing.T) {
 		"/api/plugins/active",
 		"/api/plugins/session",
 		"/api/config",
+		"/api/wettkampf",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()

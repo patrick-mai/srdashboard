@@ -32,7 +32,21 @@ func FullValueOf(dec float64) int {
 // PlaceShot returns DISAG X/Y/Distance on the LG teiler band for dec.
 // seed spreads shots around the ring so groups are not a single stacked hole.
 func PlaceShot(dec float64, seed int) (x, y int, distance float64) {
-	return placeShotBand(dec, seed, rifleBandDSG)
+	return PlaceShotForDisc("LG", dec, seed)
+}
+
+// PlaceShotForDisc places a synthetic hole on the LG or LP/KK teiler band.
+func PlaceShotForDisc(disc string, dec float64, seed int) (x, y int, distance float64) {
+	return placeShotBand(dec, seed, bandForDisc(disc))
+}
+
+func bandForDisc(disc string) float64 {
+	label := strings.ToLower(strings.TrimSpace(disc))
+	if strings.Contains(label, "lp") || strings.Contains(label, "pistole") ||
+		strings.Contains(label, "kk") || strings.Contains(label, "klein") {
+		return pistolBandDSG
+	}
+	return rifleBandDSG
 }
 
 func placeShotBand(dec float64, seed int, band float64) (x, y int, distance float64) {

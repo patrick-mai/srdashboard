@@ -11,6 +11,7 @@ import (
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
 	"srdashboard/state"
+	"srdashboard/wettkampf"
 )
 
 // maxJSONBody caps request bodies for the JSON endpoints. Live state and config
@@ -27,6 +28,8 @@ type Handlers struct {
 	Plugins     *loader.Manager
 	PluginState *rangestate.Manager
 	Hub         *Hub
+
+	Wettkampf *wettkampf.Store
 
 	// cfgMu guards Cfg, which is mutated by the config editor and the plugin
 	// activate endpoint while other handlers read it concurrently.
@@ -80,6 +83,7 @@ type RangeResponse struct {
 	RangeNum         int            `json:"rangeNum"`
 	ShooterName      string         `json:"shooterName"`
 	ClubName         string         `json:"clubName"`
+	TeamName         string         `json:"teamName"`
 	Discipline       string         `json:"discipline"`
 	DiscType         string         `json:"discType"`
 	IsWarmup         bool           `json:"isWarmup"`
@@ -228,6 +232,7 @@ func rangeSnapshotToResponse(s state.RangeSnapshot) RangeResponse {
 		RangeNum:         s.RangeNum,
 		ShooterName:      s.ShooterName,
 		ClubName:         s.ClubName,
+		TeamName:         s.TeamName,
 		Discipline:       s.Discipline,
 		DiscType:         s.DiscType,
 		IsWarmup:         s.IsWarmup,
@@ -256,6 +261,7 @@ func responseToSnapshot(r RangeResponse) state.RangeSnapshot {
 		RangeNum:         r.RangeNum,
 		ShooterName:      r.ShooterName,
 		ClubName:         r.ClubName,
+		TeamName:         r.TeamName,
 		Discipline:       r.Discipline,
 		DiscType:         r.DiscType,
 		IsWarmup:         r.IsWarmup,

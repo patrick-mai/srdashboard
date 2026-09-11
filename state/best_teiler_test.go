@@ -29,13 +29,7 @@ func TestBestTeiler_FortyShotsPerRange(t *testing.T) {
 				DecValue:  9.0,
 				Range:     rng,
 				IsWarmup:  false,
-				Shooter: &struct {
-					Firstname string `json:"Firstname"`
-					Lastname  string `json:"Lastname"`
-					Club      *struct {
-						Name string `json:"Name"`
-					} `json:"Club"`
-				}{
+				Shooter: &ShotShooter{
 					Firstname: "Test",
 					Lastname:  "Shooter",
 				},
@@ -73,23 +67,11 @@ func TestBestTeiler_ResetsOnShooterChange(t *testing.T) {
 	ls := NewLiveState(1)
 	ls.ApplyShot(1, &ShotPayload{
 		Distance: 5.0, DecValue: 10.0, FullValue: 10, Range: 1,
-		Shooter: &struct {
-			Firstname string `json:"Firstname"`
-			Lastname  string `json:"Lastname"`
-			Club      *struct {
-				Name string `json:"Name"`
-			} `json:"Club"`
-		}{Firstname: "A", Lastname: "One"},
+		Shooter: &ShotShooter{Firstname: "A", Lastname: "One"},
 	})
 	ls.ApplyShot(1, &ShotPayload{
 		Distance: 99.0, DecValue: 8.0, FullValue: 8, Range: 1,
-		Shooter: &struct {
-			Firstname string `json:"Firstname"`
-			Lastname  string `json:"Lastname"`
-			Club      *struct {
-				Name string `json:"Name"`
-			} `json:"Club"`
-		}{Firstname: "B", Lastname: "Two"},
+		Shooter: &ShotShooter{Firstname: "B", Lastname: "Two"},
 	})
 	rs := ls.Snapshot()[0]
 	if rs.BestTeiler != 99.0 || rs.BestTeilerShot != 1 {

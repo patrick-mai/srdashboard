@@ -18,6 +18,9 @@ type ShotPacketOpts struct {
 	DecValue float64
 	IsWarmup bool
 	Shooter  string
+	Lastname string
+	Club     string
+	Team     string
 	ShotAt   time.Time // zero → omit ShotDateTime (server uses receive time)
 	MenuItem string
 	DiscType string // LG / LP / KK; empty → LG for synthetic packets
@@ -44,7 +47,7 @@ func BuildShotPacket(opts ShotPacketOpts) ([]byte, error) {
 		DiscType:  disc,
 	}
 	if err := ValidateShot(probe); err != nil {
-		x, y, dist = PlaceShot(opts.DecValue, opts.Range)
+		x, y, dist = PlaceShotForDisc(disc, opts.DecValue, opts.Range)
 	}
 	obj := map[string]any{
 		"X":         x,
@@ -59,11 +62,18 @@ func BuildShotPacket(opts ShotPacketOpts) ([]byte, error) {
 	if !opts.ShotAt.IsZero() {
 		obj["ShotDateTime"] = state.FormatOpticScoreTime(opts.ShotAt)
 	}
-	if opts.Shooter != "" {
-		obj["Shooter"] = map[string]any{
+	if opts.Shooter != "" || opts.Lastname != "" || opts.Club != "" || opts.Team != "" {
+		sh := map[string]any{
 			"Firstname": opts.Shooter,
-			"Lastname":  "",
+			"Lastname":  opts.Lastname,
 		}
+		if opts.Club != "" {
+			sh["Club"] = map[string]any{"Name": opts.Club}
+		}
+		if opts.Team != "" {
+			sh["Team"] = map[string]any{"Name": opts.Team}
+		}
+		obj["Shooter"] = sh
 	}
 	if opts.MenuItem != "" {
 		obj["MenuItem"] = map[string]any{

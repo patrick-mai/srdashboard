@@ -9,7 +9,8 @@ import (
 )
 
 type runtimeRequest struct {
-	InactiveRanges []int `json:"inactiveRanges"`
+	InactiveRanges   []int `json:"inactiveRanges"`
+	WettkampfVisible *bool `json:"wettkampfVisible,omitempty"`
 }
 
 func (h *Handlers) runtimePath() string {
@@ -71,8 +72,9 @@ func (h *Handlers) AllowShot(rng int) bool {
 func (h *Handlers) ServeRuntime(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		vis := h.wettkampfVisible()
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(runtimeRequest{InactiveRanges: h.inactiveRangeList()})
+		_ = json.NewEncoder(w).Encode(runtimeRequest{InactiveRanges: h.inactiveRangeList(), WettkampfVisible: &vis})
 	case http.MethodPut:
 		if !h.checkControlToken(r) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
@@ -83,6 +85,9 @@ func (h *Handlers) ServeRuntime(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.applyInactiveRanges(req.InactiveRanges)
+		if req.WettkampfVisible != nil {
+			h.setWettkampfVisible(*req.WettkampfVisible)
+		}
 		if h.Hub != nil {
 			h.Hub.BroadcastAll(map[string]any{"type": "config_changed", "config": h.configResponse()})
 		}
@@ -125,5 +130,29 @@ func (h *Handlers) applyInactiveRanges(nums []int) {
 	}
 	if h.PluginState != nil {
 		h.PluginState.SetInactiveRanges(list)
+	}
+}
+
+func (h *Handlers) wettkampfVisible() bool {
+	h.runtimeMu.RLock()
+	defer h.runtimeMu.RUnlock()
+	if h.Runtime == nil {
+		return true
+	}
+	return h.Runtime.WettkampfIsVisible()
+}
+
+func (h *Handlers) setWettkampfVisible(on bool) {
+	h.runtimeMu.Lock()
+	if h.Runtime == nil {
+		h.Runtime = &config.Runtime{}
+	}
+	v := on
+	h.Runtime.WettkampfVisible = &v
+	path := h.runtimePath()
+	rt := *h.Runtime
+	h.runtimeMu.Unlock()
+	if err := config.SaveRuntime(path, &rt); err != nil {
+		log.Printf("runtime: wettkampfVisible save: %v", err)
 	}
 }

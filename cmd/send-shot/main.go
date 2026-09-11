@@ -35,6 +35,9 @@ func main() {
 	y := flag.Int("y", 0, "Shot Y (−9000..9000)")
 	distance := flag.Float64("distance", 0, "Teiler Distance (0 = hypot(X,Y), or auto-place from -dec)")
 	shooter := flag.String("shooter", "UDP Test", "Shooter first name in payload")
+	last := flag.String("last", "", "Shooter last name")
+	club := flag.String("club", "", "Shooter club name")
+	team := flag.String("team", "", "Shooter team / Mannschaft name")
 	atFlag := flag.String("at", "", "ShotDateTime (yyyy-MM-dd HH:mm:ss.fff); default now when -offset-ms set, else server receive time")
 	offsetMs := flag.Int("offset-ms", 0, "ShotDateTime = now + this many ms (for reaction tests)")
 	interval := flag.Duration("interval", 500*time.Millisecond, "Delay between shots in multi-range / scenario mode")
@@ -42,6 +45,7 @@ func main() {
 	rounds := flag.Int("rounds", 1, "Repeat the full sequence this many times")
 	warmup := flag.Bool("warmup", false, "Set IsWarmup on shots")
 	scenario := flag.String("scenario", "", "Preset: ar-party (one shot per range after -delay)")
+	menu := flag.String("menu", "", "MenuItemName (e.g. LG 40 Schuss)")
 	dryRun := flag.Bool("dry-run", false, "Print JSON only; do not send UDP")
 	flag.Parse()
 
@@ -78,6 +82,10 @@ func main() {
 				DecValue: *dec,
 				IsWarmup: *warmup,
 				Shooter:  *shooter,
+				Lastname: *last,
+				Club:     *club,
+				Team:     *team,
+				MenuItem: *menu,
 			}
 			if shotAt, ok := resolveShotAt(*atFlag, *offsetMs); ok {
 				opts.ShotAt = shotAt

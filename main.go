@@ -38,6 +38,7 @@ import (
 	"srdashboard/recovery"
 	"srdashboard/state"
 	"srdashboard/udp"
+	"srdashboard/wettkampf"
 )
 
 //go:embed all:static
@@ -84,6 +85,11 @@ func main() {
 	rt.Prune(cfg.Ranges)
 	ps.SetInactiveRanges(rt.InactiveList(cfg.Ranges))
 
+	wkStore, err := wettkampf.OpenSession(config.WettkampfPath(configPath))
+	if err != nil {
+		log.Fatalf("start wettkampf session: %v", err)
+	}
+
 	if err := ps.EnsureActive(); err != nil {
 		log.Printf("activate plugin %q: %v", cfg.Plugins.Active, err)
 	}
@@ -97,6 +103,7 @@ func main() {
 		PluginState: ps,
 		Hub:         hub,
 		ReplayLog:   udpListener.ReplayLog,
+		Wettkampf:   wkStore,
 	}
 	udpListener.SetShotFilter(handlers)
 	udpListener.SetShotNotifier(func(rng int, shot state.Shot, shotIndex int) {
@@ -110,14 +117,16 @@ func main() {
 			// still sync once when a competition shot arrives after warmup.
 			ps.SyncLiveReadyIfArming()
 		}
-		if ps.InReplay() {
-			return
-		}
 		if rs, ok := st.RangeSnapshot(rng); ok {
+			handlers.ObserveWettkampfShot(rs)
+			if ps.InReplay() {
+				return
+			}
 			hub.BroadcastRange(rng, map[string]any{
 				"type":  "live",
 				"range": rs,
 			})
+			handlers.BroadcastWettkampf()
 		}
 	})
 	udpListener.Start()
