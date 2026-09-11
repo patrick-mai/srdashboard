@@ -196,6 +196,16 @@
   stroke: none !important;
 }
 
+.crc-view .target-shots-fill circle.is-last.crc-shot-9,
+.crc-view .target-shots > circle.crc-last-fill.crc-shot-9 {
+  fill: #e8b923 !important;
+}
+
+.crc-view .target-shots-fill circle.is-last.crc-shot-low,
+.crc-view .target-shots > circle.crc-last-fill.crc-shot-low {
+  fill: #2d9e4f !important;
+}
+
 .crc-view .target-shots-ring circle {
   stroke: #e6e6e6 !important;
   stroke-width: 0.12 !important;
@@ -213,4 +223,278 @@
   opacity: 0.7;
   font-size: 0.95rem;
   color: #333;
+}
+
+/* Wettkampf summary tile — side column (3×2 + 1), not a third hall row */
+.range-panel.crc-wettkampf-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crc-wk-header .crc-wk-header-line {
+  align-items: center;
+  width: 100%;
+}
+
+.crc-wk-header .crc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crc-wk-gear {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: calc(20px * var(--crc-ui-scale, 1.25));
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.crc-wk-gear:hover,
+.crc-wk-gear:focus-visible {
+  opacity: 0.85;
+}
+
+.range-plugin-view.crc-wettkampf-view {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: #ececec;
+  overflow: hidden;
+  font-family: Bahnschrift, "Segoe UI", system-ui, sans-serif;
+}
+
+.crc-wk-empty {
+  margin: auto;
+  padding: 12px 16px;
+  text-align: center;
+  color: #333;
+  font-size: calc(14px * var(--crc-ui-scale, 1.25));
+}
+
+.crc-wk-teams {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  gap: 1px;
+  background: #c8c8c8;
+}
+
+.crc-wk-team {
+  min-width: 0;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #ececec;
+}
+
+.crc-wk-team-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  color: #fff;
+}
+
+.crc-wk-team-name {
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(15px * var(--crc-ui-scale, 1.25));
+}
+
+.crc-wk-frac {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.9;
+  font-size: calc(13px * var(--crc-ui-scale, 1.25));
+}
+
+.crc-wk-scores {
+  padding: 6px 8px 4px;
+  background: #d4d4d4;
+  color: #111;
+}
+
+.crc-wk-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: calc(13px * var(--crc-ui-scale, 1.25));
+}
+
+.crc-wk-scores.is-decimal .crc-wk-row {
+  grid-template-columns: 1fr auto;
+}
+
+.crc-wk-row strong {
+  font-size: calc(18px * var(--crc-ui-scale, 1.25));
+  font-weight: 800;
+}
+
+.crc-wk-members {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 8px 2px;
+  font-size: calc(12px * var(--crc-ui-scale, 1.25));
+}
+
+.crc-wk-member {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 0;
+  color: #222;
+}
+
+.crc-wk-extras {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 8px 8px;
+  border-top: 1px dashed #8a8a8a;
+}
+
+.crc-wk-member.is-extra {
+  opacity: 0.78;
+}
+
+.crc-wk-mn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crc-wk-ms {
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.crc-wk-mv {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.crc-wk-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crc-wk-modal[hidden] {
+  display: none !important;
+}
+
+.crc-wk-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.crc-wk-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(920px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: #f4f4f4;
+  color: #111;
+  border-radius: 8px;
+  padding: 16px 18px 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.crc-wk-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+}
+
+.crc-wk-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crc-wk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.crc-wk-field input,
+.crc-wk-team-edit input,
+.crc-wk-add-row input,
+.crc-wk-assign {
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.crc-wk-team-edits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crc-wk-team-edit,
+.crc-wk-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.crc-wk-team-edit input,
+.crc-wk-add-row input {
+  flex: 1;
+}
+
+.crc-wk-roster {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.crc-wk-roster th,
+.crc-wk-roster td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid #ccc;
+}
+
+.crc-wk-roster tr.is-excluded td {
+  opacity: 0.72;
+}
+
+.crc-wk-hint {
+  margin: 0;
+  opacity: 0.75;
+}
+
+.crc-wk-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.crc-wk-dialog-spacer {
+  flex: 1;
 }

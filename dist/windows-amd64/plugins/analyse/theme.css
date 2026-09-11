@@ -1,0 +1,90 @@
+#shared-master-host.analyse-view,
+#shared-master-host:has(.analyse-layout) {
+  background: var(--bg);
+}
+
+#shooter-plugin-view.analyse-view,
+#shooter-plugin-view:has(.analyse-layout) {
+  background: var(--bg);
+}
+
+.analyse-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem 0.7rem;
+  gap: 0.45rem;
+}
+
+.analyse-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.analyse-toolbar-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.analyse-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-ui, inherit);
+  font-size: 1.05rem;
+  font-weight: 600;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 6px);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.analyse-select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.analyse-toolbar[hidden],
+.analyse-empty[hidden],
+.analyse-panel[hidden] {
+  display: none !important;
+}
+
+.analyse-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 1.15rem;
+  padding: 2rem;
+}
+
+.analyse-layout .range-panel.analyse-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.analyse-layout .range-panel.analyse-panel .range-plugin-view.classic-range-view {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#shooter-plugin-view > .analyse-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
