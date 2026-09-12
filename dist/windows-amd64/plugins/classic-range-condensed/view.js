@@ -528,6 +528,7 @@ function memberStatus(m, live) {
   const name = String(m.name || '').trim();
   for (let i = 0; i < ranges.length; i++) {
     if (String(ranges[i].shooterName || '').trim() === name) {
+      if (ranges[i].isWarmup) return 'Probe';
       return 'Bahn ' + ranges[i].rangeNum;
     }
   }
