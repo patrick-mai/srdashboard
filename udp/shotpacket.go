@@ -57,6 +57,7 @@ func BuildShotPacket(opts ShotPacketOpts) ([]byte, error) {
 		"DecValue":  opts.DecValue,
 		"Range":     rng,
 		"IsWarmup":  opts.IsWarmup,
+		"IsHot":     !opts.IsWarmup,
 		"DiscType":  disc,
 	}
 	if !opts.ShotAt.IsZero() {

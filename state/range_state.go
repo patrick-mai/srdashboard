@@ -18,6 +18,7 @@ type Shot struct {
 	FullValue  int       `json:"fullValue"`
 	DecValue   float64   `json:"decValue"`
 	IsWarmup   bool      `json:"isWarmup"`
+	IsHot      bool      `json:"isHot,omitempty"`      // DISAG Wertungsschuss; omitted when unknown
 	At         time.Time `json:"at,omitempty"`         // OpticScore ShotDateTime when available
 	ReceivedAt time.Time `json:"receivedAt,omitempty"` // Server time when UDP packet was handled
 }
@@ -419,6 +420,7 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		FullValue:  sp.FullValue,
 		DecValue:   sp.DecValue,
 		IsWarmup:   sp.IsWarmup,
+		IsHot:      sp.IsHot,
 		At:         at,
 		ReceivedAt: receivedAt,
 	}

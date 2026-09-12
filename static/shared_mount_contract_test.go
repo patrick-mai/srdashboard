@@ -411,6 +411,8 @@ func TestClassicCondensedWettkampfTileSlot(t *testing.T) {
 		"ohne Mannschaft grouping must work as soon as the shooter is marked, not after the program ends")
 	mustContain(t, crc, "function teamUsesDecimal",
 		"Auflage / LGA30 Wettkampf totals must use DecValue, not integer rings")
+	mustContain(t, crc, "if (ranges[i].isWarmup) return 'Probe'",
+		"Wettkampf status must say Probe while the Bahn is still in warmup")
 	mustContain(t, crc, "function clubsWithMultipleTeams",
 		"one club with several Mannschaften must color Bahn and Wettkampf headers by team")
 	mustContain(t, css, ".crc-wk-extras",

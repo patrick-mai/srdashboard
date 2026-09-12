@@ -265,28 +265,96 @@ func (s *Store) Observe(snap state.RangeSnapshot) {
 		return
 	}
 
-	if snap.IsWarmup {
-		if e.HasWertung {
-			s.scheduleSaveLocked()
-			return
-		}
+	sumInt, sumDec, n, total, ok := observeWertung(snap)
+	if !ok {
 		s.scheduleSaveLocked()
 		return
 	}
 
 	e.HasWertung = true
-	e.SumInt = snap.OverallSumInt
-	e.SumDec = snap.OverallSumDec
-	e.PredInt = snap.PredictionInt
-	e.PredDec = snap.PredictionDec
-	e.ShotsFired = snap.ShotNumber
-	if snap.TotalShotsToFire > 0 {
-		e.TotalShots = snap.TotalShotsToFire
+	e.SumInt = sumInt
+	e.SumDec = sumDec
+	e.ShotsFired = n
+	if total > 0 {
+		e.TotalShots = total
 	}
+	e.PredInt, e.PredDec = predictWertung(sumInt, sumDec, n, e.TotalShots)
 	if e.TotalShots > 0 && e.ShotsFired >= e.TotalShots {
 		e.Locked = true
 	}
 	s.scheduleSaveLocked()
+}
+
+// observeWertung returns the competition (Wertung) totals. Probe/warmup never
+// counts, even when a live footer still includes it.
+func observeWertung(snap state.RangeSnapshot) (sumInt int, sumDec float64, n, total int, ok bool) {
+	if snap.IsWarmup {
+		return 0, 0, 0, 0, false
+	}
+	shots := competitionShots(snap)
+	hotUsed := shotsHaveHot(shots) || shotsHaveHot(snap.WarmupShots)
+	sumInt, sumDec, n = sumWertungShots(shots, hotUsed)
+	total = snap.TotalShotsToFire
+	if n > 0 {
+		return sumInt, sumDec, n, total, true
+	}
+	if len(snap.Shots) > 0 || len(snap.SeriesShots) > 0 || len(snap.WarmupShots) > 0 {
+		return 0, 0, 0, total, false
+	}
+	if snap.ShotNumber > 0 || snap.OverallSumInt != 0 || snap.OverallSumDec != 0 {
+		return snap.OverallSumInt, snap.OverallSumDec, snap.ShotNumber, total, true
+	}
+	return 0, 0, 0, total, false
+}
+
+func competitionShots(snap state.RangeSnapshot) []state.Shot {
+	var out []state.Shot
+	for _, ser := range snap.SeriesShots {
+		out = append(out, ser...)
+	}
+	n := len(snap.Shots)
+	if n > 0 && n < 10 {
+		out = append(out, snap.Shots...)
+	} else if n > 0 && len(snap.SeriesShots) == 0 {
+		out = append(out, snap.Shots...)
+	}
+	return out
+}
+
+func shotsHaveHot(shots []state.Shot) bool {
+	for _, s := range shots {
+		if s.IsHot {
+			return true
+		}
+	}
+	return false
+}
+
+func sumWertungShots(shots []state.Shot, hotUsed bool) (sumInt int, sumDec float64, n int) {
+	for _, s := range shots {
+		if s.IsWarmup {
+			continue
+		}
+		if hotUsed && !s.IsHot {
+			continue
+		}
+		sumInt += s.FullValue
+		sumDec += s.DecValue
+		n++
+	}
+	return
+}
+
+func predictWertung(sumInt int, sumDec float64, n, total int) (int, float64) {
+	if n <= 0 || total <= 0 {
+		return 0, 0
+	}
+	if n >= total {
+		return sumInt, sumDec
+	}
+	nn := float64(n)
+	t := float64(total)
+	return int(math.Round(float64(sumInt) / nn * t)), (sumDec / nn) * t
 }
 
 func (s *Store) rosterIndex(key string) int {
@@ -398,6 +466,9 @@ func (s *Store) viewLocked() Snapshot {
 		}
 		for _, e := range s.state.Roster {
 			if e.Excluded || e.TeamID != t.ID {
+				continue
+			}
+			if e.IsWarmup && !e.HasWertung {
 				continue
 			}
 			tv.Members = append(tv.Members, memberFrom(e))

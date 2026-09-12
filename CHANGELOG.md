@@ -1,5 +1,15 @@
 # Änderungsnotizen
 
+## Nach v0.3
+
+- **Wettkampf (Classic Range Condensed)** — extra Kachel rechts neben den Bahnen: Mannschaften mit Summe, Prognose und `n/Soll`. Bahnwahl-Häkchen **Wettkampf** (nur CRC). Bahn-Reset löscht die Kachel nicht.
+- **Mannschaften** — Zuordnung über UDP-Team oder Verein, Zahnrad auf der Kachel. Mehrere Mannschaften desselben Vereins bekommen eigene Kopffarben; die Bahnköpfe folgen der Mannschaft. Schützen **ohne Mannschaft** bleiben unter ihrem Verein, zählen nicht zur Summe.
+- **Probe** — Einschießen zählt nicht zur Wettkampf-Summe; erst Wertungsschüsse.
+- **Neue Session** — ein Prozessstart beginnt mit leerer Wettkampf-Kachel (`wettkampf.xml` wird nicht wieder geladen). Während der Session bleiben die Ergebnisse beim Bahn-Reset.
+- **Analyse** — Plugin zeigt eingefrorene Session-Ergebnisse nacheinander in der Classic-Range-Ansicht; ein neuer Schütze auf der Bahn überschreibt den gespeicherten Start nicht.
+
+
+
 ## v0.3
 
 - **Classic Range Condensed** — knappe Hallenansicht: Kopfzeile, Scheibe, letzter Schuss, Teiler, Summe und Serien. Ohne Last-10-Diagramm und ohne die große Statstabelle. Im Menü umschalten. Grüße an Daniel.

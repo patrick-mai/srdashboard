@@ -26,6 +26,7 @@ func payload(p simShooter, warmup bool, dec float64, seed int, menu, disc string
 		DecValue:  dec,
 		Range:     p.Range,
 		IsWarmup:  warmup,
+		IsHot:     !warmup,
 		DiscType:  disc,
 		Shooter: &state.ShotShooter{
 			Firstname: p.First,

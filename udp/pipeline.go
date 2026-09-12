@@ -113,6 +113,7 @@ func (p *Pipeline) ingest(data []byte, verbose bool) int {
 				FullValue:  shot.FullValue,
 				DecValue:   shot.DecValue,
 				IsWarmup:   shot.IsWarmup,
+				IsHot:      shot.IsHot,
 				ReceivedAt: applyReceived,
 			}
 			if hasShotAt {

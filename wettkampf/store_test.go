@@ -103,6 +103,81 @@ func TestProbeDoesNotClobberWertung(t *testing.T) {
 	}
 }
 
+func TestProbeIsNotAddedToWettkampfResult(t *testing.T) {
+	ls := state.NewLiveState(1)
+	s, err := Open("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := simShooter{"Anna", "Müller", "SV Adler", "Adler I", 1, 10.0}
+	for i := 0; i < 5; i++ {
+		fireShot(ls, s, payload(p, true, 10.0, i, "LG 40 Schuss", "LG"))
+	}
+	v := s.View()
+	if teamByName(v, "Adler I").Count != 0 {
+		t.Fatalf("probe counted as result: %#v", teamByName(v, "Adler I"))
+	}
+	if len(teamByName(v, "Adler I").Members) != 0 {
+		t.Fatalf("probe listed as members: %#v", teamByName(v, "Adler I").Members)
+	}
+	if len(v.Roster) != 1 || v.Roster[0].HasWertung {
+		t.Fatalf("probe roster %#v", v.Roster)
+	}
+	for i := 0; i < 4; i++ {
+		fireShot(ls, s, payload(p, false, 9.0, 50+i, "LG 40 Schuss", "LG"))
+	}
+	v = s.View()
+	r := rosterByName(v, p.name())
+	if r.SumInt != 36 || r.ShotsFired != 4 || !r.HasWertung {
+		t.Fatalf("wertung should exclude probe: %#v", r)
+	}
+	if teamByName(v, "Adler I").SumInt != 36 {
+		t.Fatalf("team sum included probe: %#v", teamByName(v, "Adler I"))
+	}
+}
+
+func TestLeakedWarmupShotsAreExcluded(t *testing.T) {
+	s, _ := Open("")
+	probe := state.Shot{FullValue: 10, DecValue: 10.0, IsWarmup: true}
+	wert := state.Shot{FullValue: 9, DecValue: 9.0, IsWarmup: false, IsHot: true}
+	s.Observe(state.RangeSnapshot{
+		RangeNum:         1,
+		ShooterName:      "Anna Müller",
+		ClubName:         "SV Adler",
+		IsWarmup:         false,
+		ShotNumber:       3,
+		OverallSumInt:    29,
+		OverallSumDec:    29.0,
+		TotalShotsToFire: 40,
+		Shots:            []state.Shot{probe, probe, wert},
+	})
+	v := s.View()
+	if len(v.Roster) != 1 || v.Roster[0].SumInt != 9 || v.Roster[0].ShotsFired != 1 {
+		t.Fatalf("leaked probe counted: %#v", v.Roster)
+	}
+}
+
+func TestIsHotProbeIsNotWertung(t *testing.T) {
+	s, _ := Open("")
+	probe := state.Shot{FullValue: 10, DecValue: 10.0}
+	wert := state.Shot{FullValue: 8, DecValue: 8.0, IsHot: true}
+	s.Observe(state.RangeSnapshot{
+		RangeNum:         1,
+		ShooterName:      "Anna Müller",
+		ClubName:         "SV Adler",
+		IsWarmup:         false,
+		ShotNumber:       2,
+		OverallSumInt:    18,
+		OverallSumDec:    18.0,
+		TotalShotsToFire: 40,
+		Shots:            []state.Shot{probe, wert},
+	})
+	v := s.View()
+	if len(v.Roster) != 1 || v.Roster[0].SumInt != 8 || v.Roster[0].ShotsFired != 1 {
+		t.Fatalf("IsHot probe counted: %#v", v.Roster)
+	}
+}
+
 func TestLockedIgnoresLaterSession(t *testing.T) {
 	s, _ := Open("")
 	s.Observe(wertungSnap("Anna Müller", "SV Adler", "", 1, 40, 40, 387, 387.5))
