@@ -50,6 +50,8 @@ type RangeState struct {
 	TotalShotsToFire int       `json:"totalShotsToFire"`
 	// StartedAt is the first shot of this shooter (Probe or competition). Cleared on shooter change.
 	StartedAt time.Time `json:"startedAt,omitempty"`
+	// ResultID is stable for one start (live and later archive). Empty until the first shot.
+	ResultID string `json:"resultId,omitempty"`
 }
 
 // LiveState holds state for all ranges. Safe for concurrent use: UDP applies shots under mu, HTTP reads via Snapshot().
@@ -191,6 +193,7 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		Last10Values:     append([]float64(nil), snap.Last10Values...),
 		TotalShotsToFire: snap.TotalShotsToFire,
 		StartedAt:        snap.StartedAt,
+		ResultID:         snap.ResultID,
 	}
 	return true
 }
@@ -479,7 +482,12 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		newShooterName = sp.Shooter.Firstname + " " + sp.Shooter.Lastname
 		shooterChanging = newShooterName != rs.ShooterName
 	}
-	if shooterChanging || enteringWarmup {
+	nextTotal := totalShotsFromShot(sp)
+	// Same shooter, new start: finished the planned program, or OpticScore switched length.
+	programRestart := rangeHasResult(rs) && !shooterChanging && !enteringWarmup &&
+		((rs.TotalShotsToFire > 0 && rs.ShotNumber >= rs.TotalShotsToFire && !sp.IsWarmup) ||
+			(nextTotal > 0 && rs.TotalShotsToFire > 0 && nextTotal != rs.TotalShotsToFire))
+	if shooterChanging || enteringWarmup || programRestart {
 		archiveRangeLocked(ls, rs)
 	}
 
@@ -491,6 +499,12 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 		if !wasWarmup && sp.IsWarmup {
 			rs.WarmupShots = nil
 		}
+		resetRangeFooter(rs)
+	}
+
+	if programRestart && !shooterChanging && !enteringWarmup {
+		rs.WarmupShots = nil
+		rs.StartedAt = time.Time{}
 		resetRangeFooter(rs)
 	}
 
@@ -534,6 +548,7 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	if rs.StartedAt.IsZero() {
 		rs.StartedAt = shotStartTime(at, receivedAt)
 	}
+	assignResultIDLocked(ls, rs)
 
 	rs.ShotNumber++
 	rs.CurrentValue = sp.DecValue
@@ -640,6 +655,7 @@ type RangeSnapshot struct {
 	Last10Values     []float64 `json:"last10Values"`
 	TotalShotsToFire int       `json:"totalShotsToFire"`
 	StartedAt        time.Time `json:"startedAt,omitempty"`
+	ResultID         string    `json:"resultId,omitempty"`
 }
 
 // ShotNumber returns the current shot count for a range without copying state.
@@ -709,5 +725,6 @@ func snapshotFromRange(rs *RangeState) RangeSnapshot {
 		Last10Values:     append([]float64(nil), rs.Last10Values...),
 		TotalShotsToFire: rs.TotalShotsToFire,
 		StartedAt:        snapshotStartedAt(rs),
+		ResultID:         rs.ResultID,
 	}
 }

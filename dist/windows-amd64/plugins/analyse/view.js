@@ -46,7 +46,7 @@ function formatClock(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
 }
 
 function resultLabel(row) {
@@ -61,7 +61,8 @@ function resultLabel(row) {
     return bahn + ' · ' + name + ' · ' + phase + ' · ' + prog + ' · ' + sum;
   }
   const clock = formatClock(row.startedAt) || formatClock(row.archivedAt);
-  return bahn + ' · ' + name + (clock ? ' · ' + clock : '') + ' · ' + sum;
+  const nShots = row.shotNumber || 0;
+  return bahn + ' · ' + name + (clock ? ' · ' + clock : '') + ' · ' + nShots + ' Schuss · ' + sum;
 }
 
 function setAnalyseSurfaceClasses(container) {
@@ -79,6 +80,14 @@ function pickDefaultId(results, rangeNum, previous) {
   if (previous) {
     for (let i = 0; i < results.length; i++) {
       if (results[i].id === previous) return previous;
+    }
+    if (String(previous).indexOf('live-') === 0) {
+      const n = Number(String(previous).slice(5));
+      if (Number.isFinite(n) && n > 0) {
+        for (let i = 0; i < results.length; i++) {
+          if (!results[i].live && results[i].rangeNum === n) return results[i].id;
+        }
+      }
     }
   }
   if (rangeNum > 0) {
@@ -101,9 +110,17 @@ function liveRangeFromCore(rangeNum) {
   return null;
 }
 
-function withSessionId(rangeData, id) {
+function liveMatchesId(live, id) {
+  if (!live || !id) return false;
+  if (String(id) === ('live-' + live.rangeNum)) return true;
+  if (live.resultId) return String(live.resultId) === String(id);
+  return true;
+}
+
+function withSessionId(rangeData, id, live) {
   const copy = Object.assign({}, rangeData || {});
   copy.sessionResultId = id;
+  copy.sessionResultLive = !!live;
   return copy;
 }
 
@@ -160,6 +177,13 @@ function paintClassic(layout, rangeData) {
   if (!panel || !header || !mount) return;
   panel.hidden = false;
   panel.dataset.range = String(rangeData.rangeNum || '');
+  if (rangeData.sessionResultId) {
+    panel.dataset.sessionResult = String(rangeData.sessionResultId);
+    panel.dataset.sessionResultLive = rangeData.sessionResultLive === false ? '0' : '1';
+  } else {
+    delete panel.dataset.sessionResult;
+    delete panel.dataset.sessionResultLive;
+  }
   if (typeof core.fillRangeHeader === 'function') {
     core.fillRangeHeader(header, rangeData);
   }
@@ -169,21 +193,24 @@ function paintClassic(layout, rangeData) {
 }
 
 async function loadRangeForId(container, id, summary) {
+  const liveFlag = !!(summary && summary.live);
   if (summary && summary.live && summary.rangeNum) {
     const live = liveRangeFromCore(summary.rangeNum);
-    if (live) return withSessionId(live, id);
+    if (live && liveMatchesId(live, id)) return withSessionId(live, id, true);
   }
   if (summary && !summary.live && container._analyseSnap && container._analyseSnap[id]) {
-    return withSessionId(container._analyseSnap[id], id);
+    return withSessionId(container._analyseSnap[id], id, false);
   }
   const res = await fetch('/api/analyse/results?id=' + encodeURIComponent(id), { cache: 'no-store' });
   if (!res.ok) return null;
   const data = await res.json();
+  const canonical = data.id || id;
   if (data.range && !data.live) {
     container._analyseSnap = container._analyseSnap || {};
+    container._analyseSnap[canonical] = data.range;
     container._analyseSnap[id] = data.range;
   }
-  return withSessionId(data.range || null, id);
+  return withSessionId(data.range || null, canonical, !!(data.live || liveFlag));
 }
 
 async function paintSelected(container) {

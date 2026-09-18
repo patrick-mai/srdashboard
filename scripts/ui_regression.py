@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import socket
 import sys
 import time
@@ -412,19 +413,20 @@ def probe_broken_shots():
     return True
 
 
-def send_shot(range_num, dec, warmup=False, n=0, shooter=None):
+def send_shot(range_num, dec, warmup=False, n=0, shooter=None, menu_item=None):
     x, y, distance = shot_xy(dec, n, range_num)
     before = live_shot_number(range_num)
     if shooter is None:
         shooter = ("Test", "B%d" % range_num)
     first, last = shooter
+    menu_name = menu_item or "Luftgewehr"
     obj = {
         "X": x, "Y": y, "Distance": distance,
         "FullValue": min(10, max(0, int(dec))), "DecValue": dec,
         "Range": range_num, "IsWarmup": warmup,
         "DiscType": "LG",
         "Shooter": {"Firstname": first, "Lastname": last},
-        "MenuItem": {"MenuItemName": "Luftgewehr", "MenuPointName": "Luftgewehr"},
+        "MenuItem": {"MenuItemName": menu_name, "MenuPointName": "Luftgewehr"},
     }
     msg = {"MessageType": "Event", "MessageVerb": "Shot", "Ranges": range_num, "Objects": [obj]}
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -432,7 +434,10 @@ def send_shot(range_num, dec, warmup=False, n=0, shooter=None):
     sock.close()
     deadline = time.time() + 2.0
     while time.time() < deadline:
-        if live_shot_number(range_num) > before:
+        after = live_shot_number(range_num)
+        # A finished program archives and resets shotNumber (2 → 1), so inequality
+        # not a strict increase is the arrival signal.
+        if after != before:
             break
         time.sleep(0.03)
     time.sleep(SHOT_GAP)
@@ -610,6 +615,9 @@ class Runner:
                 self.set_menu(False)
 
     def play_classic(self, plugin_id="classic-range"):
+        if plugin_id == "analyse":
+            self.play_analyse()
+            return
         activate(plugin_id)
         reset_live()
         self.reload()
@@ -618,6 +626,132 @@ class Runner:
             send_shot(1, 10.4 - (i % 5) * 0.3, n=i)
         self.reload()
         self.capture(plugin_id, "end")
+
+    def play_analyse(self):
+        activate("analyse")
+        reset_live()
+        self.reload()
+        self.capture("analyse", "start", menu=True)
+        anna = ("Anna", "Müller")
+        send_shot(1, 10.4, n=1, shooter=anna, menu_item="LG 2 Schuss")
+        send_shot(1, 9.2, n=2, shooter=anna, menu_item="LG 2 Schuss")
+        send_shot(1, 8.0, n=3, shooter=anna, menu_item="LG 2 Schuss")
+        self.reload()
+        self.wait_paint(self.hall)
+        try:
+            self.hall.wait_for_function(
+                """() => {
+                  const sel = document.querySelector('#analyse-result-select');
+                  return !!(sel && sel.options.length >= 2);
+                }""",
+                timeout=15000,
+            )
+        except Exception as exc:
+            self.problems.append("analyse split: selector did not show two starts (%s)" % exc)
+            self.capture("analyse", "end")
+            return
+        info = self.hall.evaluate(
+            """() => {
+              const sel = document.querySelector('#analyse-result-select');
+              const opts = [...sel.options].map((o) => ({ id: o.value, text: o.text }));
+              const anna = opts.filter((o) => /Anna/.test(o.text));
+              const archived = anna.find((o) => /2 Schuss/.test(o.text));
+              const live = anna.find((o) => /läuft/.test(o.text));
+              return { count: opts.length, anna: anna.length, opts, archived, live };
+            }"""
+        )
+        archived = info.get("archived") or {}
+        live = info.get("live") or {}
+        if (info.get("anna") or 0) < 2:
+            self.problems.append("analyse split: Anna starts=%s want >=2 %s" % (
+                info.get("anna"), info.get("opts")))
+        if not archived.get("id") or not live.get("id") or archived.get("id") == live.get("id"):
+            self.problems.append("analyse split: expected distinct live/archived Anna ids %s" % info)
+        archived_text = str(archived.get("text") or "")
+        if "2 Schuss" not in archived_text:
+            self.problems.append("analyse split: archived label missing shot count: %s" % archived_text)
+        if not re.search(r"\d{2}:\d{2}:\d{2}", archived_text):
+            self.problems.append("analyse split: archived label missing clock+seconds: %s" % archived_text)
+        archived_id = archived.get("id")
+        if archived_id:
+            self.hall.evaluate(
+                """(id) => {
+                  const sel = document.querySelector('#analyse-result-select');
+                  if (!sel) return;
+                  sel.value = id;
+                  sel.dispatchEvent(new Event('change'));
+                }""",
+                archived_id,
+            )
+            try:
+                self.hall.wait_for_function(
+                    """(id) => {
+                      const p = document.querySelector('.analyse-panel');
+                      const svg = p && p.querySelector('svg.target-svg-root');
+                      return !!(p && p.dataset.sessionResultLive === '0' &&
+                        p.dataset.sessionResult === id &&
+                        svg && svg.dataset.viewKey === ('s:' + id));
+                    }""",
+                    arg=archived_id,
+                    timeout=15000,
+                )
+            except Exception as exc:
+                self.problems.append("analyse frozen: panel did not stay on archived start (%s)" % exc)
+                self.capture("analyse", "end")
+                return
+        frozen = self.hall.evaluate(
+            """() => {
+              const p = document.querySelector('.analyse-panel');
+              const svg = p && p.querySelector('svg.target-svg-root');
+              return {
+                live: p && p.dataset.sessionResultLive,
+                sid: p && p.dataset.sessionResult,
+                viewKey: svg && svg.dataset.viewKey,
+                shots: svg ? svg.querySelectorAll('.target-shots-fill circle').length : 0
+              };
+            }"""
+        )
+        if frozen.get("live") != "0" or frozen.get("shots") != 2:
+            self.problems.append("analyse frozen: before live shots panel=%s" % frozen)
+        send_shot(1, 7.5, n=4, shooter=anna, menu_item="LG 2 Schuss")
+        self.hall.wait_for_timeout(500)
+        after = self.hall.evaluate(
+            """() => {
+              const p = document.querySelector('.analyse-panel');
+              const svg = p && p.querySelector('svg.target-svg-root');
+              return {
+                live: p && p.dataset.sessionResultLive,
+                sid: p && p.dataset.sessionResult,
+                viewKey: svg && svg.dataset.viewKey,
+                shots: svg ? svg.querySelectorAll('.target-shots-fill circle').length : 0
+              };
+            }"""
+        )
+        if (after.get("live") != "0" or after.get("viewKey") != frozen.get("viewKey") or
+                after.get("sid") != frozen.get("sid") or after.get("shots") != 2):
+            self.problems.append(
+                "analyse frozen: live Bahn overwrote archived start after new shots %s → %s" % (
+                    frozen, after))
+        series = self.hall.query_selector(".analyse-panel .serien-col")
+        if series:
+            series.click()
+            self.hall.wait_for_timeout(250)
+            clicked = self.hall.evaluate(
+                """() => {
+                  const p = document.querySelector('.analyse-panel');
+                  const svg = p && p.querySelector('svg.target-svg-root');
+                  return {
+                    live: p && p.dataset.sessionResultLive,
+                    viewKey: svg && svg.dataset.viewKey,
+                    shots: svg ? svg.querySelectorAll('.target-shots-fill circle').length : 0
+                  };
+                }"""
+            )
+            if (clicked.get("live") != "0" or clicked.get("viewKey") != frozen.get("viewKey") or
+                    clicked.get("shots") != 2):
+                self.problems.append(
+                    "analyse frozen: series click swapped in the live Scheibe %s" % clicked)
+        self.capture("analyse", "end")
 
     def play_autorennen(self):
         activate("autorennen")

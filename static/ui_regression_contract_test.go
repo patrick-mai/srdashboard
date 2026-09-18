@@ -42,6 +42,14 @@ func TestUIRegressionCoversReadabilityGlitches(t *testing.T) {
 		"compact page loads /compact like shooter loads /1")
 	mustContain(t, py, `play_classic("analyse")`,
 		"Analyse is a hall display; the UI run must open it, not only Classic Range")
+	mustContain(t, py, `menu_item="LG 2 Schuss"`,
+		"Analyse UI play must finish a short program so the same shooter can start again")
+	mustContain(t, py, "arg=archived_id",
+		"Playwright wait_for_function only accepts the frozen result id as a keyword arg")
+	mustContain(t, py, "sessionResultLive",
+		"after the new start the hall must keep the archived Analyse panel frozen")
+	mustContain(t, py, "series click swapped in the live Scheibe",
+		"series review on the frozen start must not paint the live Bahn")
 	mustContain(t, py, `msg.location`,
 		"favicon 404 console text has no URL; the filter must read location.url")
 }

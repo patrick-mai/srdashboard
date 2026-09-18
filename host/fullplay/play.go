@@ -2,6 +2,8 @@ package fullplay
 
 import (
 	"testing"
+
+	"srdashboard/udp"
 )
 
 func playClassicRange(t *testing.T, h *Host) {
@@ -13,6 +15,50 @@ func playClassicRange(t *testing.T, h *Host) {
 	vm := h.VM(1)
 	if vm["kind"] != "display" {
 		t.Fatalf("classic-range kind=%v", vm["kind"])
+	}
+}
+
+func playAnalyse(t *testing.T, h *Host) {
+	t.Helper()
+	fireAnna := func(dec float64) {
+		h.firePacket(1, dec, udp.ShotPacketOpts{
+			Shooter:  "Anna",
+			Lastname: "Müller",
+			MenuItem: "LG 2 Schuss",
+		})
+	}
+	fireAnna(10.4)
+	fireAnna(9.2)
+	first := h.Live.SessionResults()
+	if len(first) != 1 || !first[0].Live || first[0].ShotNumber != 2 {
+		t.Fatalf("first Analyse start = %+v", first)
+	}
+	oldID := first[0].ID
+
+	fireAnna(8.0)
+	list := h.Live.SessionResults()
+	if len(list) != 2 {
+		t.Fatalf("same shooter new start should archive, got %+v", list)
+	}
+	if !list[0].Live || list[0].ID == oldID || list[0].ShotNumber != 1 {
+		t.Fatalf("new live = %+v (old %s)", list[0], oldID)
+	}
+	if list[1].Live || list[1].ID != oldID || list[1].ShotNumber != 2 {
+		t.Fatalf("archived first start = %+v, want id %s", list[1], oldID)
+	}
+	_, snap, ok := h.Live.SessionResult(oldID)
+	if !ok || snap.ShotNumber != 2 {
+		t.Fatalf("SessionResult(%s) = ok=%v snap=%+v", oldID, ok, snap)
+	}
+	info, liveSnap, ok := h.Live.SessionResult("live-1")
+	if !ok || !info.Live || info.ID == oldID || liveSnap.ShotNumber != 1 {
+		t.Fatalf("live-1 alias = ok=%v info=%+v snap=%+v", ok, info, liveSnap)
+	}
+
+	h.Fire(2, 10.4)
+	h.requireBothRangesPaint()
+	if h.VM(1)["kind"] != "display" {
+		t.Fatalf("analyse kind=%v", h.VM(1)["kind"])
 	}
 }
 

@@ -296,6 +296,14 @@ func TestCompactHallIsADedicatedView(t *testing.T) {
 		"Compact lives next to Vollbild in the master menu")
 	mustContain(t, master, "location.assign(compactOn ? '/' : '/compact')",
 		"Compact loads /compact; it must not restyle the current master DOM")
+	css := readRepoFile(t, "static", "style.css")
+	core := readRepoFile(t, "static", "target-core.js")
+	mustContain(t, css, "body.compact-display .range-plugin-view.crc-view .range-target",
+		"Compact must hide Condensed Scheiben, not leave thumbnail discs in empty bands")
+	mustContain(t, css, "body.compact-display .range-plugin-view.classic-range-view .range-target",
+		"Compact must hide Classic Scheiben the same way games omit scheibe-wrap")
+	mustContain(t, core, "compact-display",
+		"Compact packs Bahnen as a single score list, not a 3+2 disc grid with hidden targets")
 }
 
 func TestFoxAndTannebaumCompactOmitScheibe(t *testing.T) {
@@ -504,6 +512,10 @@ func TestClassicCondensedWettkampfTileSlot(t *testing.T) {
 		"Wettkampf sits in an extra right-hand column spanning the hall rows")
 	mustContain(t, core, "function packRangeColumns",
 		"hidden idle Bahnen must not leave empty 3+1 holes beside Wettkampf")
+	mustContain(t, core, "5 live must be 3+2, not 1×5 just to avoid one hole",
+		"hideIdleRanges with 5 shooters must not stack full-width rows of thumbnail Scheiben")
+	mustContain(t, core, "- rows * 200",
+		"extra rows cost more than one empty cell so 5 lanes stay 3+2")
 	mustContain(t, crc, "paintWettkampf: paintWettkampf",
 		"live/WS updates must paint the Wettkampf tile in place")
 	mustContain(t, crc, "function openWettkampfModal",
@@ -551,4 +563,29 @@ func TestAnalysePluginSelectsSessionResults(t *testing.T) {
 		"QR on an archived result must not fetch the live Bahn")
 	mustContain(t, core, "result=",
 		"QR fetch must accept a frozen result id")
+	mustContain(t, core, "sessionResultLive === false",
+		"series review on a frozen Analyse result must not paint the live Bahn")
+	mustContain(t, core, "function viewKey",
+		"zoom and series focus must key off the session, not only the Bahn number")
+	mustContain(t, js, "sessionResultLive",
+		"Analyse must mark frozen vs live so Classic Range can keep two starts apart")
+	mustContain(t, js, "pad2(d.getSeconds())",
+		"same shooter, same Bahn: selector labels need seconds to tell starts apart")
+}
+
+func TestTargetWheelZoomIsProportional(t *testing.T) {
+	core := readRepoFile(t, "static", "target-core.js")
+	css := readRepoFile(t, "static", "style.css")
+	mustNotContain(t, core, "e.deltaY > 0 ? 1.12",
+		"wheel zoom must not jump a fixed 12% per event (Analyse / Classic / Condensed)")
+	mustContain(t, core, "function wheelZoomFactor",
+		"zoom step must follow wheel delta magnitude, not a boolean in/out")
+	mustContain(t, core, "function zoomWindowAround",
+		"wheel zoom must keep the point under the cursor, not snap back to the bullseye")
+	mustContain(t, core, "function panZoomWindow",
+		"drag must pan the viewBox so off-centre shot groups stay inspectable")
+	mustContain(t, core, "rangeNumFromViewport",
+		"Analyse result switches reuse the same target node; handlers must read the live rangeNum")
+	mustContain(t, css, "touch-action: none",
+		"touch pan on the Scheibe must not scroll the page instead")
 }

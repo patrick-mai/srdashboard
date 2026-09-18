@@ -225,14 +225,15 @@ func Catalog() []Scenario {
 		conceptScenario("turmbau-2p", "turmbau", playHighValueProgram),
 		conceptScenario("ansage-duell-2p", "ansage-duell", playHighValueProgram),
 		{
-			ID:        "analyse",
-			PluginID:  "analyse",
-			NumRanges: 2,
-			Play:      playClassicRange,
+			ID:         "analyse",
+			PluginID:   "analyse",
+			NumRanges:  2,
+			TotalShots: 2,
+			Play:       playAnalyse,
 			UI: []FileCheck{{
 				Rel: []string{"plugins", "analyse", "view.js"},
-				Has: []string{"const PLUGIN_ID = 'analyse'", "SRPluginViews[PLUGIN_ID]", "analyse-select", "renderClassicRangeView"},
-				Why: "Analyse hall must register as a shared display and reuse Classic Range paint",
+				Has: []string{"const PLUGIN_ID = 'analyse'", "SRPluginViews[PLUGIN_ID]", "analyse-select", "renderClassicRangeView", "pickDefaultId", "sessionResultLive"},
+				Why: "Analyse hall must register as a shared display, reuse Classic Range paint, and keep frozen starts selectable",
 			}},
 		},
 	}

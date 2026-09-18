@@ -49,6 +49,17 @@ func parseLiveSessionID(id string) (int, bool) {
 	return n, true
 }
 
+func assignResultIDLocked(ls *LiveState, rs *RangeState) string {
+	if ls == nil || rs == nil {
+		return ""
+	}
+	if rs.ResultID == "" {
+		ls.nextArchive++
+		rs.ResultID = strconv.Itoa(ls.nextArchive)
+	}
+	return rs.ResultID
+}
+
 func rangeHasResult(rs *RangeState) bool {
 	if rs == nil {
 		return false
@@ -85,12 +96,18 @@ func archiveRangeLocked(ls *LiveState, rs *RangeState) {
 	if ls == nil || !rangeHasResult(rs) {
 		return
 	}
-	ls.nextArchive++
+	id := rs.ResultID
+	if id == "" {
+		ls.nextArchive++
+		id = strconv.Itoa(ls.nextArchive)
+	}
 	entry := archivedSession{
-		ID:         strconv.Itoa(ls.nextArchive),
+		ID:         id,
 		ArchivedAt: time.Now(),
 		Snap:       snapshotFromRange(rs),
 	}
+	entry.Snap.ResultID = id
+	rs.ResultID = ""
 	ls.archive = append(ls.archive, entry)
 	if len(ls.archive) > maxSessionArchive {
 		ls.archive = append([]archivedSession(nil), ls.archive[len(ls.archive)-maxSessionArchive:]...)
@@ -113,7 +130,11 @@ func (ls *LiveState) SessionResults() []SessionResultSummary {
 			continue
 		}
 		snap := snapshotFromRange(rs)
-		out = append(out, summaryFromSnap(liveSessionID(k), true, time.Time{}, snap))
+		id := rs.ResultID
+		if id == "" {
+			id = liveSessionID(k)
+		}
+		out = append(out, summaryFromSnap(id, true, time.Time{}, snap))
 	}
 	for i := len(ls.archive) - 1; i >= 0; i-- {
 		a := ls.archive[i]
@@ -136,7 +157,17 @@ func (ls *LiveState) SessionResult(id string) (SessionResultSummary, RangeSnapsh
 			return SessionResultSummary{}, RangeSnapshot{}, false
 		}
 		snap := snapshotFromRange(rs)
-		return summaryFromSnap(id, true, time.Time{}, snap), snap, true
+		liveID := rs.ResultID
+		if liveID == "" {
+			liveID = id
+		}
+		return summaryFromSnap(liveID, true, time.Time{}, snap), snap, true
+	}
+	for _, rs := range ls.Ranges {
+		if rs != nil && rs.ResultID == id && rangeHasResult(rs) {
+			snap := snapshotFromRange(rs)
+			return summaryFromSnap(id, true, time.Time{}, snap), snap, true
+		}
 	}
 	for i := range ls.archive {
 		if ls.archive[i].ID == id {

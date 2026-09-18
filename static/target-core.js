@@ -32,6 +32,10 @@ const AUTO_ZOOM_PAD_FRAC_LARGE = 0.015;
 const SCORING_DISK_PAD_MM = 4;      // empty/reset: tight frame so the full scoring disk starts large (like yesterday)
 /** Tightest allowed viewBox span: ring 8 fills the frame (outer circle). */
 const MIN_ZOOM_SPAN_MM = RING_8_RADIUS_MM * 2;
+/** Wheel zoom: ln(factor) = normalizedDelta * gain. A 120-unit mouse notch ≈ 5.8%. */
+const ZOOM_WHEEL_GAIN = 0.00048;
+/** Cap |ln(factor)| so one event cannot skip the useful zoom range. */
+const ZOOM_WHEEL_MAX_LN = 0.08;
 
 // Classic Range pellets: rainbow or single-hue shades; sat from --shot-sat (side-menu).
 function hslToHex(h, s, l) {
@@ -129,20 +133,102 @@ function repaintShotColors() {
       const host = el.closest('[data-range]');
       const n = el.dataset.range || (host && host.dataset.range);
       if (String(n) !== String(r.rangeNum)) return;
-      renderClassicRangeView(el, r);
+      refreshClassicRangeView(el, r);
     });
   });
 }
 
-let zoomStateByRange = {};   // rangeNum -> { x, y, w, h } SVG viewBox
-let prevShotsLengthByRange = {};  // rangeNum -> number
-let prevIsWarmupByRange = {};     // rangeNum -> last isWarmup (warmup→competition resets zoom)
-let userZoomedByRange = {};  // rangeNum -> true if user zoomed via wheel/drag; cleared on target reset
+let zoomStateByRange = {};   // viewKey -> { x, y, w, h } SVG viewBox
+let prevShotsLengthByRange = {};  // viewKey -> number
+let prevIsWarmupByRange = {};     // viewKey -> last isWarmup (warmup→competition resets zoom)
+let userZoomedByRange = {};  // viewKey -> true if user zoomed via wheel/drag; cleared on target reset
 let pinFullUntilNewShotByRange = {}; // dblclick: stay at full disk until another shot arrives
-/** Per-range series focus: { index, atShotNumber } while reviewing a completed series. */
+/** Per-session series focus: { index, atShotNumber } while reviewing a completed series. */
 let seriesFocusByRange = {};
 /** Last-10 chart bar index currently hovered (null/undefined = none). */
 let hoverBarIdxByRange = {};
+
+function viewKey(rangeData, rangeNum) {
+  const sid = rangeData && (rangeData.sessionResultId || rangeData.resultId);
+  if (sid) return 's:' + sid;
+  const n = rangeNum != null ? rangeNum : (rangeData && rangeData.rangeNum);
+  return 'r:' + String(n);
+}
+
+function viewKeyFromSvg(svg, fallbackRangeNum) {
+  if (svg && svg.dataset && svg.dataset.viewKey) return svg.dataset.viewKey;
+  return 'r:' + String(fallbackRangeNum);
+}
+
+function focusKey(rangeData, rangeNum) {
+  return viewKey(rangeData, rangeNum != null ? rangeNum : (rangeData && rangeData.rangeNum));
+}
+
+function liveMatchesSessionId(live, id) {
+  if (!id) return true;
+  if (!live) return false;
+  if (String(id) === ('live-' + live.rangeNum)) return true;
+  if (live.resultId) return String(live.resultId) === String(id);
+  if (live.sessionResultId) return String(live.sessionResultId) === String(id);
+  return true;
+}
+
+function isFrozenSessionData(rangeData) {
+  return !!(rangeData && rangeData.sessionResultLive === false);
+}
+
+function isFrozenSessionView(el) {
+  if (!el) return false;
+  if (el.dataset && el.dataset.sessionResultLive === '0') return true;
+  const panel = el.closest && el.closest('.range-panel');
+  return !!(panel && panel.dataset && panel.dataset.sessionResultLive === '0');
+}
+
+function rememberPaintedRange(host, rangeData) {
+  if (!host || !rangeData) return;
+  host._paintedRange = rangeData;
+  host.dataset.range = String(rangeData.rangeNum || '');
+  if (rangeData.sessionResultId) {
+    host.dataset.sessionResult = String(rangeData.sessionResultId);
+    host.dataset.sessionResultLive = rangeData.sessionResultLive === false ? '0' : '1';
+  } else {
+    delete host.dataset.sessionResult;
+    delete host.dataset.sessionResultLive;
+  }
+  const panel = host.closest && host.closest('.range-panel');
+  if (panel && panel !== host) rememberPaintedRange(panel, rangeData);
+}
+
+function rangeDataForRepaint(rangeData) {
+  if (!rangeData || isFrozenSessionData(rangeData)) return rangeData;
+  const live = liveRangeData(rangeData.rangeNum);
+  if (!live) return rangeData;
+  if (!liveMatchesSessionId(live, rangeData.sessionResultId)) return rangeData;
+  if (rangeData.sessionResultId) {
+    return Object.assign({}, live, {
+      sessionResultId: rangeData.sessionResultId,
+      sessionResultLive: true
+    });
+  }
+  return live;
+}
+
+function refreshClassicRangeView(el, live) {
+  if (!el) return;
+  if (isFrozenSessionView(el)) {
+    if (el._paintedRange) renderClassicRangeView(el, el._paintedRange);
+    return;
+  }
+  if (!live) return;
+  const host = (el.closest && el.closest('.range-panel')) || el;
+  const sid = (el.dataset && el.dataset.sessionResult) || (host.dataset && host.dataset.sessionResult);
+  if (sid && !liveMatchesSessionId(live, sid)) return;
+  let data = live;
+  if (sid) {
+    data = Object.assign({}, live, { sessionResultId: sid, sessionResultLive: true });
+  }
+  renderClassicRangeView(el, data);
+}
 
 let config = {
   ranges: 6,
@@ -471,11 +557,15 @@ function applyDisciplineOverride(rangeNum, mode) {
   const n = Number(rangeNum);
   if (!Number.isFinite(n) || n < 1) return;
   if (mode !== 'auto' && !PROGRAM_BY_ID[mode]) return;
-  const rangeData = liveRangeByNum(n) || { rangeNum: n };
+  const panel = document.querySelector('.analyse-panel[data-range="' + n + '"]') ||
+    document.querySelector('.range-panel[data-range="' + n + '"]');
+  let rangeData = (panel && panel._paintedRange) || liveRangeByNum(n) || { rangeNum: n };
+  if (!isFrozenSessionView(panel)) {
+    rangeData = rangeDataForRepaint(rangeData) || rangeData;
+  }
   disciplineOverrideByRange[n] = mode || 'auto';
   disciplineOverrideSigByRange[n] = disciplineOverrideSig(rangeData);
   closeDisciplineMenu();
-  const panel = document.querySelector('.range-panel[data-range="' + n + '"]');
   if (panel) delete panel.dataset.chromeSig;
   updatePluginPanelHeader(n, rangeData);
   const mount = panel && panel.querySelector('.range-plugin-view');
@@ -483,7 +573,7 @@ function applyDisciplineOverride(rangeNum, mode) {
   if (mount && hall === 'classic-range-condensed' && window.SRClassicRangeCondensed) {
     window.SRClassicRangeCondensed.fillHeader(panel.querySelector('.range-header'), rangeData);
     window.SRClassicRangeCondensed.paint(mount, rangeData);
-  } else if (mount && hall !== 'classic-range-condensed' && typeof renderClassicRangeView === 'function') {
+  } else if (mount && typeof renderClassicRangeView === 'function') {
     renderClassicRangeView(mount, rangeData);
   }
 }
@@ -586,7 +676,7 @@ function updateTargetContext(rangeNum, rangeData) {
     };
   }
   if (prev && prev.profileId && prev.profileId !== scale.profileId) {
-    resetRangeZoom(rangeNum);
+    resetRangeZoom(viewKey(rangeData, rangeNum), rangeNum);
   }
   if (scale.coordRadiusNeedsRefinement) {
     console.warn(
@@ -658,13 +748,14 @@ async function fetchConfig() {
     config = await res.json();
     applyLayout();
     // Stroke width etc. may change — force panel/target resync.
-    document.querySelectorAll('.range-panel').forEach(function (p) {
+    document.querySelectorAll('#ranges-grid .range-panel').forEach(function (p) {
       delete p.dataset.chromeSig;
     });
     if (lastLiveData) {
       // Legacy full-panel sync only — plugin-hosted stands own chart/footer inside the mount.
+      const grid = document.getElementById('ranges-grid');
       (lastLiveData.ranges || []).forEach(function (r) {
-        const panel = document.querySelector('.range-panel[data-range="' + r.rangeNum + '"]');
+        const panel = grid && grid.querySelector('.range-panel[data-range="' + r.rangeNum + '"]');
         if (panel) syncRangePanel(panel, r);
       });
       document.querySelectorAll('.classic-range-view').forEach(function (el) {
@@ -672,7 +763,7 @@ async function fetchConfig() {
         const r = (lastLiveData.ranges || []).find(function (x) {
           return String(x.rangeNum) === String(rangeNum);
         });
-        if (r) renderClassicRangeView(el, r);
+        refreshClassicRangeView(el, r);
       });
     }
   }
@@ -749,7 +840,8 @@ function syncRangeVisibility(data) {
     // Chart may have been measured while hidden (0×0) — redraw when shown again.
     if (wasHidden && !hide && byNum[num]) {
       const chartWrap = panel.querySelector('.last10-chart-wrap');
-      if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(byNum[num]), num);
+      const data = panel._paintedRange || byNum[num];
+      if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(data), num, data);
     }
   }
   applyLayout();
@@ -785,7 +877,8 @@ function applyLayout() {
   }
 
   const n = Math.max(1, ranges.length || config.ranges || 1);
-  const cols = packRangeColumns(n, preferredCols);
+  const compact = document.body.classList.contains('compact-display');
+  const cols = compact ? 1 : packRangeColumns(n, preferredCols);
   const rows = Math.max(1, Math.ceil(n / cols));
   if (wk) {
     // Bahn tiles pack into a hole-free grid (e.g. 4 live → 2×2, not 3+1).
@@ -800,7 +893,8 @@ function applyLayout() {
   grid.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
 }
 
-/** Prefer a hole-free Bahn grid under layoutColumns (4 live → 2×2, not 3+1). */
+/** Pack live Bahnen under layoutColumns.
+ *  4 live + 3-col cap → 2×2 (not 3+1). 5 live must be 3+2, not 1×5 just to avoid one hole. */
 function packRangeColumns(n, preferredCols) {
   n = Math.max(1, n);
   const maxCols = Math.max(1, Math.min(preferredCols, n));
@@ -809,7 +903,7 @@ function packRangeColumns(n, preferredCols) {
   for (let c = 1; c <= maxCols; c++) {
     const rows = Math.ceil(n / c);
     const empty = c * rows - n;
-    const score = -empty * 1000 - Math.abs(c - preferredCols);
+    const score = -empty * 50 - Math.abs(c - preferredCols) - rows * 200;
     if (score > bestScore) {
       bestScore = score;
       best = c;
@@ -853,10 +947,14 @@ function rangeDiskZoom() {
   return { x: 0, y: 0, w: ts.svgSize, h: ts.svgSize };
 }
 
-function resetRangeZoom(rangeNum) {
-  zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
-  userZoomedByRange[rangeNum] = false;
-  pinFullUntilNewShotByRange[rangeNum] = false;
+function resetRangeZoom(key, rangeNum) {
+  if (rangeNum == null && (typeof key === 'number' || (typeof key === 'string' && key.indexOf(':') < 0))) {
+    rangeNum = Number(key);
+    key = 'r:' + String(rangeNum);
+  }
+  zoomStateByRange[key] = fullDiskZoom(rangeNum);
+  userZoomedByRange[key] = false;
+  pinFullUntilNewShotByRange[key] = false;
 }
 
 function viewSpan(state, rangeNum) {
@@ -947,13 +1045,87 @@ function applyViewBox(svg, state, rangeNum) {
   host.style.setProperty('--target-zoom', String(zoom));
 }
 
-function setupZoomHandlers(viewport, rangeNum) {
+function rangeNumFromViewport(viewport, fallback) {
+  const svg = viewport && viewport.querySelector && viewport.querySelector('.target-svg-root');
+  const n = svg ? Number(svg.dataset.rangeNum) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** Pixel-normalized wheel delta (line/page modes expanded). */
+function wheelDeltaPx(e) {
+  let dy = Number(e && e.deltaY) || 0;
+  if (e.deltaMode === 1) dy *= 16;
+  else if (e.deltaMode === 2) dy *= 400;
+  return dy;
+}
+
+function wheelZoomFactor(e) {
+  const ln = Math.max(-ZOOM_WHEEL_MAX_LN, Math.min(ZOOM_WHEEL_MAX_LN, wheelDeltaPx(e) * ZOOM_WHEEL_GAIN));
+  return Math.exp(ln);
+}
+
+function clientToSvg(svg, clientX, clientY) {
+  if (!svg || typeof svg.getScreenCTM !== 'function') return null;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  return pt.matrixTransform(ctm.inverse());
+}
+
+/** Zoom keeping (svgX, svgY) in the same place in the frame. */
+function zoomWindowAround(rangeNum, state, factor, svgX, svgY) {
+  const span = viewSpan(state, rangeNum);
+  const next = Math.max(span * factor, 1e-6);
+  const ts = getTargetScale(rangeNum);
+  let focusX = Number(svgX);
+  let focusY = Number(svgY);
+  if (!Number.isFinite(focusX) || !Number.isFinite(focusY)) {
+    focusX = state.x + span / 2;
+    focusY = state.y + span / 2;
+  }
+  const rx = span > 0 ? (focusX - state.x) / span : 0.5;
+  const ry = span > 0 ? (focusY - state.y) / span : 0.5;
+  const x0 = focusX - rx * next;
+  const y0 = focusY - ry * next;
+  const win = clampZoomWindow(rangeNum, x0, x0 + next, y0, y0 + next);
+  if (win.w >= ts.svgSize) return win;
+  // clampZoomWindow recentres; shift back so the cursor point stays put when possible.
+  const dx = focusX - (win.x + rx * win.w);
+  const dy = focusY - (win.y + ry * win.h);
+  return panZoomWindow(rangeNum, win, dx, dy);
+}
+
+function panZoomWindow(rangeNum, state, dx, dy) {
+  const ts = getTargetScale(rangeNum);
+  const span = viewSpan(state, rangeNum);
+  if (span >= ts.svgSize) {
+    return { x: 0, y: 0, w: ts.svgSize, h: ts.svgSize };
+  }
+  let cx = state.x + span / 2 + (Number(dx) || 0);
+  let cy = state.y + span / 2 + (Number(dy) || 0);
+  cx = Math.max(span / 2, Math.min(ts.svgSize - span / 2, cx));
+  cy = Math.max(span / 2, Math.min(ts.svgSize - span / 2, cy));
+  return { x: cx - span / 2, y: cy - span / 2, w: span, h: span };
+}
+
+function setupZoomHandlers(viewport, fallbackRangeNum) {
   if (viewport.dataset.zoomHandlers === '1') return;
   viewport.dataset.zoomHandlers = '1';
 
-  function getState() {
-    if (!zoomStateByRange[rangeNum]) zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
-    return zoomStateByRange[rangeNum];
+  function currentRangeNum() {
+    return rangeNumFromViewport(viewport, fallbackRangeNum);
+  }
+
+  function currentViewKey(n, svg) {
+    return viewKeyFromSvg(svg || getSvg(), n);
+  }
+
+  function getState(n, svg) {
+    const key = currentViewKey(n, svg);
+    if (!zoomStateByRange[key]) zoomStateByRange[key] = fullDiskZoom(n);
+    return zoomStateByRange[key];
   }
 
   function getSvg() {
@@ -962,25 +1134,74 @@ function setupZoomHandlers(viewport, rangeNum) {
 
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
-    userZoomedByRange[rangeNum] = true;
-    const state = getState();
-    const span = viewSpan(state, rangeNum);
-    const factor = e.deltaY > 0 ? 1.12 : 1 / 1.12;
-    const half = (span * factor) / 2;
-    const ts = getTargetScale(rangeNum);
-    zoomStateByRange[rangeNum] = clampZoomWindow(
-      rangeNum,
-      ts.centerX - half, ts.centerX + half,
-      ts.centerY - half, ts.centerY + half
+    if (!e.deltaY) return;
+    const n = currentRangeNum();
+    const svg = getSvg();
+    if (!Number.isFinite(n) || !svg) return;
+    const factor = wheelZoomFactor(e);
+    if (factor === 1) return;
+    const state = getState(n, svg);
+    const pt = clientToSvg(svg, e.clientX, e.clientY);
+    const key = currentViewKey(n, svg);
+    userZoomedByRange[key] = true;
+    zoomStateByRange[key] = zoomWindowAround(
+      n, state, factor,
+      pt && pt.x, pt && pt.y
     );
-    applyViewBox(getSvg(), zoomStateByRange[rangeNum], rangeNum);
+    applyViewBox(svg, zoomStateByRange[key], n);
   }, { passive: false });
 
+  let pan = null;
+
+  viewport.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const n = currentRangeNum();
+    const svg = getSvg();
+    if (!Number.isFinite(n) || !svg) return;
+    pan = { pointerId: e.pointerId, lastX: e.clientX, lastY: e.clientY, moved: false };
+    try { viewport.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  viewport.addEventListener('pointermove', (e) => {
+    if (!pan || e.pointerId !== pan.pointerId) return;
+    const n = currentRangeNum();
+    const svg = getSvg();
+    if (!Number.isFinite(n) || !svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const state = getState(n, svg);
+    const dxPx = e.clientX - pan.lastX;
+    const dyPx = e.clientY - pan.lastY;
+    if (!pan.moved && (dxPx * dxPx + dyPx * dyPx) < 9) return;
+    pan.moved = true;
+    viewport.classList.add('is-panning');
+    const dx = -(dxPx * state.w / rect.width);
+    const dy = -(dyPx * state.h / rect.height);
+    const key = currentViewKey(n, svg);
+    userZoomedByRange[key] = true;
+    zoomStateByRange[key] = panZoomWindow(n, state, dx, dy);
+    applyViewBox(svg, zoomStateByRange[key], n);
+    pan.lastX = e.clientX;
+    pan.lastY = e.clientY;
+  });
+
+  function endPan(e) {
+    if (!pan || (e && e.pointerId !== pan.pointerId)) return;
+    pan = null;
+    viewport.classList.remove('is-panning');
+  }
+  viewport.addEventListener('pointerup', endPan);
+  viewport.addEventListener('pointercancel', endPan);
+
   viewport.addEventListener('dblclick', () => {
-    zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
-    userZoomedByRange[rangeNum] = false;
-    pinFullUntilNewShotByRange[rangeNum] = true;
-    applyViewBox(getSvg(), zoomStateByRange[rangeNum], rangeNum);
+    const n = currentRangeNum();
+    const svg = getSvg();
+    if (!Number.isFinite(n) || !svg) return;
+    const key = currentViewKey(n, svg);
+    zoomStateByRange[key] = fullDiskZoom(n);
+    userZoomedByRange[key] = false;
+    pinFullUntilNewShotByRange[key] = true;
+    applyViewBox(svg, zoomStateByRange[key], n);
   });
 }
 
@@ -1148,28 +1369,30 @@ function renderTarget(container, rangeData, isWarmup, opts) {
   }
   const shotsGroup = svg.querySelector('.target-shots');
   if (!shotsGroup) return;
+  svg.dataset.viewKey = viewKey(rangeData, rangeNum);
 
+  const key = svg.dataset.viewKey;
   const shots = shotsForDisplay(rangeData);
-  const focusingSeries = seriesFocusByRange[rangeNum] != null;
-  const prevLen = prevShotsLengthByRange[rangeNum] ?? 0;
+  const focusingSeries = seriesFocusByRange[key] != null;
+  const prevLen = prevShotsLengthByRange[key] ?? 0;
   const currentLen = shots.length;
   const warmupFlag = !!(isWarmup != null ? isWarmup : rangeData.isWarmup);
-  const wasWarmup = prevIsWarmupByRange[rangeNum];
+  const wasWarmup = prevIsWarmupByRange[key];
   const shotsCleared = currentLen < prevLen;
   const warmupChanged = wasWarmup !== undefined && wasWarmup !== warmupFlag;
 
   if (shotsCleared || warmupChanged) {
-    resetRangeZoom(rangeNum);
+    resetRangeZoom(key, rangeNum);
   }
   if (currentLen > prevLen && !focusingSeries) {
-    pinFullUntilNewShotByRange[rangeNum] = false;
+    pinFullUntilNewShotByRange[key] = false;
   }
 
-  if (currentLen === 0 || (!focusingSeries && pinFullUntilNewShotByRange[rangeNum])) {
-    if (!userZoomedByRange[rangeNum]) {
-      zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
+  if (currentLen === 0 || (!focusingSeries && pinFullUntilNewShotByRange[key])) {
+    if (!userZoomedByRange[key]) {
+      zoomStateByRange[key] = fullDiskZoom(rangeNum);
     }
-  } else if (!userZoomedByRange[rangeNum]) {
+  } else if (!userZoomedByRange[key]) {
     // Game plugins (Autorennen) keep classic Scheibe fidelity: full scoring disk, never ring-8 auto-zoom.
     // Only widen when a shot falls outside the scoring disk.
     if (pinFullDisk) {
@@ -1180,30 +1403,30 @@ function renderTarget(container, rangeData, isWarmup, opts) {
           z = fitted;
         }
       }
-      zoomStateByRange[rangeNum] = z;
+      zoomStateByRange[key] = z;
     } else {
-      zoomStateByRange[rangeNum] = computeAutoFit(shots, rangeNum);
+      zoomStateByRange[key] = computeAutoFit(shots, rangeNum);
     }
   } else {
-    const state = zoomStateByRange[rangeNum];
+    const state = zoomStateByRange[key];
     const latest = shots[shots.length - 1];
     if (latest) {
       const pt = dsgToSvg(Number(latest.x), Number(latest.y), rangeNum);
       if (shotOutsideView(pt, state, rangeNum)) {
         const fitted = computeAutoFit(shots, rangeNum);
         if (viewSpan(fitted, rangeNum) > viewSpan(state, rangeNum)) {
-          zoomStateByRange[rangeNum] = fitted;
+          zoomStateByRange[key] = fitted;
         }
       }
     }
   }
-  prevShotsLengthByRange[rangeNum] = currentLen;
-  prevIsWarmupByRange[rangeNum] = warmupFlag;
+  prevShotsLengthByRange[key] = currentLen;
+  prevIsWarmupByRange[key] = warmupFlag;
 
-  if (!zoomStateByRange[rangeNum] || zoomStateByRange[rangeNum].w == null) {
-    zoomStateByRange[rangeNum] = fullDiskZoom(rangeNum);
+  if (!zoomStateByRange[key] || zoomStateByRange[key].w == null) {
+    zoomStateByRange[key] = fullDiskZoom(rangeNum);
   }
-  applyViewBox(svg, zoomStateByRange[rangeNum], rangeNum);
+  applyViewBox(svg, zoomStateByRange[key], rangeNum);
   setupZoomHandlers(container, rangeNum);
   upsertShotCircles(shotsGroup, shots, rangeNum);
   container.classList.toggle('series-focus', focusingSeries);
@@ -1263,12 +1486,12 @@ function liveRangeData(rangeNum) {
 }
 
 /** Map a last-10 bar index to the shot currently drawn on the scheibe (−1 if that bar is not on the disk). */
-function chartBarToShotIndex(rangeNum, barIdx) {
+function chartBarToShotIndex(rangeNum, barIdx, rangeData) {
   if (barIdx == null || !Number.isFinite(barIdx) || barIdx < 0) return -1;
-  const live = liveRangeData(rangeNum);
-  if (!live) return barIdx;
-  const shots = shotsForDisplay(live);
-  const values = last10ForDisplay(live);
+  const src = rangeData || liveRangeData(rangeNum);
+  if (!src) return barIdx;
+  const shots = shotsForDisplay(src);
+  const values = last10ForDisplay(src);
   if (!shots.length) return -1;
   if (values.length === shots.length) {
     return barIdx < shots.length ? barIdx : -1;
@@ -1345,7 +1568,7 @@ function paintShotHoverOnGroup(shotsGroup, rangeNum, shotIdx) {
   const cx = parseFloat(fill.getAttribute('cx'));
   const cy = parseFloat(fill.getAttribute('cy'));
   const r = parseFloat(fill.getAttribute('r')) || 2.25;
-  const z = zoomStateByRange[rangeNum];
+  const z = zoomStateByRange[viewKeyFromSvg(shotsGroup.ownerSVGElement, rangeNum)];
   const span = z && z.w ? z.w : (getTargetScale(rangeNum).svgSize || 200);
   const fontSize = Math.max(2.2, span * 0.055);
   overlay.halo.setAttribute('cx', String(cx));
@@ -1401,8 +1624,9 @@ function paintChartBarHover(container, barIdx) {
 function paintHoverForRange(rangeNum) {
   if (!Number.isFinite(rangeNum)) return;
   const barIdx = hoverBarIdxByRange[rangeNum];
-  const shotIdx = barIdx == null ? -1 : chartBarToShotIndex(rangeNum, barIdx);
   forEachRangeHost(rangeNum, function (host) {
+    const data = host._paintedRange || liveRangeData(rangeNum);
+    const shotIdx = barIdx == null ? -1 : chartBarToShotIndex(rangeNum, barIdx, data);
     host.querySelectorAll('.target-shots').forEach(function (g) {
       paintShotHoverOnGroup(g, rangeNum, shotIdx);
     });
@@ -1441,8 +1665,9 @@ function wireLast10ChartHover(container, rangeNum) {
   });
 }
 
-function renderLast10Chart(container, last10Values, rangeNum) {
+function renderLast10Chart(container, last10Values, rangeNum, rangeData) {
   if (!container) return;
+  if (rangeData) container.dataset.viewKey = viewKey(rangeData, rangeNum);
   const colors = getChartColors();
   const shotColors = getShotOrderColors();
   const values = (last10Values || []).map(Number).filter((n) => !Number.isNaN(n));
@@ -1547,14 +1772,14 @@ function seriesShotsForFocus(rangeData, focus) {
 
 /** Triangle follows the series on the target: Probe review or live warmup. */
 function displayIsWarmup(rangeData) {
-  const focus = rangeData && seriesFocusByRange[rangeData.rangeNum];
+  const focus = rangeData && seriesFocusByRange[focusKey(rangeData)];
   if (focus != null) return (focus.kind || 'comp') === 'warmup';
   return !!(rangeData && rangeData.isWarmup);
 }
 
 /** Shots currently drawn on the target (live or a reviewed completed series). */
 function shotsForDisplay(rangeData) {
-  const focus = seriesFocusByRange[rangeData.rangeNum];
+  const focus = seriesFocusByRange[focusKey(rangeData)];
   if (focus != null) {
     const series = seriesShotsForFocus(rangeData, focus);
     if (series && series.length) return series;
@@ -1564,7 +1789,7 @@ function shotsForDisplay(rangeData) {
 
 /** Bar-chart values for the shots currently shown (series focus or live last-10). */
 function last10ForDisplay(rangeData) {
-  const focus = seriesFocusByRange[rangeData.rangeNum];
+  const focus = seriesFocusByRange[focusKey(rangeData)];
   if (focus != null) {
     const series = seriesShotsForFocus(rangeData, focus);
     if (series && series.length) {
@@ -1577,54 +1802,59 @@ function last10ForDisplay(rangeData) {
 /** Drop series review when a newer shot arrives or the series list no longer has that index. */
 function syncSeriesFocus(rangeData) {
   if (!rangeData) return;
+  const key = focusKey(rangeData);
   const n = rangeData.rangeNum;
-  const focus = seriesFocusByRange[n];
+  const focus = seriesFocusByRange[key];
   if (!focus) return;
   if ((rangeData.shotNumber || 0) > focus.atShotNumber) {
-    delete seriesFocusByRange[n];
-    userZoomedByRange[n] = false;
-    pinFullUntilNewShotByRange[n] = false;
-    resetRangeZoom(n);
+    delete seriesFocusByRange[key];
+    userZoomedByRange[key] = false;
+    pinFullUntilNewShotByRange[key] = false;
+    resetRangeZoom(key, n);
     return;
   }
   if (focus.live) {
     if (!((rangeData.shots || []).length)) {
-      delete seriesFocusByRange[n];
-      userZoomedByRange[n] = false;
-      resetRangeZoom(n);
+      delete seriesFocusByRange[key];
+      userZoomedByRange[key] = false;
+      resetRangeZoom(key, n);
     }
     return;
   }
   const series = seriesShotsForFocus(rangeData, focus);
   if (focus.index < 0 || !(series || []).length) {
-    delete seriesFocusByRange[n];
-    userZoomedByRange[n] = false;
-    resetRangeZoom(n);
+    delete seriesFocusByRange[key];
+    userZoomedByRange[key] = false;
+    resetRangeZoom(key, n);
   }
 }
 
 function setSeriesFocus(rangeNum, index, rangeData, live, kind) {
+  const data = (rangeNum && typeof rangeNum === 'object') ? rangeNum : rangeData;
+  const key = focusKey(data, data && data.rangeNum);
+  const n = data && data.rangeNum;
   const k = kind || 'comp';
-  const cur = seriesFocusByRange[rangeNum];
+  const cur = seriesFocusByRange[key];
   if (cur && cur.index === index && !!cur.live === !!live && (cur.kind || 'comp') === k) {
-    delete seriesFocusByRange[rangeNum];
+    delete seriesFocusByRange[key];
   } else {
-    seriesFocusByRange[rangeNum] = {
+    seriesFocusByRange[key] = {
       index: index,
       kind: k,
       live: !!live,
-      atShotNumber: rangeData.shotNumber || 0
+      atShotNumber: (data && data.shotNumber) || 0
     };
   }
   // Force autofit for the newly shown set.
-  userZoomedByRange[rangeNum] = false;
-  pinFullUntilNewShotByRange[rangeNum] = false;
-  resetRangeZoom(rangeNum);
+  userZoomedByRange[key] = false;
+  pinFullUntilNewShotByRange[key] = false;
+  resetRangeZoom(key, n);
 }
 
-function paintSeriesFocusActive(footerEl, rangeNum) {
+function paintSeriesFocusActive(footerEl, rangeData) {
   if (!footerEl) return;
-  const focus = seriesFocusByRange[rangeNum];
+  const data = (rangeData && typeof rangeData === 'object') ? rangeData : { rangeNum: rangeData };
+  const focus = seriesFocusByRange[focusKey(data)];
   footerEl.querySelectorAll('.serien-col').forEach(function (btn) {
     const idx = parseInt(btn.dataset.seriesIdx, 10);
     const kind = btn.getAttribute('data-series-kind') || 'comp';
@@ -1647,12 +1877,9 @@ function wireSeriesClicks(footerEl, rangeData) {
     const kind = btn.getAttribute('data-series-kind') || 'comp';
     const series = seriesShotsForFocus(rangeData, { index: idx, live: isLive, kind: kind });
     if (!series || !series.length) return;
-    setSeriesFocus(rangeData.rangeNum, idx, rangeData, isLive, kind);
-    // Re-paint this stand from the latest live payload (keeps header/footer in sync).
-    const live = lastLiveData && (lastLiveData.ranges || []).find(function (r) {
-      return r.rangeNum === rangeData.rangeNum;
-    });
-    const data = live || rangeData;
+    setSeriesFocus(rangeData, idx, rangeData, isLive, kind);
+    // Frozen Analyse results keep their snapshot. Live stands refresh from the lane payload.
+    const data = rangeDataForRepaint(rangeData);
     const mount = footerEl.closest('.classic-range-view') || footerEl.closest('.range-plugin-view');
     const panel = footerEl.closest('.range-panel');
     if (mount && mount.classList.contains('classic-range-view')) {
@@ -1660,7 +1887,7 @@ function wireSeriesClicks(footerEl, rangeData) {
     } else if (panel) {
       const targetEl = panel.querySelector('.range-target');
       if (targetEl) renderTarget(targetEl, data, data.isWarmup);
-      paintSeriesFocusActive(footerEl, data.rangeNum);
+      paintSeriesFocusActive(footerEl, data);
     }
   };
 }
@@ -1799,7 +2026,7 @@ function renderFooter(rangeData) {
         const hasShots = (col.shots && col.shots.length) || col.live;
         const pad = showDec && intV !== '' ? '<span class="serien-frac-slot" aria-hidden="true">.0</span>' : '';
         const tag = hasShots ? 'button' : 'span';
-        const reviewing = seriesFocusByRange[rangeData.rangeNum] != null;
+        const reviewing = seriesFocusByRange[focusKey(rangeData)] != null;
         const current = !reviewing && i === colsModel.currentIdx;
         const warmupCls = col.kind === 'warmup' ? ' serien-warmup' : '';
         const titleKind = col.kind === 'warmup' ? 'Probeserie ' : 'Serie ';
@@ -1875,8 +2102,10 @@ function rangeChromeSignature(r) {
     r.predictionDecimal,
     r.isWarmup ? 1 : 0,
     (r.warmupShots || []).length,
+    r.sessionResultId || r.resultId || '',
+    r.sessionResultLive === false ? 0 : 1,
     (function () {
-      const f = seriesFocusByRange[r.rangeNum];
+      const f = seriesFocusByRange[focusKey(r)];
       return f ? ((f.kind || 'comp') + ':' + f.index + ':' + (f.live ? 1 : 0)) : '';
     })(),
     r.shooterName || '',
@@ -1946,13 +2175,18 @@ if (typeof document !== 'undefined') {
       const panel = wrap.closest('[data-range]');
       const rangeNum = panel ? parseInt(panel.dataset.range, 10) : NaN;
       let values = null;
-      if (lastLiveData && lastLiveData.ranges) {
+      let rangeData = panel && panel._paintedRange;
+      if (rangeData) values = last10ForDisplay(rangeData);
+      else if (lastLiveData && lastLiveData.ranges) {
         const r = lastLiveData.ranges.find(function (x) {
           return x.rangeNum === rangeNum;
         });
-        if (r) values = last10ForDisplay(r);
+        if (r) {
+          rangeData = r;
+          values = last10ForDisplay(r);
+        }
       }
-      renderLast10Chart(wrap, values, rangeNum);
+      renderLast10Chart(wrap, values, rangeNum, rangeData);
     });
   });
 }
@@ -2015,6 +2249,8 @@ function fillRangeHeader(header, rangeData) {
     qrBtn.dataset.range = String(rangeData.rangeNum || '');
     if (rangeData.sessionResultId) {
       qrBtn.dataset.result = String(rangeData.sessionResultId);
+    } else if (rangeData.resultId) {
+      qrBtn.dataset.result = String(rangeData.resultId);
     } else {
       delete qrBtn.dataset.result;
     }
@@ -2121,11 +2357,12 @@ function renderRangePanel(rangeData) {
   syncSeriesFocus(rangeData);
   renderTarget(targetContainer, rangeData, rangeData.isWarmup);
   wireSeriesClicks(footer, rangeData);
-  paintSeriesFocusActive(footer, rangeData.rangeNum);
+  paintSeriesFocusActive(footer, rangeData);
   if (showLast10) {
     const chartWrap = panel.querySelector('.last10-chart-wrap');
-    if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum);
+    if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum, rangeData);
   }
+  rememberPaintedRange(panel, rangeData);
   panel.dataset.chromeSig = rangeChromeSignature(rangeData);
 
   return panel;
@@ -2150,6 +2387,7 @@ function stripLegacyPanelChrome(panel) {
 
 function renderClassicRangeView(container, rangeData, opts) {
   if (!container || !rangeData) return;
+  rememberPaintedRange(container, rangeData);
 
   // Drop leftover markup from another plugin (e.g. autorennen) before painting.
   if (
@@ -2188,7 +2426,7 @@ function renderClassicRangeView(container, rangeData, opts) {
       if (footerEl) container.insertBefore(chartWrap, footerEl);
       else container.appendChild(chartWrap);
     }
-    renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum);
+    renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum, rangeData);
   } else if (chartWrap) {
     chartWrap.remove();
   }
@@ -2203,12 +2441,14 @@ function renderClassicRangeView(container, rangeData, opts) {
   footerEl.innerHTML = renderFooter(rangeData);
   footerEl.dataset.seriesN = String(seriesN);
   wireSeriesClicks(footerEl, rangeData);
-  paintSeriesFocusActive(footerEl, rangeData.rangeNum);
+  paintSeriesFocusActive(footerEl, rangeData);
   renderTarget(targetEl, rangeData, rangeData.isWarmup, opts);
 }
 
 function syncRangePanel(panel, r) {
   if (!panel || !r) return;
+  if (isFrozenSessionView(panel)) return;
+  rememberPaintedRange(panel, r);
   // Plugin mounts own target/chart/footer — never paint a second copy on the panel.
   if (panel.classList.contains('plugin-hosted') || panel.querySelector(':scope > .range-plugin-view')) {
     stripLegacyPanelChrome(panel);
@@ -2232,7 +2472,7 @@ function syncRangePanel(panel, r) {
     footerEl.innerHTML = renderFooter(r);
     footerEl.dataset.seriesN = String(seriesN);
     wireSeriesClicks(footerEl, r);
-    paintSeriesFocusActive(footerEl, r.rangeNum);
+    paintSeriesFocusActive(footerEl, r);
   }
   if (showLast10) {
     let chartWrap = panel.querySelector('.last10-chart-wrap');
@@ -2241,7 +2481,7 @@ function syncRangePanel(panel, r) {
       chartWrap.className = 'last10-chart-wrap';
       panel.insertBefore(chartWrap, footerEl);
     }
-    renderLast10Chart(chartWrap, last10ForDisplay(r), r.rangeNum);
+    renderLast10Chart(chartWrap, last10ForDisplay(r), r.rangeNum, r);
   } else {
     const chartWrap = panel.querySelector('.last10-chart-wrap');
     if (chartWrap) chartWrap.remove();

@@ -4,7 +4,9 @@
 
 - **Wettkampf (Classic Range Condensed)** — extra Kachel rechts neben den Bahnen: Mannschaften mit Summe, Prognose und `n/Soll`. Bahnwahl-Häkchen **Wettkampf** (nur CRC). Bahn-Reset löscht die Kachel nicht.
 - **Mannschaften** — Zuordnung über UDP-Team oder Verein, Zahnrad auf der Kachel. Mehrere Mannschaften desselben Vereins bekommen eigene Kopffarben; die Bahnköpfe folgen der Mannschaft. Schützen **ohne Mannschaft** bleiben unter ihrem Verein, zählen nicht zur Summe.
-- **Analyse** — Plugin zeigt eingefrorene Session-Ergebnisse nacheinander in der Classic-Range-Ansicht; ein neuer Schütze auf der Bahn überschreibt den gespeicherten Start nicht.
+- **Analyse** — Plugin zeigt eingefrorene Session-Ergebnisse nacheinander in der Classic-Range-Ansicht. Schließt der Schütze auf derselben Bahn neu, bleibt der abgeschlossene Start wählbar; Zoom, Serien und Scheibe mischen sich nicht mit dem neuen Start.
+- **Scheiben-Zoom** — Mausrad zoomt in feinen Schritten auf den Zeiger statt 12 % pro Tick in die Mitte. Ziehen verschiebt den Ausschnitt (Analyse, Classic, Condensed).
+- **Hallen-Raster** — 5 aktive Bahnen legen sich 3+2, nicht mehr als eine Spalte winziger Scheiben. Compact blendet Classic/Condensed-Scheiben aus.
 - **Disziplin manuell** — Classic und Condensed: auf das Disziplin-Label tippen, Liste Automatisch / LG / LG Auflage / LP / LP Auflage / KK. Korrigiert falsche Programme auf der Bahn (Scheibe, Ganz/Dezimal). Gilt bis Schütze- oder Programmwechsel. Das OpticScore-Label bleibt, wenn die Familie schon stimmt (`LG 40 Schuss` bleibt `LG 40 Schuss`).
 - **Scheibe pro Disziplin** — Einstellungen mappt LG / LP / KK auf Scheibenprofile. Die alten pro-Bahn-Scheiben entfallen.
 - **Programmlänge** — Schusszahl aus OpticScore (`LG 20/40 Schuss`, LGA 30, LP 40, LPA 30, KK `3x20` / `3x40` / `20/20/20`). `unbegrenzt` zählt in der Halle als 100.

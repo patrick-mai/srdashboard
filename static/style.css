@@ -1884,6 +1884,24 @@ body.config-display {
   display: none !important;
 }
 
+/* Compact hall: score list without Scheibe (CRC / Classic, same as game plugins). */
+body.compact-display #ranges-grid {
+  align-content: start;
+  overflow: auto;
+}
+body.compact-display .range-panel {
+  height: auto;
+}
+body.compact-display .range-plugin-view.crc-view .range-target,
+body.compact-display .range-plugin-view.classic-range-view .range-target,
+body.compact-display .range-plugin-view.classic-range-view .last10-chart-wrap {
+  display: none !important;
+}
+body.compact-display .range-plugin-view.crc-view,
+body.compact-display .range-plugin-view.classic-range-view {
+  flex: 0 0 auto;
+}
+
 .range-header {
   padding: 8px 12px 6px;
   background: linear-gradient(180deg, var(--panel-strong), var(--panel));
@@ -2375,11 +2393,15 @@ body.config-display {
   position: relative;
   overflow: hidden;
   cursor: grab;
+  touch-action: none;
   container-type: size;
   display: grid;
   place-items: center;
   background:
     radial-gradient(circle at 50% 50%, var(--target-mat-inner), var(--target-mat-outer));
+}
+.range-target.is-panning {
+  cursor: grabbing;
 }
 
 /* Largest square that fits the panel — keeps the ISSF disk centered without letterbox skew */

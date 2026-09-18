@@ -149,17 +149,25 @@ func (h *Host) Control(action string, params map[string]any) {
 
 func (h *Host) Fire(rangeNum int, dec float64) {
 	h.T.Helper()
+	h.firePacket(rangeNum, dec, udp.ShotPacketOpts{})
+}
+
+func (h *Host) firePacket(rangeNum int, dec float64, opts udp.ShotPacketOpts) {
+	h.T.Helper()
 	before := h.Live.ShotNumber(rangeNum)
 	x, y, dist := udp.PlaceShot(dec, rangeNum*100+before+1)
-	data, err := udp.BuildShotPacket(udp.ShotPacketOpts{
-		Range:    rangeNum,
-		X:        x,
-		Y:        y,
-		Distance: dist,
-		DecValue: dec,
-		DiscType: "LG",
-		ShotAt:   time.Now(),
-	})
+	opts.Range = rangeNum
+	opts.X = x
+	opts.Y = y
+	opts.Distance = dist
+	opts.DecValue = dec
+	if opts.DiscType == "" {
+		opts.DiscType = "LG"
+	}
+	if opts.ShotAt.IsZero() {
+		opts.ShotAt = time.Now()
+	}
+	data, err := udp.BuildShotPacket(opts)
 	if err != nil {
 		h.T.Fatalf("build shot: %v", err)
 	}
