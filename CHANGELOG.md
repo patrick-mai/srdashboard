@@ -4,15 +4,15 @@
 
 - **Wettkampf (Classic Range Condensed)** — extra Kachel rechts neben den Bahnen: Mannschaften mit Summe, Prognose und `n/Soll`. Bahnwahl-Häkchen **Wettkampf** (nur CRC). Bahn-Reset löscht die Kachel nicht.
 - **Mannschaften** — Zuordnung über UDP-Team oder Verein, Zahnrad auf der Kachel. Mehrere Mannschaften desselben Vereins bekommen eigene Kopffarben; die Bahnköpfe folgen der Mannschaft. Schützen **ohne Mannschaft** bleiben unter ihrem Verein, zählen nicht zur Summe.
-- **Probe** — Einschießen zählt nicht zur Wettkampf-Summe; erst Wertungsschüsse.
-- **Neue Session** — ein Prozessstart beginnt mit leerer Wettkampf-Kachel (`wettkampf.xml` wird nicht wieder geladen). Während der Session bleiben die Ergebnisse beim Bahn-Reset.
 - **Analyse** — Plugin zeigt eingefrorene Session-Ergebnisse nacheinander in der Classic-Range-Ansicht; ein neuer Schütze auf der Bahn überschreibt den gespeicherten Start nicht.
 - **Disziplin manuell** — Classic und Condensed: auf das Disziplin-Label tippen, Liste Automatisch / LG / LG Auflage / LP / LP Auflage / KK. Korrigiert falsche Programme auf der Bahn (Scheibe, Ganz/Dezimal). Gilt bis Schütze- oder Programmwechsel. Das OpticScore-Label bleibt, wenn die Familie schon stimmt (`LG 40 Schuss` bleibt `LG 40 Schuss`).
 - **Scheibe pro Disziplin** — Einstellungen mappt LG / LP / KK auf Scheibenprofile. Die alten pro-Bahn-Scheiben entfallen.
 - **Programmlänge** — Schusszahl aus OpticScore (`LG 20/40 Schuss`, LGA 30, LP 40, LPA 30, KK `3x20` / `3x40` / `20/20/20`). `unbegrenzt` zählt in der Halle als 100.
 - **HR** — Condensed-Footer: Hochrechnung statt des langen Prognose-Worts.
 - **Tannebaum** — ein Treffer fällt zuerst die präziseste noch erreichbare eigene Nadel (auch kleinere offene auf derselben Stufe). Geschenk erst, wenn der eigene Baum darunter nichts mehr braucht.
-- **Stand-Tablette** — Spiel-Legenden in der Fußzeile auf deckendem Grund, damit der Text über der Szene lesbar bleibt.
+- **Tablet View Footer**— Spiel-Legenden in der Fußzeile auf deckendem Grund, damit der Text über der Szene lesbar bleibt.
+
+
 
 ## v0.3
 
