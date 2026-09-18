@@ -213,15 +213,306 @@ function isWettkampfPanel(panel) {
 function resolveTargetProfileId(rangeNum, rangeData) {
   const cfg = pluginTargetConfig || {};
   const map = cfg.disciplineTargets || {};
-  // Live OpticScore discipline / DiscType wins over static per-range defaults
-  // (e.g. LG on a stand that is usually LP in rangeTargets).
+  const family = effectiveFamily(rangeData);
+  const fromFamily = family && profileForFamily(map, family);
+  if (fromFamily) return fromFamily;
   const profile = profileFromDisciplineMap(map, rangeData);
   if (profile) return profile;
-  const rangeTargets = cfg.rangeTargets || {};
-  const rt = rangeTargets[String(rangeNum)] || rangeTargets[rangeNum];
-  if (rt && typeof rt === 'object' && rt.targetProfile) return rt.targetProfile;
+  if (family === 'lp') return 'air_pistol_10m';
+  if (family === 'kk') return 'smallbore_50m_prone';
+  if (family === 'lg') return 'air_rifle_10m';
   return cfg.defaultTargetProfile || 'air_rifle_10m';
 }
+
+const PROGRAM_SPECS = [
+  { id: 'lg', family: 'lg', decimal: false, label: 'LG', chip: 'LG' },
+  { id: 'lga', family: 'lg', decimal: true, label: 'LG Auflage', chip: 'LGA' },
+  { id: 'lp', family: 'lp', decimal: false, label: 'LP', chip: 'LP' },
+  { id: 'lpa', family: 'lp', decimal: true, label: 'LP Auflage', chip: 'LPA' },
+  { id: 'kk', family: 'kk', decimal: false, label: 'KK', chip: 'KK' }
+];
+const PROGRAM_BY_ID = {};
+PROGRAM_SPECS.forEach(function (p) { PROGRAM_BY_ID[p.id] = p; });
+
+const FAMILY_ALIAS_KEYS = {
+  lg: ['LG', 'Luftgewehr'],
+  lp: ['LP', 'Luftpistole'],
+  kk: ['KK', 'KK-Gewehr', 'Kleinkaliber']
+};
+
+const disciplineOverrideByRange = {};
+const disciplineOverrideSigByRange = {};
+let disciplineMenuRange = 0;
+
+function canControlDisplay() {
+  return !(window.SRMode && window.SRMode.canControl === false);
+}
+
+function isAuflageText(label) {
+  return /auflage|aufgelegt/i.test(String(label || ''));
+}
+
+function parseShotCountLabel(label) {
+  const s = String(label || '');
+  const low = s.toLowerCase();
+  if (!s) return 0;
+  if (low.indexOf('unbegrenzt') !== -1) return 100;
+  const times = low.match(/(\d{1,2})\s*[x×]\s*(\d{1,2})/);
+  if (times) {
+    const n = parseInt(times[1], 10) * parseInt(times[2], 10);
+    return n >= 1000 ? 100 : n;
+  }
+  const triple = low.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
+  if (triple) {
+    const n = parseInt(triple[1], 10) + parseInt(triple[2], 10) + parseInt(triple[3], 10);
+    return n >= 1000 ? 100 : n;
+  }
+  const m = s.match(/(\d+)\s*schuss/i);
+  if (!m) return 0;
+  const n = parseInt(m[1], 10);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n >= 1000 ? 100 : n;
+}
+
+function shotCountFromProgram(rangeData) {
+  const n = Number(rangeData && rangeData.totalShotsToFire);
+  if (n >= 1000) return 100;
+  if (n > 0) return n;
+  return parseShotCountLabel((rangeData && rangeData.discipline) || '');
+}
+
+function detectFamily(rangeData) {
+  if (!rangeData) return '';
+  const disc = String(rangeData.discType || rangeData.DiscType || '').toUpperCase();
+  const label = String(rangeData.discipline || '').toLowerCase();
+  if (disc.indexOf('LP') === 0 || /(^|[^a-z])lp([^a-z]|$)/.test(label) || label.indexOf('luftpistole') !== -1) return 'lp';
+  if (disc.indexOf('KK') === 0 || /(^|[^a-z])kk([^a-z]|$)/.test(label) || label.indexOf('kleinkaliber') !== -1) return 'kk';
+  if (disc.indexOf('LG') === 0 || /(^|[^a-z])lg([^a-z]|$)/.test(label) || label.indexOf('luftgewehr') !== -1) return 'lg';
+  if (isAuflageText(label)) return 'lg';
+  return '';
+}
+
+function detectProgramId(rangeData) {
+  const disc = String((rangeData && (rangeData.discType || rangeData.DiscType)) || '').toUpperCase();
+  const family = detectFamily(rangeData);
+  const auflage = disc === 'LGA' || disc === 'LPA' || disc === 'KKA' ||
+    isAuflageText(rangeData && rangeData.discipline);
+  if (family === 'lp') return auflage ? 'lpa' : 'lp';
+  if (family === 'kk') return 'kk';
+  if (family === 'lg') return auflage ? 'lga' : 'lg';
+  return '';
+}
+
+function disciplineOverrideSig(rangeData) {
+  return [
+    rangeData && rangeData.rangeNum || 0,
+    rangeData && rangeData.shooterName || '',
+    rangeData && rangeData.discipline || '',
+    rangeData && rangeData.discType || '',
+    rangeData && rangeData.totalShotsToFire || 0
+  ].join('|');
+}
+
+function syncDisciplineOverride(rangeData) {
+  if (!rangeData || rangeData.rangeNum == null) return 'auto';
+  const n = rangeData.rangeNum;
+  const sig = disciplineOverrideSig(rangeData);
+  if (!rangeData.shooterName) {
+    disciplineOverrideSigByRange[n] = sig;
+    disciplineOverrideByRange[n] = 'auto';
+    if (disciplineMenuRange === n) closeDisciplineMenu();
+    return 'auto';
+  }
+  if (disciplineOverrideSigByRange[n] !== sig) {
+    disciplineOverrideSigByRange[n] = sig;
+    disciplineOverrideByRange[n] = 'auto';
+    if (disciplineMenuRange === n) closeDisciplineMenu();
+  }
+  return disciplineOverrideByRange[n] || 'auto';
+}
+
+function effectiveProgramId(rangeData) {
+  const mode = syncDisciplineOverride(rangeData);
+  if (mode && mode !== 'auto') return mode;
+  return detectProgramId(rangeData);
+}
+
+function effectiveProgram(rangeData) {
+  return PROGRAM_BY_ID[effectiveProgramId(rangeData)] || null;
+}
+
+function effectiveFamily(rangeData) {
+  const p = effectiveProgram(rangeData);
+  return (p && p.family) || detectFamily(rangeData);
+}
+
+function effectiveDecimal(rangeData) {
+  const p = effectiveProgram(rangeData);
+  if (p) return p.decimal;
+  return isAuflageText(rangeData && rangeData.discipline);
+}
+
+function disciplineOverrideIsManual(rangeData) {
+  const mode = syncDisciplineOverride(rangeData);
+  if (!mode || mode === 'auto') return false;
+  const detected = detectProgramId(rangeData);
+  if (detected && mode === detected) return false;
+  return true;
+}
+
+function profileForFamily(map, family) {
+  const keys = FAMILY_ALIAS_KEYS[family] || [];
+  for (let i = 0; i < keys.length; i++) {
+    const id = map && map[keys[i]];
+    if (id) return id;
+  }
+  return null;
+}
+
+function formatDisciplineChip(rangeData) {
+  const p = effectiveProgram(rangeData);
+  if (!p) return '';
+  const n = shotCountFromProgram(rangeData);
+  return n > 0 ? p.chip + String(n) : p.chip;
+}
+
+function formatOpticScoreDiscipline(rangeData) {
+  const p = effectiveProgram(rangeData);
+  if (!p) return (rangeData && rangeData.discipline) || '';
+  const n = shotCountFromProgram(rangeData);
+  const auflage = p.id === 'lga' || p.id === 'lpa';
+  const code = p.family === 'lp' ? 'LP' : (p.family === 'kk' ? 'KK' : 'LG');
+  if (n <= 0) return auflage ? code + ' Auflage' : code;
+  return code + ' ' + n + ' Schuss' + (auflage ? ' Auflage' : '');
+}
+
+function formatDisciplineHeader(rangeData) {
+  if (disciplineOverrideIsManual(rangeData)) {
+    return formatOpticScoreDiscipline(rangeData);
+  }
+  return (rangeData && rangeData.discipline) || formatDisciplineChip(rangeData);
+}
+
+function liveRangeByNum(rangeNum) {
+  const live = lastLiveData;
+  return ((live && live.ranges) || []).find(function (r) {
+    return r.rangeNum === rangeNum;
+  }) || null;
+}
+
+function closeDisciplineMenu() {
+  const menu = document.getElementById('range-disc-menu');
+  if (menu) menu.hidden = true;
+  disciplineMenuRange = 0;
+  document.querySelectorAll('.range-disc-toggle[aria-expanded="true"]').forEach(function (el) {
+    el.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function ensureDisciplineMenu() {
+  let menu = document.getElementById('range-disc-menu');
+  if (menu) return menu;
+  menu = document.createElement('div');
+  menu.id = 'range-disc-menu';
+  menu.className = 'range-disc-menu';
+  menu.hidden = true;
+  let html = '<div class="range-disc-list" role="radiogroup" aria-label="Disziplin">';
+  html += '<label class="range-disc-opt"><input type="radio" name="range-disc-program" value="auto"> Automatisch</label>';
+  PROGRAM_SPECS.forEach(function (p) {
+    html += '<label class="range-disc-opt"><input type="radio" name="range-disc-program" value="' + p.id + '"> ' +
+      p.label + '</label>';
+  });
+  html += '</div>';
+  menu.innerHTML = html;
+  document.body.appendChild(menu);
+  menu.addEventListener('change', function (ev) {
+    const input = ev.target;
+    if (!input || input.name !== 'range-disc-program') return;
+    applyDisciplineOverride(disciplineMenuRange, input.value);
+  });
+  return menu;
+}
+
+function positionDisciplineMenu(menu, chip) {
+  const r = chip.getBoundingClientRect();
+  menu.style.left = 'auto';
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  const box = menu.getBoundingClientRect();
+  if (box.bottom > window.innerHeight - 8 && r.top > box.height + 8) {
+    menu.style.top = (r.top - box.height - 4) + 'px';
+  }
+  if (box.left < 8) {
+    menu.style.right = 'auto';
+    menu.style.left = '8px';
+  }
+}
+
+function openDisciplineMenu(chip) {
+  const n = parseInt(chip.getAttribute('data-range'), 10);
+  if (!Number.isFinite(n) || n < 1) return;
+  const menu = ensureDisciplineMenu();
+  const mode = disciplineOverrideByRange[n] || 'auto';
+  menu.querySelectorAll('input[name="range-disc-program"]').forEach(function (input) {
+    input.checked = input.value === mode;
+  });
+  document.querySelectorAll('.range-disc-toggle[aria-expanded="true"]').forEach(function (el) {
+    if (el !== chip) el.setAttribute('aria-expanded', 'false');
+  });
+  disciplineMenuRange = n;
+  menu.hidden = false;
+  chip.setAttribute('aria-expanded', 'true');
+  positionDisciplineMenu(menu, chip);
+  const focusEl = menu.querySelector('input:checked') || menu.querySelector('input');
+  if (focusEl) focusEl.focus();
+}
+
+function applyDisciplineOverride(rangeNum, mode) {
+  const n = Number(rangeNum);
+  if (!Number.isFinite(n) || n < 1) return;
+  if (mode !== 'auto' && !PROGRAM_BY_ID[mode]) return;
+  const rangeData = liveRangeByNum(n) || { rangeNum: n };
+  disciplineOverrideByRange[n] = mode || 'auto';
+  disciplineOverrideSigByRange[n] = disciplineOverrideSig(rangeData);
+  closeDisciplineMenu();
+  const panel = document.querySelector('.range-panel[data-range="' + n + '"]');
+  if (panel) delete panel.dataset.chromeSig;
+  updatePluginPanelHeader(n, rangeData);
+  const mount = panel && panel.querySelector('.range-plugin-view');
+  const hall = getHallPluginId();
+  if (mount && hall === 'classic-range-condensed' && window.SRClassicRangeCondensed) {
+    window.SRClassicRangeCondensed.fillHeader(panel.querySelector('.range-header'), rangeData);
+    window.SRClassicRangeCondensed.paint(mount, rangeData);
+  } else if (mount && hall !== 'classic-range-condensed' && typeof renderClassicRangeView === 'function') {
+    renderClassicRangeView(mount, rangeData);
+  }
+}
+
+document.addEventListener('click', function (ev) {
+  const menu = document.getElementById('range-disc-menu');
+  const chip = ev.target && ev.target.closest && ev.target.closest('.range-disc-toggle');
+  if (chip) {
+    if (!canControlDisplay()) return;
+    ev.preventDefault();
+    const n = parseInt(chip.getAttribute('data-range'), 10);
+    if (disciplineMenuRange === n && menu && !menu.hidden) {
+      closeDisciplineMenu();
+      return;
+    }
+    openDisciplineMenu(chip);
+    return;
+  }
+  if (menu && !menu.hidden && menu.contains(ev.target)) return;
+  if (menu && !menu.hidden) closeDisciplineMenu();
+});
+
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Escape') return;
+  const menu = document.getElementById('range-disc-menu');
+  if (!menu || menu.hidden) return;
+  ev.preventDefault();
+  closeDisciplineMenu();
+});
 
 /** Built-in OpticScore DiscType codes when plugin map has no match. */
 const DISC_TYPE_FALLBACKS = {
@@ -1591,6 +1882,7 @@ function rangeChromeSignature(r) {
     r.shooterName || '',
     r.clubName || '',
     r.discipline || '',
+    disciplineOverrideByRange[r.rangeNum] || 'auto',
     r.totalShotsToFire || 0,
     (r.seriesSumsInt || []).join(','),
     (r.seriesSums || []).join(','),
@@ -1699,7 +1991,7 @@ function fillRangeHeader(header, rangeData) {
 
     line3 = document.createElement('div');
     line3.className = 'range-header-line3';
-    line3.innerHTML = '<span class="range-discipline"></span><span class="range-stand"></span>';
+    line3.innerHTML = '<button type="button" class="range-discipline"></button><span class="range-stand"></span>';
     header.appendChild(line3);
   } else if (!header.querySelector('.range-qr-btn')) {
     const chip = header.querySelector('.range-shot-chip');
@@ -1749,7 +2041,7 @@ function fillRangeHeader(header, rangeData) {
 
   const line1 = header.querySelector('.range-header-line1');
   const clubEl = metaRow.querySelector('.range-club');
-  const discEl = line3.querySelector('.range-discipline');
+  let discEl = line3.querySelector('.range-discipline');
   const standEl = line3.querySelector('.range-stand');
   const shotMeta = metaRow.querySelector('.shot-meta');
 
@@ -1763,7 +2055,36 @@ function fillRangeHeader(header, rangeData) {
     clubEl.hidden = !h.line2;
   }
   metaRow.hidden = !h.line2 && !chip.meta;
-  if (discEl) discEl.textContent = h.line3;
+  if (discEl) {
+    if (discEl.tagName !== 'BUTTON') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = discEl.className || 'range-discipline';
+      discEl.replaceWith(btn);
+      discEl = btn;
+    }
+    const canToggle = canControlDisplay() && !!rangeData.shooterName;
+    const manual = disciplineOverrideIsManual(rangeData);
+    discEl.textContent = formatDisciplineHeader(rangeData);
+    discEl.title = canToggle
+      ? 'Disziplin. Tippen öffnet Automatisch / LG / LP / KK.'
+      : (formatDisciplineHeader(rangeData) || '');
+    discEl.classList.toggle('range-disc-toggle', canToggle);
+    discEl.classList.toggle('is-manual', manual);
+    discEl.disabled = !canToggle;
+    if (canToggle) {
+      discEl.dataset.range = String(rangeData.rangeNum || '');
+      discEl.setAttribute('aria-haspopup', 'true');
+      discEl.setAttribute('aria-expanded', disciplineMenuRange === rangeData.rangeNum ? 'true' : 'false');
+      discEl.setAttribute('aria-controls', 'range-disc-menu');
+      discEl.setAttribute('aria-label', discEl.title);
+    } else {
+      discEl.removeAttribute('data-range');
+      discEl.removeAttribute('aria-haspopup');
+      discEl.removeAttribute('aria-expanded');
+      discEl.removeAttribute('aria-controls');
+    }
+  }
   if (standEl) standEl.textContent = h.stand;
   line3.hidden = false;
   if (shotVal) paintShotValCanvas(shotVal, chip.val);
@@ -2101,6 +2422,12 @@ window.SRCore = {
   setTargetAssetBase,
   setPluginTargetConfig,
   dsgToSvg,
+  effectiveDecimal,
+  effectiveProgramId,
+  parseShotCountLabel,
+  formatDisciplineChip,
+  formatDisciplineHeader,
+  disciplineOverrideIsManual,
   openResultQR: openResultQRModal
 };
 

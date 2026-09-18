@@ -474,7 +474,12 @@ class Runner:
             if msg.type != "error":
                 return
             text = msg.text or ""
-            low = text.lower()
+            loc = ""
+            try:
+                loc = ((msg.location or {}) or {}).get("url") or ""
+            except Exception:
+                loc = ""
+            low = (text + " " + loc).lower()
             if "favicon" in low or "resizeobserver" in low:
                 return
             self.js_errors.append("%s console.error: %s" % (kind, text[:200]))
@@ -763,6 +768,7 @@ def main():
                 print("=== play %d/%d ===" % (play + 1, PLAYS))
                 r.play_classic("classic-range")
                 r.play_classic("classic-range-condensed")
+                r.play_classic("analyse")
                 r.play_ludo()
                 r.play_barrikade()
                 r.play_bingo()

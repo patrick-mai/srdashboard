@@ -346,6 +346,109 @@ func TestClassicCondensedHeaderSwitchDoesNotMixChrome(t *testing.T) {
 		"plugin-shell must await Classic paint the same way as Condensed")
 }
 
+func TestHallDisciplineOverrideMenu(t *testing.T) {
+	core := readRepoFile(t, "static", "target-core.js")
+	crc := readRepoFile(t, "plugins", "classic-range-condensed", "view.js")
+	crcCSS := readRepoFile(t, "plugins", "classic-range-condensed", "theme.css")
+	css := readRepoFile(t, "static", "style.css")
+
+	mustContain(t, core, "const PROGRAM_SPECS",
+		"Classic and Condensed share one program list (LG / LGA / LP / LPA / KK)")
+	mustContain(t, core, "id: 'lpa'",
+		"LP Auflage is a first-class program, not a LG-only special case")
+	mustContain(t, core, `id = 'range-disc-menu'`,
+		"one overlay menu serves both hall boards")
+	mustContain(t, core, `type="radio" name="range-disc-program" value="auto"`,
+		"the menu must offer Automatisch")
+	mustContain(t, core, "function applyDisciplineOverride",
+		"choosing a radio must set that Bahn's program until shooter or program changes")
+	mustContain(t, core, "disciplineOverrideByRange[n] = 'auto'",
+		"a new shooter or program must drop the manual override")
+	mustContain(t, core, "if (!rangeData.shooterName)",
+		"Bahn clear / kein Schütze must drop the override back to Auto")
+	mustContain(t, core, "function effectiveDecimal",
+		"Condensed Summe / HR / Serien follow the override, not only the Auflage regex")
+	mustContain(t, core, "function parseShotCountLabel",
+		"chip counts come from OpticScore MenuItem text (LG20/40, LGA30, LP40, LPA30, KK 3x20)")
+	mustContain(t, core, "unbegrenzt",
+		"unbegrenzt is a 100-shot hall program, not OpticScore's 1000-shot open end")
+	mustContain(t, core, "disc.indexOf('LP') === 0",
+		"DiscType LPA/LGA/KKA from UDP must select the family, not only LG/LP/KK")
+	mustContain(t, core, "function formatOpticScoreDiscipline",
+		"a real override must keep OpticScore wording (LG 40 Schuss), not a short LG 40")
+	mustContain(t, core, "if (detected && mode === detected) return false",
+		"choosing LG on an LG 40 Schuss Bahn must not rewrite the live label")
+	mustContain(t, core, "function formatDisciplineChip",
+		"Condensed abbreviations (LG40 / LPA30) come from the effective program")
+	mustContain(t, core, `class="range-discipline"`,
+		"Classic header discipline is a button that opens the shared menu")
+	mustContain(t, core, "range-disc-toggle",
+		"Classic and Condensed chips share the same click target class")
+	mustNotContain(t, core, "cfg.rangeTargets",
+		"live Scheibe resolution must not fall back to per-Bahn rangeTargets")
+	mustContain(t, crc, "crc-disc-toggle range-disc-toggle",
+		"the Condensed chip is the control for the shared discipline menu")
+	mustContain(t, crc, `aria-controls="range-disc-menu"`,
+		"Condensed must open the shared overlay, not a private score-mode menu")
+	mustContain(t, crc, "function effectiveDecimal",
+		"lane footer must honour the override, not only the Auflage regex")
+	mustContain(t, crc, "const decimal = effectiveDecimal(rangeData)",
+		"Summe / HR / Serien follow the chip")
+	mustContain(t, crc, "canEditWettkampf()",
+		"public hall must not toggle the program; only the control display")
+	mustNotContain(t, crc, "function openScoreModeMenu",
+		"Ganz/Dezimal radios were replaced by the discipline override")
+	mustNotContain(t, crc, "crc-score-mode",
+		"Condensed must not keep a second scoring-mode overlay")
+	mustContain(t, crcCSS, "button.crc-disc-toggle",
+		"the chip button must look like the LG40 label, not a form control")
+	mustNotContain(t, crcCSS, ".crc-score-mode-menu",
+		"score-mode overlay CSS must not linger after the redesign")
+	mustContain(t, css, ".range-disc-menu",
+		"Classic needs the overlay in the shared stylesheet")
+	mustContain(t, css, "button.range-discipline",
+		"Classic discipline control must look like the header label")
+}
+
+func TestHallDisciplineTargetsSettings(t *testing.T) {
+	classic := readRepoFile(t, "plugins", "classic-range", "config-schema.json")
+	crc := readRepoFile(t, "plugins", "classic-range-condensed", "config-schema.json")
+	editor := readRepoFile(t, "static", "config-editor.js")
+
+	mustContain(t, classic, `"disciplineTargets"`,
+		"Classic settings keep one Scheibe per discipline family")
+	mustNotContain(t, classic, `"rangeTargets"`,
+		"per-Bahn Scheibe rows are gone from Classic settings")
+	mustContain(t, crc, `"disciplineTargets"`,
+		"Condensed settings keep one Scheibe per discipline family")
+	mustNotContain(t, crc, `"rangeTargets"`,
+		"per-Bahn Scheibe rows are gone from Condensed settings")
+	mustContain(t, editor, "DISCIPLINE_FAMILIES",
+		"the editor shows LG / LP / KK, not a free-form key list")
+	mustContain(t, editor, "data-family",
+		"saving expands family aliases (LG + Luftgewehr, …)")
+	mustContain(t, editor, "Luftgewehr (LG)",
+		"settings labels are the three hall families")
+	mustContain(t, editor, "Luftpistole (LP)",
+		"LP is its own family, including Auflage on the hall chip")
+	mustContain(t, editor, "Kleinkaliber (KK)",
+		"KK 3-Stellung stays a KK settings choice, not a fourth family")
+	mustContain(t, editor, "smallbore_50m_3p",
+		"the KK row still offers 50 m 3-Stellung")
+}
+
+func TestClassicCondensedFooterHochrechnungUsesPrediction(t *testing.T) {
+	crc := readRepoFile(t, "plugins", "classic-range-condensed", "view.js")
+	mustNotContain(t, crc, "const hr = total",
+		"HR is Hochrechnung (Prognose), not a second copy of Summe")
+	mustContain(t, crc, "function condensedHochrechnung",
+		"lane HR must be computed from the live prediction, not Summe")
+	mustContain(t, crc, "rangeData.predictionInt",
+		"integer programmes show predictionInt as HR")
+	mustContain(t, crc, "rangeData.predictionDecimal",
+		"Auflage / LGA shows predictionDecimal as HR")
+}
+
 func TestClassicCondensedCurrentShotColorByValue(t *testing.T) {
 	crc := readRepoFile(t, "plugins", "classic-range-condensed", "view.js")
 	css := readRepoFile(t, "plugins", "classic-range-condensed", "theme.css")
@@ -449,4 +552,3 @@ func TestAnalysePluginSelectsSessionResults(t *testing.T) {
 	mustContain(t, core, "result=",
 		"QR fetch must accept a frozen result id")
 }
-

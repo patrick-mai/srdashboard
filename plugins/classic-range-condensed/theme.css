@@ -95,6 +95,32 @@
   letter-spacing: 0.03em;
 }
 
+button.crc-disc-toggle,
+button.range-disc-toggle {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0;
+  cursor: pointer;
+  line-height: inherit;
+}
+
+button.crc-disc-toggle:hover,
+button.crc-disc-toggle:focus-visible,
+button.range-disc-toggle:hover,
+button.range-disc-toggle:focus-visible {
+  opacity: 0.85;
+}
+
+.crc-disc.is-manual {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 2px;
+}
+
 .range-plugin-view.crc-view {
   padding: 0;
   display: flex;

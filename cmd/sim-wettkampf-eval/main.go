@@ -29,8 +29,10 @@ func main() {
 	httpBase := flag.String("http", "http://127.0.0.1:8080", "dashboard HTTP")
 	udpAddr := flag.String("udp", "127.0.0.1:30169", "dashboard UDP")
 	pause := flag.Duration("pause", 20*time.Millisecond, "delay between shots")
-	scenario := flag.String("scenario", "full", "full, club5, or fourteam (14 shooters / 4 Mannschaften)")
+	scenario := flag.String("scenario", "full", "full, club5, fourteam (14 shooters / 4 Mannschaften), or club24 (24 shooters / 6 Mannschaften)")
 	kind := flag.String("program", "LG40", "club5 program: LG40 or LGA30")
+	stopAfter := flag.Int("stop-after-wertung", 0, "full scenario: fire only N Wertung shots then exit")
+	resumeFrom := flag.Int("resume-wertung", -1, "full scenario: skip reset and fire remaining Wertung from this index")
 	flag.Parse()
 	log.SetOutput(os.Stdout)
 	log.SetFlags(0)
@@ -48,11 +50,30 @@ func main() {
 		runFourTeam(*httpBase, *udpAddr, *pause)
 		return
 	}
-	must(putJSON(*httpBase+"/api/wettkampf", map[string]any{"reset": true}))
-	must(putJSON(*httpBase+"/api/wettkampf", map[string]any{"expectedPerTeam": 3}))
-	clearHall(*httpBase)
-
-	log.Println("=== dual meet: 6 Bahnen, Adler I vs Mitte I, 5 Probe + 40 Wertung ===")
+	if *scenario == "club24" {
+		runClub24(*httpBase, *udpAddr, *pause)
+		return
+	}
+	warmupN, wertungN := 5, 40
+	resume := *resumeFrom >= 0
+	if resume {
+		warmupN = 0
+		wertungN = 40 - *resumeFrom
+		if wertungN < 0 {
+			wertungN = 0
+		}
+		log.Printf("=== resume dual meet: Wertung %d–40 ===", *resumeFrom+1)
+	} else {
+		must(putJSON(*httpBase+"/api/wettkampf", map[string]any{"reset": true}))
+		must(putJSON(*httpBase+"/api/wettkampf", map[string]any{"expectedPerTeam": 3}))
+		clearHall(*httpBase)
+		if *stopAfter > 0 {
+			wertungN = *stopAfter
+			log.Printf("=== dual meet pause: 6 Bahnen, Adler I vs Mitte I, 5 Probe + %d/40 Wertung ===", wertungN)
+		} else {
+			log.Println("=== dual meet: 6 Bahnen, Adler I vs Mitte I, 5 Probe + 40 Wertung ===")
+		}
+	}
 	adler := []shooter{
 		{"Anna", "Müller", "SV Adler", "Adler I", 1, 10.2},
 		{"Peter", "Klein", "SV Adler", "Adler I", 2, 9.7},
@@ -63,7 +84,16 @@ func main() {
 		{"Sara", "Lang", "KSG Mitte", "Mitte I", 5, 9.5},
 		{"Tim", "Koch", "KSG Mitte", "Mitte I", 6, 9.1},
 	}
-	fireHall(*httpBase, *udpAddr, programsLG(append(append([]shooter{}, adler...), mitte...), 5, 40), *pause)
+	fireHall(*httpBase, *udpAddr, programsLG(append(append([]shooter{}, adler...), mitte...), warmupN, wertungN), *pause)
+	if *stopAfter > 0 && !resume {
+		dump(*httpBase, "paused mid-heat")
+		log.Printf("paused after %d Wertung — change a discipline chip, then continue with -resume-wertung %d", wertungN, wertungN)
+		return
+	}
+	if resume {
+		dump(*httpBase, "after resume")
+		return
+	}
 	dump(*httpBase, "after dual meet")
 	requireTeamCount(*httpBase, "Adler I", 3)
 	requireTeamCount(*httpBase, "Mitte I", 3)
@@ -331,6 +361,115 @@ func runFourTeam(httpBase, udpAddr string, pause time.Duration) {
 	for _, p := range append(append([]shooter{}, c...), z...) {
 		requireShots(httpBase, p.First+" "+p.Last, 40, true)
 	}
+}
+
+func runClub24(httpBase, udpAddr string, pause time.Duration) {
+	must(putJSON(httpBase+"/api/wettkampf", map[string]any{
+		"reset": true, "expectedPerTeam": 3,
+		"teams": []map[string]string{
+			{"name": "A"}, {"name": "B"}, {"name": "C"},
+			{"name": "X"}, {"name": "Y"}, {"name": "Z"},
+		},
+	}))
+	clearHall(httpBase)
+
+	a := []shooter{
+		{"Anna", "Müller", "SV Adler", "A", 0, 10.2},
+		{"Peter", "Klein", "SV Adler", "A", 0, 9.7},
+		{"Lisa", "Wolf", "SV Adler", "A", 0, 9.3},
+	}
+	b := []shooter{
+		{"Ina", "Berg", "SV Adler", "B", 0, 9.8},
+		{"Eva", "Horn", "SV Adler", "B", 0, 9.5},
+		{"Jan", "Moos", "SV Adler", "B", 0, 9.1},
+	}
+	c := []shooter{
+		{"Carla", "Pist", "SV Adler", "C", 0, 9.6},
+		{"Ben", "Pist", "SV Adler", "C", 0, 9.2},
+		{"Nia", "Pist", "SV Adler", "C", 0, 9.9},
+	}
+	x := []shooter{
+		{"Otto", "See", "KSG Mitte", "X", 0, 9.4},
+		{"Lea", "Bach", "KSG Mitte", "X", 0, 9.6},
+		{"Max", "Dorn", "KSG Mitte", "X", 0, 9.2},
+	}
+	y := []shooter{
+		{"Jonas", "Becker", "KSG Mitte", "Y", 0, 10.0},
+		{"Sara", "Lang", "KSG Mitte", "Y", 0, 9.5},
+		{"Tim", "Koch", "KSG Mitte", "Y", 0, 9.1},
+	}
+	z := []shooter{
+		{"Omar", "Pist", "KSG Mitte", "Z", 0, 9.6},
+		{"Gerd", "Wald", "KSG Mitte", "Z", 0, 9.3},
+		{"Nina", "Fluss", "KSG Mitte", "Z", 0, 9.8},
+	}
+	extras := []shooter{
+		{"Uwe", "Hart", "SV Adler", "A", 0, 9.4},
+		{"Mia", "Feld", "SV Adler", "B", 0, 10.0},
+		{"Karl", "Nest", "SV Adler", "C", 0, 9.3},
+		{"Ida", "Moos", "KSG Mitte", "X", 0, 9.5},
+		{"Tom", "Stein", "KSG Mitte", "Y", 0, 9.1},
+		{"Ruth", "Holm", "KSG Mitte", "Z", 0, 9.7},
+	}
+
+	waves := [][]shooter{
+		{onRange(a[0], 1), onRange(x[0], 2), onRange(b[0], 3), onRange(y[0], 4), onRange(c[0], 5), onRange(z[0], 6)},
+		{onRange(a[1], 1), onRange(x[1], 2), onRange(b[1], 3), onRange(y[1], 4), onRange(c[1], 5), onRange(z[1], 6)},
+		{onRange(a[2], 1), onRange(x[2], 2), onRange(b[2], 3), onRange(y[2], 4), onRange(c[2], 5), onRange(z[2], 6)},
+		{
+			onRange(extras[3], 1), onRange(extras[0], 2), onRange(extras[4], 3),
+			onRange(extras[1], 4), onRange(extras[5], 5), onRange(extras[2], 6),
+		},
+	}
+	for i, wave := range waves {
+		log.Printf("=== club24 wave %d/%d mixed Adler/Mitte, LGA30 on A/B/X and LG40 on C/Y/Z ===", i+1, len(waves))
+		if i > 0 {
+			time.Sleep(2 * time.Second)
+		}
+		fireHall(httpBase, udpAddr, club24Programs(wave), pause)
+	}
+	extraNames := make([]string, len(extras))
+	for i, p := range extras {
+		extraNames[i] = p.First + " " + p.Last
+	}
+	excludeNames(httpBase, extraNames)
+	dump(httpBase, "24 shooters / 6 teams (A B X LGA30, C Y Z LG40)")
+
+	for _, name := range []string{"A", "B", "C", "X", "Y", "Z"} {
+		requireTeamCount(httpBase, name, 3)
+	}
+	snap := getJSON(httpBase + "/api/wettkampf")
+	if len(asSlice(snap["roster"])) != 24 {
+		log.Fatalf("roster %d want 24", len(asSlice(snap["roster"])))
+	}
+	for _, name := range extraNames {
+		r := roster(snap, name)
+		if r["excluded"] != true {
+			log.Fatalf("%s should be ohne Mannschaft: %#v", name, r)
+		}
+	}
+	for _, group := range [][]shooter{a, b, x, {extras[0], extras[1], extras[3]}} {
+		for _, p := range group {
+			requireShots(httpBase, p.First+" "+p.Last, 30, true)
+		}
+	}
+	for _, group := range [][]shooter{c, y, z, {extras[2], extras[4], extras[5]}} {
+		for _, p := range group {
+			requireShots(httpBase, p.First+" "+p.Last, 40, true)
+		}
+	}
+}
+
+func club24Programs(people []shooter) []program {
+	out := make([]program, len(people))
+	for i, p := range people {
+		if p.Team == "A" || p.Team == "B" || p.Team == "X" {
+			out[i] = menuProg(p, 5, 30, "LG 30 Schuss Auflage", "LG")
+			continue
+		}
+		out[i] = menuProg(p, 5, 40, "LG 40 Schuss", "LG")
+	}
+	return out
 }
 
 func onRange(p shooter, rng int) shooter {

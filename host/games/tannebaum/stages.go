@@ -19,7 +19,7 @@ type StageSpec struct {
 	Label  string
 	Min    float64
 	Max    float64
-	Step   float64 // 1, 0.5, or 0.1
+	Step   float64        // 1, 0.5, or 0.1
 	Leaves map[string]int // canonical value key → remaining
 }
 
@@ -87,7 +87,10 @@ func mapShotToStage(raw float64, stageID string) (float64, bool) {
 		return v, true
 	case StageB:
 		v := floorHalf(raw)
-		if v < 8 || v > 10 {
+		if v > 10 {
+			v = 10
+		}
+		if v < 8 {
 			return 0, false
 		}
 		return v, true
@@ -152,6 +155,33 @@ func strikeLeaf(leaves map[string]int, value float64) bool {
 
 func hasLeaf(leaves map[string]int, value float64) bool {
 	return leaves != nil && leaves[leafKey(value)] > 0
+}
+
+// bestFillLeaf is the highest remaining needle at or below mapped (down-rounding
+// already chose the most precise value the shot can claim in this stage).
+func bestFillLeaf(leaves map[string]int, mapped float64) (float64, bool) {
+	best := -1.0
+	ok := false
+	for k, n := range leaves {
+		if n <= 0 {
+			continue
+		}
+		v := parseLeafKey(k)
+		if v <= mapped+1e-9 && v > best {
+			best = v
+			ok = true
+		}
+	}
+	return best, ok
+}
+
+// ownStrikeValue prefers the exact mapped needle, otherwise the best remaining
+// own needle this shot can still reach in the same stage.
+func ownStrikeValue(leaves map[string]int, mapped float64) (float64, bool) {
+	if hasLeaf(leaves, mapped) {
+		return mapped, true
+	}
+	return bestFillLeaf(leaves, mapped)
 }
 
 func rawShotValue(dec float64, full int) float64 {

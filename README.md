@@ -2,7 +2,7 @@
 
 Live hall display for **DISAG OpticScore**. It shows every stand on a large screen (or one stand on a tablet), plots shots on the target, and can switch from the classic range view into game plugins.
 
-**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.3](CHANGELOG.md).
+**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.4](CHANGELOG.md).
 
 Comments at the [meisterschuetzen.org](https://meisterschuetzen.org) forum or here.
 
@@ -23,17 +23,21 @@ Each lane shows:
 - **Serien** columns — click a series to put those shots back on the scheibe
 - **Last-10** bar chart under the target
 - Idle stands can be hidden so active lanes get more space
-- Mixed disciplines per range (LG / LP / KK faces from OpticScore)
+- Mixed disciplines per range (LG / LP / KK faces from OpticScore). Tap the discipline label to override **Automatisch / LG / LG Auflage / LP / LP Auflage / KK** if the lane programme is wrong — Scheibe and integer vs decimal follow that choice until the shooter or programme changes
 
 The same view on a stand tablet (`/1`, `/2`, …):
 
 ![Classic Range shooter tablet](./screenshots/classic-range-shooter.png)
 
-**Classic Range Condensed** especially for Daniel, who has ears like a bat but the eyes of a mole, is the same live hall without the last-10 chart or the full stats table — header, target, last shot, Teiler, Summe and Serien only. Switch to it from **Menü**.
+**Classic Range Condensed** especially for Daniel, who has ears like a bat but the eyes of a mole, is the same live hall without the last-10 chart or the full stats table — header, target, last shot, Teiler, **HR** (Hochrechnung), Summe and Serien only. Chips show LG40 / LPA30 / KK60 from the OpticScore programme. Switch to it from **Menü**.
+
+On Condensed, a **Wettkampf** tile sits to the right of the lanes (Bahnwahl checkbox **Wettkampf**): team Summe, Prognose and `n/Soll`. Teams come from the UDP team or club; the gear on the tile assigns people. Probe does not count. A new board process starts with an empty tile.
 
 ![Classic Range Condensed hall with six stands](./screenshots/classic-range-condensed.png)
 
-Open **Einstellungen** (`/config`) to toggle footer fields, pellet outline width, lane count and per-plugin target faces.
+**Analyse** replays frozen session results one at a time in the Classic Range view. A new shooter on that Bahn does not overwrite the stored start. Switch to it from **Menü**.
+
+Open **Einstellungen** (`/config`) to toggle footer fields, pellet outline width, lane count and **target faces per discipline** (LG / LP / KK).
 
 The side **Menü** also sets **Farbsättigung** and pellet fill: rainbow (default) or one hue from light to deep, plus **Compact** for the hall without the target disc.
 
@@ -87,7 +91,7 @@ Vorsprung 30: the fox reaches the Bau and escapes. Vorsprung 0: the fox is caugh
 
 ### Tannebaum Einzel
 
-Each stand has its own kegel tree in three stages: whole rings 5–10, half rings 8.0–10.0, then tenths 10.5–10.9. A shot always tries the most precise still-open needle it can reach (C before B before A). If that needle is already gone on your tree, the same value falls as a **Geschenk** on another stand that still needs it. Below 5, or with nothing left to hit, is a miss.
+Each stand has its own kegel tree in three stages: whole rings 5–10, half rings 8.0–10.0, then tenths 10.5–10.9. A shot always tries the most precise still-open needle on **your** tree that it can still reach (C before B before A) — the shot value, or any lower remaining needle on that stage. Only leftover value your tree no longer needs falls as a **Geschenk** on another stand. Below 5, or with nothing left to hit, is a miss.
 
 First empty tree wins.
 
@@ -95,7 +99,7 @@ First empty tree wins.
 
 ### Tannebaum Team
 
-Same needle rules as Einzel, but two teams share one tree each (odd/even stands by default, configurable). A shot clears the most precise open needle on your team’s tree; if that value is already gone, it is a gift onto the other team’s tree.
+Same needle rules as Einzel, but two teams share one tree each (odd/even stands by default, configurable). A shot clears the most precise open needle on your team’s tree that it can still reach; only leftover value is a gift onto the other team’s tree.
 
 The team that empties its tree first wins.
 

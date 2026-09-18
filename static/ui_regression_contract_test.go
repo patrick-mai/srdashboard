@@ -40,6 +40,10 @@ func TestUIRegressionCoversReadabilityGlitches(t *testing.T) {
 		"each game capture must include the /compact hall without the disc")
 	mustContain(t, py, `BASE + "/compact"`,
 		"compact page loads /compact like shooter loads /1")
+	mustContain(t, py, `play_classic("analyse")`,
+		"Analyse is a hall display; the UI run must open it, not only Classic Range")
+	mustContain(t, py, `msg.location`,
+		"favicon 404 console text has no URL; the filter must read location.url")
 }
 
 func TestReadmeCaptureMixesClassicDisciplines(t *testing.T) {

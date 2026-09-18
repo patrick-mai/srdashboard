@@ -251,7 +251,16 @@ func (sp *ShotPayload) EventTime() (time.Time, bool) {
 	return EventTimeFromFields(sp.ShotDateTime, sp.Timestamp, sp.DateTime, sp.Time, sp.DATETIME)
 }
 
-var menuItemShotCountRe = regexp.MustCompile(`(\d+)\s*Schuss`)
+var (
+	menuItemShotCountRe = regexp.MustCompile(`(?i)(\d+)\s*Schuss`)
+	menuItemTimesRe     = regexp.MustCompile(`(?i)(\d{1,2})\s*[x×]\s*(\d{1,2})`)
+	menuItemTripleRe    = regexp.MustCompile(`(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{1,2})`)
+)
+
+const (
+	opticScoreUnlimitedShots = 1000
+	unbegrenztDisplayShots   = 100
+)
 
 // resetRangeFooter clears target and competition footer stats for a range
 // (e.g. new shooter or warmup↔competition). WarmupShots are left untouched;
@@ -272,21 +281,59 @@ func resetRangeFooter(rs *RangeState) {
 	rs.TotalShotsToFire = 0
 }
 
-// ParseTotalShotsFromMenuItem extracts total shots from MenuItemName (e.g. "40 Schuss" -> 40).
-// If the name contains "unbegrenzt" (unlimited) and no number, returns 100.
+// ParseTotalShotsFromMenuItem extracts the planned program length from an
+// OpticScore MenuItemName / MenuPointName.
+//
+// Club regulars are named in the UDP text (LG 20/40, LGA 30, LP 40, LPA 30).
+// KK is less uniform: "40 Schuss", "3x20", "20/20/20", "60 Schuss", …
+// "unbegrenzt" is OpticScore's open program (natural end 1000); the hall and
+// Prognose treat it as 100.
 func ParseTotalShotsFromMenuItem(name string) int {
 	if name == "" {
 		return 0
 	}
-	matches := menuItemShotCountRe.FindStringSubmatch(name)
-	if len(matches) >= 2 {
-		n, _ := strconv.Atoi(matches[1])
-		return n
-	}
 	if strings.Contains(strings.ToLower(name), "unbegrenzt") {
-		return 100
+		return unbegrenztDisplayShots
+	}
+	if m := menuItemTimesRe.FindStringSubmatch(name); len(m) == 3 {
+		a, errA := strconv.Atoi(m[1])
+		b, errB := strconv.Atoi(m[2])
+		if errA == nil && errB == nil && a > 0 && b > 0 {
+			return clampUnlimitedProgram(a * b)
+		}
+	}
+	if m := menuItemTripleRe.FindStringSubmatch(name); len(m) == 4 {
+		a, errA := strconv.Atoi(m[1])
+		b, errB := strconv.Atoi(m[2])
+		c, errC := strconv.Atoi(m[3])
+		if errA == nil && errB == nil && errC == nil && a > 0 && b > 0 && c > 0 {
+			return clampUnlimitedProgram(a + b + c)
+		}
+	}
+	if m := menuItemShotCountRe.FindStringSubmatch(name); len(m) >= 2 {
+		n, err := strconv.Atoi(m[1])
+		if err == nil && n > 0 {
+			return clampUnlimitedProgram(n)
+		}
 	}
 	return 0
+}
+
+func clampUnlimitedProgram(n int) int {
+	if n >= opticScoreUnlimitedShots {
+		return unbegrenztDisplayShots
+	}
+	return n
+}
+
+func totalShotsFromShot(sp *ShotPayload) int {
+	if sp == nil || sp.MenuItem == nil {
+		return 0
+	}
+	if n := ParseTotalShotsFromMenuItem(sp.MenuItem.MenuItemName); n > 0 {
+		return n
+	}
+	return ParseTotalShotsFromMenuItem(sp.MenuItem.MenuPointName)
 }
 
 // disciplineLabelFromShot prefers a concrete program label (e.g. "LG 30 Schuss Auflage")
@@ -477,10 +524,8 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	} else if sp.DiscTypeRaw != "" {
 		rs.DiscType = sp.DiscTypeRaw
 	}
-	if sp.MenuItem != nil {
-		if n := ParseTotalShotsFromMenuItem(sp.MenuItem.MenuItemName); n > 0 {
-			rs.TotalShotsToFire = n
-		}
+	if n := totalShotsFromShot(sp); n > 0 {
+		rs.TotalShotsToFire = n
 	}
 	if d := disciplineLabelFromShot(sp); d != "" {
 		rs.Discipline = d

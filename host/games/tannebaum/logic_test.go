@@ -20,7 +20,7 @@ func TestMapShotDownRounding(t *testing.T) {
 		{8.7, StageB, 8.5, true},
 		{9.99, StageB, 9.5, true},
 		{10.4, StageB, 10, true},
-		{10.5, StageB, 0, false},
+		{10.5, StageB, 10, true},
 		{10.87, StageC, 10.8, true},
 		{10.9, StageC, 10.9, true},
 		{10.49, StageC, 0, false},
@@ -35,8 +35,11 @@ func TestMapShotDownRounding(t *testing.T) {
 
 func TestCandidatesPreferPreciseStage(t *testing.T) {
 	cands := mapShotCandidates(10.9)
-	if len(cands) < 1 || cands[0].StageID != StageC || cands[0].Value != 10.9 {
-		t.Fatalf("expected C/10.9 first, got %#v", cands)
+	if len(cands) != 3 || cands[0].StageID != StageC || cands[0].Value != 10.9 {
+		t.Fatalf("expected C/10.9 then B/A, got %#v", cands)
+	}
+	if cands[1].StageID != StageB || cands[1].Value != 10 || cands[2].StageID != StageA || cands[2].Value != 10 {
+		t.Fatalf("10.9 must also reach B/10 and A/10, got %#v", cands)
 	}
 	cands = mapShotCandidates(9.3)
 	if len(cands) < 1 || cands[0].StageID != StageB || cands[0].Value != 9.0 {
@@ -76,6 +79,87 @@ func TestEinzelOwnStrikeAndWin(t *testing.T) {
 	}
 	if gs.WinnerID != "r1" || gs.Phase != PhaseFinished {
 		t.Fatalf("winner=%s phase=%s", gs.WinnerID, gs.Phase)
+	}
+}
+
+func TestRepeatInnerTenClearsOwnLowerNeedlesNotGift(t *testing.T) {
+	l := New(nil, ModeEinzel)
+	sess, err := l.Init(map[string]any{"numRanges": 2, "autoStartWhenAllReady": false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, _, err = l.Control(sess, "start", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sess, ev, err := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10.9, FullValue: 10},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOwnStrike(t, ev, "C", 10.9)
+
+	// Second 10.9 used to gift C/10.9 to stand 2 while own 10.8 (and 5–10) stayed.
+	sess, ev, err = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10.9, FullValue: 10},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOwnStrike(t, ev, "C", 10.8)
+
+	gs, _ := unmarshalState(sess)
+	if !hasLeaf(gs.Contenders["r2"].Stages[StageC], 10.9) {
+		t.Fatal("stand 2 must keep C/10.9 when stand 1 still has own needles to fill")
+	}
+	if hasLeaf(gs.Contenders["r1"].Stages[StageC], 10.8) {
+		t.Fatal("stand 1 should have filled own C/10.8")
+	}
+}
+
+func TestHighShotFillsRemainingOwnANotGift(t *testing.T) {
+	l := New(nil, ModeEinzel)
+	sess, err := l.Init(map[string]any{"numRanges": 2, "autoStartWhenAllReady": false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, _, err = l.Control(sess, "start", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs, _ := unmarshalState(sess)
+	c := gs.Contenders["r1"]
+	for _, v := range []float64{10.5, 10.6, 10.7, 10.8, 10.9} {
+		strikeLeaf(c.Stages[StageC], v)
+	}
+	for _, v := range []float64{8.0, 8.5, 9.0, 9.5, 10.0} {
+		strikeLeaf(c.Stages[StageB], v)
+	}
+	for _, v := range []float64{8.0, 9.0, 10.0} {
+		strikeLeaf(c.Stages[StageA], v)
+	}
+	c.CurrentStage = firstOpenStage(c)
+	sess, err = marshalState(gs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sess, ev, err := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1, Shot: state.Shot{DecValue: 10.3, FullValue: 10},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOwnStrike(t, ev, "A", 7.0)
+
+	gs, _ = unmarshalState(sess)
+	if hasLeaf(gs.Contenders["r1"].Stages[StageA], 7) {
+		t.Fatal("10.3 should clear remaining A/7, not gift while 5–7 stay")
+	}
+	if !hasLeaf(gs.Contenders["r2"].Stages[StageB], 10) {
+		t.Fatal("opponent B/10 must stay — this was an own fill, not a gift")
 	}
 }
 
@@ -196,4 +280,25 @@ func TestTeamSharedTree(t *testing.T) {
 	if hasLeaf(gs.Contenders["team-a"].Stages[StageA], 6) {
 		t.Fatal("team-a should have struck 6")
 	}
+}
+
+func assertOwnStrike(t *testing.T, ev []logicapi.PluginEvent, stage string, mapped float64) {
+	t.Helper()
+	for _, e := range ev {
+		if e.Type != "strike" {
+			continue
+		}
+		if e.Data["gift"] == true {
+			t.Fatalf("got gift strike, want own %s/%.1f: %#v", stage, mapped, ev)
+		}
+		if e.Data["stageId"] != stage {
+			t.Fatalf("stage=%v want %s in %#v", e.Data["stageId"], stage, ev)
+		}
+		got, _ := e.Data["mapped"].(float64)
+		if got != mapped {
+			t.Fatalf("mapped=%v want %v in %#v", e.Data["mapped"], mapped, ev)
+		}
+		return
+	}
+	t.Fatalf("expected own strike %s/%.1f, got %#v", stage, mapped, ev)
 }

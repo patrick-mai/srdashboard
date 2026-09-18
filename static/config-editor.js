@@ -90,6 +90,30 @@
   };
 
   const TARGET_PROFILE_ENUM = ['air_rifle_10m', 'air_pistol_10m', 'smallbore_50m_prone', 'smallbore_50m_3p'];
+  const TARGET_PROFILE_LABELS = {
+    air_rifle_10m: '10 m Luftgewehr',
+    air_pistol_10m: '10 m Luftpistole',
+    smallbore_50m_prone: '50 m KK liegend',
+    smallbore_50m_3p: '50 m KK 3-Stellung'
+  };
+  const DISCIPLINE_FAMILIES = [
+    { id: 'LG', label: 'Luftgewehr (LG)', keys: ['LG', 'Luftgewehr'], profiles: ['air_rifle_10m'] },
+    { id: 'LP', label: 'Luftpistole (LP)', keys: ['LP', 'Luftpistole'], profiles: ['air_pistol_10m'] },
+    { id: 'KK', label: 'Kleinkaliber (KK)', keys: ['KK', 'Kleinkaliber', 'KK-Gewehr'], profiles: ['smallbore_50m_prone', 'smallbore_50m_3p'] }
+  ];
+
+  function targetProfileLabel(id) {
+    return TARGET_PROFILE_LABELS[id] || id;
+  }
+
+  function familyProfileValue(dt, family) {
+    const keys = family.keys || [];
+    for (let i = 0; i < keys.length; i++) {
+      const cur = dt[keys[i]];
+      if (cur) return cur;
+    }
+    return family.profiles[0] || '';
+  }
 
   function fieldLabel(key) {
     return PLUGIN_FIELD_LABELS[key] || key;
@@ -164,15 +188,18 @@
 
     if (key === 'disciplineTargets') {
       const dt = (value && typeof value === 'object') ? value : {};
-      const profileEnums = (prop.additionalProperties && prop.additionalProperties.enum) || TARGET_PROFILE_ENUM;
-      const keys = Object.keys(dt).length ? Object.keys(dt) : ['Luftgewehr', 'LG', 'Luftpistole', 'LP', 'Kleinkaliber', 'KK', 'KK-Gewehr'];
-      let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend><p class="config-hint">Substring-Match auf OpticScore-Disziplin → Scheibenprofil.</p><div class="config-check-grid">';
-      keys.forEach(function (discKey, idx) {
-        const cur = dt[discKey] || '';
-        html += '<label class="config-field">' + esc(discKey) +
-          '<select data-key="' + esc(key) + '" data-discipline="' + esc(discKey) + '">';
-        profileEnums.forEach(function (opt) {
-          html += '<option value="' + esc(opt) + '"' + (cur === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+      const allEnums = (prop.additionalProperties && prop.additionalProperties.enum) || TARGET_PROFILE_ENUM;
+      let html = '<fieldset class="config-fieldset"><legend>' + label + hint + '</legend>' +
+        '<p class="config-hint">Eine Scheibe pro Disziplin. Live kommt LG/LP/KK von OpticScore; auf der Anzeige lässt sich das pro Bahn korrigieren.</p>' +
+        '<div class="config-check-grid">';
+      DISCIPLINE_FAMILIES.forEach(function (family) {
+        const enums = family.profiles && family.profiles.length ? family.profiles : allEnums;
+        const cur = familyProfileValue(dt, family);
+        html += '<label class="config-field">' + esc(family.label) +
+          '<select data-key="' + esc(key) + '" data-family="' + esc(family.id) + '">';
+        enums.forEach(function (opt) {
+          html += '<option value="' + esc(opt) + '"' + (cur === opt ? ' selected' : '') + '>' +
+            esc(targetProfileLabel(opt)) + '</option>';
         });
         html += '</select></label>';
       });
@@ -205,7 +232,8 @@
     if (prop.enum) {
       let html = '<label class="config-field">' + label + hint + '<select id="' + id + '" data-key="' + esc(key) + '">';
       prop.enum.forEach(function (opt) {
-        html += '<option value="' + esc(opt) + '"' + (value === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+        html += '<option value="' + esc(opt) + '"' + (value === opt ? ' selected' : '') + '>' +
+          esc(targetProfileLabel(opt)) + '</option>';
       });
       html += '</select></label>';
       return html;
@@ -237,6 +265,14 @@
       }
       if (key === 'disciplineTargets') {
         const dt = {};
+        panel.querySelectorAll('[data-key="' + key + '"][data-family]').forEach(function (sel) {
+          const familyId = sel.getAttribute('data-family');
+          const family = DISCIPLINE_FAMILIES.filter(function (f) { return f.id === familyId; })[0];
+          const keys = (family && family.keys) || [familyId];
+          keys.forEach(function (alias) {
+            dt[alias] = sel.value;
+          });
+        });
         panel.querySelectorAll('[data-key="' + key + '"][data-discipline]').forEach(function (sel) {
           dt[sel.getAttribute('data-discipline')] = sel.value;
         });

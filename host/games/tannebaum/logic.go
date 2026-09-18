@@ -264,27 +264,30 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		return marshalWithEvents(gs, events)
 	}
 
-	// 1) Strike own open leaf (prefer higher/more precise stage: C → B → A).
+	// 1) Strike own tree first: most precise stage (C → B → A), exact needle
+	// then any remaining own needle this shot can still reach (value ≤ mapped).
 	for _, cand := range candidates {
-		if hasLeaf(own.Stages[cand.StageID], cand.Value) {
-			strikeLeaf(own.Stages[cand.StageID], cand.Value)
-			mark.Mapped = cand.Value
-			mark.StageID = cand.StageID
-			mark.Result = ResultOwn
-			mark.TargetID = own.ID
-			gs.pushShot(mark)
-			events = append(events, logicapi.PluginEvent{Type: "strike", Data: map[string]any{
-				"rangeNum": ctx.RangeNum, "raw": raw, "mapped": cand.Value, "stageId": cand.StageID,
-				"contenderId": own.ID, "gift": false,
-			}})
-			gs.afterStrike(own)
-			events = append(events, gs.finishEvents(own)...)
-			gs.refreshStatus()
-			return marshalWithEvents(gs, events)
+		hitVal, ok := ownStrikeValue(own.Stages[cand.StageID], cand.Value)
+		if !ok {
+			continue
 		}
+		strikeLeaf(own.Stages[cand.StageID], hitVal)
+		mark.Mapped = hitVal
+		mark.StageID = cand.StageID
+		mark.Result = ResultOwn
+		mark.TargetID = own.ID
+		gs.pushShot(mark)
+		events = append(events, logicapi.PluginEvent{Type: "strike", Data: map[string]any{
+			"rangeNum": ctx.RangeNum, "raw": raw, "mapped": hitVal, "stageId": cand.StageID,
+			"contenderId": own.ID, "gift": false,
+		}})
+		gs.afterStrike(own)
+		events = append(events, gs.finishEvents(own)...)
+		gs.refreshStatus()
+		return marshalWithEvents(gs, events)
 	}
 
-	// 2) Own matching stage(s) already cleared for this hit → gift to opponent still needing it.
+	// 2) Nothing left on own tree at or below this hit → gift the mapped needle.
 	for _, cand := range candidates {
 		target := gs.findGiftTarget(own.ID, cand.StageID, cand.Value)
 		if target == nil {
@@ -302,8 +305,8 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		}})
 		gs.afterStrike(target)
 		events = append(events, gs.finishEvents(target)...)
-		gs.StatusLine = fmt.Sprintf("Geschenk → %s (Stufe %s: %s)", target.Label, cand.StageID, fmtLeaf(cand.Value))
 		gs.refreshStatus()
+		gs.StatusLine = fmt.Sprintf("Geschenk → %s (Stufe %s: %s)", target.Label, cand.StageID, fmtLeaf(cand.Value))
 		return marshalWithEvents(gs, events)
 	}
 

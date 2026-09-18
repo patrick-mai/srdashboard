@@ -31,10 +31,12 @@ Thumbs.db
 
 # Local overrides / runtime
 runtime.xml
+wettkampf.xml
 plugins/*/config.xml
 *.log
 /log/
 screenshots/.staging/
+testdata/ui-regression/
 scripts/__pycache__/
 
 # Local audio edits (optional; safe if missing)

@@ -145,7 +145,7 @@
 .ad-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .ad-footer {
   flex: 0 0 auto; margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.8rem;
-  background: var(--ad-glass); border: 1px solid var(--ad-line); border-radius: 14px;
+  background: rgba(12, 14, 12, 0.94); border: 1px solid var(--ad-line); border-radius: 14px;
 }
 .ad-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
 .ad-btn {

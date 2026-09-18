@@ -10,12 +10,25 @@ func TestParseTotalShotsFromMenuItem(t *testing.T) {
 		name string
 		want int
 	}{
+		{"LG 20 Schuss", 20},
+		{"LG 40 Schuss", 40},
+		{"LG 30 Schuss Auflage", 30},
+		{"LP 40 Schuss", 40},
+		{"LP 30 Schuss Auflage", 30},
 		{"40 Schuss", 40},
 		{"30 Schuss", 30},
+		{"60 Schuss", 60},
+		{"3x20", 60},
+		{"3x20 Schuss", 60},
+		{"KK 3×20", 60},
+		{"3x40", 120},
+		{"20/20/20", 60},
 		{"unbegrenzt", 100},
 		{"Unbegrenzt", 100},
 		{"UNBEGRENZT", 100},
 		{"Luftgewehr unbegrenzt", 100},
+		{"1000 Schuss", 100},
+		{"1000 Schuss unbegrenzt", 100},
 		{"", 0},
 		{"something else", 0},
 	}
@@ -35,7 +48,7 @@ func TestPrediction(t *testing.T) {
 		overallSumInt    int
 		overallSumDec    float64
 		totalShotsToFire int
-		wantInt          int   // predicted integer (ring) sum
+		wantInt          int     // predicted integer (ring) sum
 		wantDec          float64 // predicted decimal sum (float comparison with tolerance)
 	}{
 		{
@@ -62,8 +75,8 @@ func TestPrediction(t *testing.T) {
 			overallSumInt:    52,
 			overallSumDec:    52.5,
 			totalShotsToFire: 30,
-			wantInt:          312,   // (52/5)*30
-			wantDec:          315,   // (52.5/5)*30
+			wantInt:          312, // (52/5)*30
+			wantDec:          315, // (52.5/5)*30
 		},
 		{
 			name:             "1 shot 10/10.7 total 40",

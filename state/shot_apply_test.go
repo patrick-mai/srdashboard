@@ -100,6 +100,47 @@ func TestApplyShotDisciplinePrefersConcreteMenuItemOverSportordnung(t *testing.T
 	}
 }
 
+func menuItem(point, item string) *struct {
+	MenuPointName string `json:"MenuPointName"`
+	MenuItemName  string `json:"MenuItemName"`
+} {
+	return &struct {
+		MenuPointName string `json:"MenuPointName"`
+		MenuItemName  string `json:"MenuItemName"`
+	}{MenuPointName: point, MenuItemName: item}
+}
+
+func TestApplyShotProgramLengthFromUDP(t *testing.T) {
+	cases := []struct {
+		disc, point, item string
+		want              int
+	}{
+		{"LG", "Sportordnung", "LG 20 Schuss", 20},
+		{"LG", "Sportordnung", "LG 40 Schuss", 40},
+		{"LGA", "Sportordnung", "LG 30 Schuss Auflage", 30},
+		{"LP", "Sportordnung", "LP 40 Schuss", 40},
+		{"LPA", "Sportordnung", "LP 30 Schuss Auflage", 30},
+		{"KK", "KK-Gewehr", "40 Schuss", 40},
+		{"KK", "KK-Gewehr", "3x20 Schuss", 60},
+		{"KK", "3x20", "Training", 60},
+		{"LG", "Luftgewehr", "unbegrenzt", 100},
+		{"LG", "Luftgewehr", "1000 Schuss", 100},
+	}
+	for _, tc := range cases {
+		t.Run(tc.item+"/"+tc.point, func(t *testing.T) {
+			ls := NewLiveState(1)
+			ls.ApplyShot(1, &ShotPayload{
+				DecValue: 10.0, FullValue: 10, DiscType: tc.disc,
+				MenuItem: menuItem(tc.point, tc.item),
+			})
+			got := ls.Snapshot()[0].TotalShotsToFire
+			if got != tc.want {
+				t.Fatalf("TotalShotsToFire = %d, want %d (disc=%s item=%q point=%q)",
+					got, tc.want, tc.disc, tc.item, tc.point)
+			}
+		})
+	}
+}
 
 func TestApplyShotReportsUnknownRange(t *testing.T) {
 	ls := NewLiveState(2)
