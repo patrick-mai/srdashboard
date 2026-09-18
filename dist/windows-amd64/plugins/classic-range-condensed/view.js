@@ -61,6 +61,14 @@ function isAuflageDiscipline(rangeData) {
   return isAuflageLabel(rangeData && rangeData.discipline);
 }
 
+function effectiveDecimal(rangeData) {
+  const core = window.SRCore;
+  if (core && typeof core.effectiveDecimal === 'function') {
+    return core.effectiveDecimal(rangeData);
+  }
+  return isAuflageDiscipline(rangeData);
+}
+
 function lastShotInt(rangeData) {
   const shots = rangeData.shots || [];
   if (shots.length) {
@@ -101,14 +109,25 @@ function seriesLine(rangeData, decimal) {
   return ints.map(fmtInt).join('|');
 }
 
+function condensedHochrechnung(rangeData, decimal) {
+  if (decimal) {
+    const d = Number(rangeData.predictionDecimal);
+    if (Number.isFinite(d) && d > 0) return fmtDec(d);
+    return '–';
+  }
+  const n = Number(rangeData.predictionInt);
+  if (Number.isFinite(n) && n > 0) return fmtInt(n);
+  return '–';
+}
+
 function renderCondensedFooter(rangeData) {
   const hasShots = (Number(rangeData.shotNumber) || 0) > 0 ||
     (rangeData.shots && rangeData.shots.length > 0);
-  const decimal = isAuflageDiscipline(rangeData);
+  const decimal = effectiveDecimal(rangeData);
   const lastShot = !hasShots ? '–' : (decimal ? fmtDec(rangeData.currentValue) : fmtInt(lastShotInt(rangeData)));
   const total = !hasShots ? '–' : (decimal ? fmtDec(rangeData.overallSumDecimal) : fmtInt(rangeData.overallSumInt));
   const teiler = hasShots && rangeData.currentTeiler != null ? fmtDec(rangeData.currentTeiler) + 'T' : '–';
-  const hr = total;
+  const hr = !hasShots ? '–' : condensedHochrechnung(rangeData, decimal);
   const shotNum = hasShots && rangeData.shotNumber != null ? String(rangeData.shotNumber) : '–';
   const series = hasShots ? seriesLine(rangeData, decimal) : '–';
 
@@ -131,25 +150,41 @@ function renderCondensedFooter(rangeData) {
 }
 
 function shotCountFromLabel(label) {
-  const m = String(label || '').match(/(\d+)\s*schuss/i);
-  return m ? parseInt(m[1], 10) : 0;
+  const core = window.SRCore;
+  if (core && typeof core.parseShotCountLabel === 'function') {
+    return core.parseShotCountLabel(label);
+  }
+  const s = String(label || '');
+  if (/unbegrenzt/i.test(s)) return 100;
+  const times = s.match(/(\d{1,2})\s*[x×]\s*(\d{1,2})/i);
+  if (times) return parseInt(times[1], 10) * parseInt(times[2], 10);
+  const m = s.match(/(\d+)\s*schuss/i);
+  if (!m) return 0;
+  const n = parseInt(m[1], 10);
+  return n >= 1000 ? 100 : n;
 }
 
-/** Hall abbreviations: LG40, LGA30, LP40, KK40 — count from the program, not a fixed label. */
+/** Hall abbreviations: LG20/LG40, LGA30, LP40, LPA30, KK… — count from the UDP program. */
 function disciplineAbbrev(rangeData) {
+  const core = window.SRCore;
+  if (core && typeof core.formatDisciplineChip === 'function') {
+    const chip = core.formatDisciplineChip(rangeData);
+    if (chip) return chip;
+  }
   if (!rangeData) return '';
   const disc = String(rangeData.discType || '').toUpperCase();
   const label = String(rangeData.discipline || '');
   const low = label.toLowerCase();
-  const n = Number(rangeData.totalShotsToFire) || shotCountFromLabel(label);
-  const auflage = isAuflageDiscipline(rangeData);
+  const rawN = Number(rangeData.totalShotsToFire);
+  const n = (rawN >= 1000 ? 100 : rawN) || shotCountFromLabel(label);
+  const auflage = disc === 'LGA' || disc === 'LPA' || disc === 'KKA' || isAuflageDiscipline(rangeData);
 
   let code = '';
-  if (disc === 'LP' || /(^|[^a-z])lp([^a-z]|$)/.test(low) || low.indexOf('luftpistole') !== -1) {
-    code = 'LP';
-  } else if (disc === 'KK' || /(^|[^a-z])kk([^a-z]|$)/.test(low) || low.indexOf('kleinkaliber') !== -1) {
+  if (disc.indexOf('LP') === 0 || /(^|[^a-z])lp([^a-z]|$)/.test(low) || low.indexOf('luftpistole') !== -1) {
+    code = auflage ? 'LPA' : 'LP';
+  } else if (disc.indexOf('KK') === 0 || /(^|[^a-z])kk([^a-z]|$)/.test(low) || low.indexOf('kleinkaliber') !== -1) {
     code = 'KK';
-  } else if (disc === 'LG' || /(^|[^a-z])lg([^a-z]|$)/.test(low) || low.indexOf('luftgewehr') !== -1) {
+  } else if (disc.indexOf('LG') === 0 || /(^|[^a-z])lg([^a-z]|$)/.test(low) || low.indexOf('luftgewehr') !== -1) {
     code = auflage ? 'LGA' : 'LG';
   } else if (auflage) {
     code = 'LGA';
@@ -323,10 +358,25 @@ function fillCondensedHeader(header, rangeData) {
   if (!header || !rangeData) return;
   const hall = window.SRCore && window.SRCore.getHallPluginId && window.SRCore.getHallPluginId();
   if (hall && hall !== PLUGIN_ID) return;
+  const core = window.SRCore;
   const num = rangeData.rangeNum;
   const name = rangeData.shooterName || ('Stand ' + num + ' – kein Schütze');
-  const disc = rangeData.shooterName ? disciplineAbbrev(rangeData) : '';
-  const club = String(rangeData.clubName || '').trim();
+  const discLabel = rangeData.shooterName ? (disciplineAbbrev(rangeData) || 'Schuss') : '';
+  const canToggle = canEditWettkampf() && !!discLabel;
+  const manual = !!(core && core.disciplineOverrideIsManual && core.disciplineOverrideIsManual(rangeData));
+  const discTitle = canToggle
+    ? 'Disziplin. Tippen öffnet Automatisch / LG / LP / KK.'
+    : (discLabel || '');
+  const discClass = 'crc-disc' + (canToggle ? ' crc-disc-toggle range-disc-toggle' : '') + (manual ? ' is-manual' : '');
+  const discTag = canToggle ? 'button' : 'span';
+  const expanded = canToggle && document.querySelector('#range-disc-menu:not([hidden])') &&
+    document.querySelector('.range-disc-toggle[data-range="' + num + '"][aria-expanded="true"]');
+  const discAttrs = canToggle
+    ? ' type="button" class="' + discClass + '" data-range="' + escapeHtml(String(num)) +
+      '" aria-haspopup="true" aria-expanded="' + (expanded ? 'true' : 'false') +
+      '" aria-controls="range-disc-menu" title="' + escapeHtml(discTitle) +
+      '" aria-label="' + escapeHtml(discTitle) + '"'
+    : ' class="' + discClass + '"' + (discTitle ? ' title="' + escapeHtml(discTitle) + '"' : '');
   const tip = shooterTipHtml(rangeData);
   header.className = 'range-header crc-header' + (rangeData.shooterName ? '' : ' empty');
   header.style.backgroundColor = rangeData.shooterName ? (rangeHeaderColor(rangeData) || '') : '';
@@ -339,7 +389,7 @@ function fillCondensedHeader(header, rangeData) {
     '<span class="crc-name">' + escapeHtml(name) + '</span>' +
     (tip ? '<span class="crc-tip" role="tooltip">' + tip + '</span>' : '') +
     '</span>' +
-    (disc ? '<span class="crc-disc">' + escapeHtml(disc) + '</span>' : '') +
+    (discLabel ? '<' + discTag + discAttrs + '>' + escapeHtml(discLabel) + '</' + discTag + '>' : '') +
     '</div>';
   const stale = !header.querySelector('.crc-header-line') || header.querySelector('.range-header-top');
   if (stale || header._crcHtml !== html) {

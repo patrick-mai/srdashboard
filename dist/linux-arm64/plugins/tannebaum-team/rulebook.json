@@ -19,8 +19,8 @@
     {
       "heading": "Treffer und Geschenk",
       "items": [
-        "Ein Schuss fällt zuerst die präziseste noch offene Nadel des eigenen Teams (C vor B vor A).",
-        "Ist der eigene Wert schon weg, fällt dieselbe Nadel beim gegnerischen Baum — ein Geschenk.",
+        "Ein Schuss fällt zuerst die präziseste noch offene Nadel des eigenen Teams, die er erreichen kann (C vor B vor A) — der geschossene Wert oder jeder kleinere noch offene auf derselben Stufe.",
+        "Nur wenn das eigene Team nichts mehr auf oder unter diesem Treffer braucht, fällt dieselbe Nadel beim gegnerischen Baum — ein Geschenk.",
         "Unter 5 oder ohne offene Nadel: Fehl."
       ]
     },

@@ -13,13 +13,13 @@
     {
       "heading": "Treffer",
       "paragraphs": [
-        "Ein Schuss sucht zuerst die präziseste noch offene Nadel, die er erreichen kann (C vor B vor A). Trifft er eine eigene offene Nadel, fällt sie."
+        "Ein Schuss sucht zuerst die präziseste noch offene Nadel auf dem eigenen Baum, die er erreichen kann (C vor B vor A). Der geschossene Wert oder jeder kleinere noch offene Wert auf derselben Stufe zählt — ein 10er räumt also auch eine noch stehende 7."
       ]
     },
     {
       "heading": "Geschenk",
       "paragraphs": [
-        "Ist der eigene passende Wert schon weg, fällt dieselbe Nadel beim Gegner, der sie noch braucht. Liegt der Schuss unter 5 oder trifft nichts Offenes mehr, zählt er als Fehl."
+        "Nur wenn auf dem eigenen Baum nichts mehr auf oder unter diesem Treffer offen ist, fällt dieselbe Nadel beim Gegner, der sie noch braucht. Unter 5 oder ohne offene Nadel: Fehl."
       ]
     },
     {

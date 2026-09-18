@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin id="tannebaum-team" label="Tannebaum Team" version="1.0.0" mode="shared" kind="game">
-  <description>Kegel-Tannebaum als Mannschaftsspiel — zwei Teams, ein Baum je Seite. Wer seinen Baum zuerst räumt, gewinnt; Treffer auf schon geräumte Stufen gehen als Geschenk an das gegnerische Team.</description>
+  <description>Kegel-Tannebaum als Mannschaftsspiel — zwei Teams, ein Baum je Seite. Ein Treffer fällt die präziseste eigene Nadel, die er noch erreichen kann; nur Überschüsse gehen als Geschenk an das andere Team. Wer seinen Baum zuerst räumt, gewinnt.</description>
   <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
   <assetsDir>assets</assetsDir>
   <config>
