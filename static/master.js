@@ -38,7 +38,7 @@
       id === 'tauziehen' || id === 'kettenreaktion' || id === 'biathlon' ||
       id === 'schrumpfender-kreis' || id === 'kronen-duell' ||
       id === 'bank-oder-risiko' || id === 'ko-pokal' || id === 'schiessgolf' ||
-      id === 'turmbau' || id === 'ansage-duell' || id === 'analyse';
+      id === 'turmbau' || id === 'ansage-duell' || id === 'analyse' || id === 'darts';
   }
 
   function isDisplayPlugin() {
@@ -773,6 +773,7 @@
         '<button type="button" class="btn" id="race-reset-btn">Reset</button>' +
         '<button type="button" class="btn" id="race-puncture-btn" hidden>Reifenplatzer</button>' +
         '<button type="button" class="btn" id="race-oil-btn" hidden>Ölverlust</button>' +
+        '<button type="button" class="btn" id="darts-calibrate-btn" hidden>Scheibe einmessen</button>' +
         '</span>' +
         '<div class="plugin-active-label">Bahnen' +
         '<div id="range-lane-select" class="range-lane-list" role="group" aria-label="Bahnen"></div></div>' +
@@ -803,6 +804,8 @@
       document.getElementById('race-reset-btn').onclick = function () { raceControl('reset'); };
       document.getElementById('race-puncture-btn').onclick = function () { raceControl('field_event', 'puncture'); };
       document.getElementById('race-oil-btn').onclick = function () { raceControl('field_event', 'oil_leak'); };
+      const calBtn = document.getElementById('darts-calibrate-btn');
+      if (calBtn) calBtn.onclick = function () { raceControl('calibrate'); };
     }
     const rangeList = document.getElementById('range-lane-select');
     if (rangeList) {
@@ -981,6 +984,8 @@
       const startBtn = document.getElementById('race-start-btn');
       const punctureBtn = document.getElementById('race-puncture-btn');
       const oilBtn = document.getElementById('race-oil-btn');
+      const calBtn = document.getElementById('darts-calibrate-btn');
+      if (calBtn) calBtn.hidden = id !== 'darts';
       if (id === 'autorennen') {
         if (startBtn) startBtn.textContent = 'Rennen starten';
         if (punctureBtn) punctureBtn.hidden = false;
@@ -1043,6 +1048,10 @@
         if (oilBtn) oilBtn.hidden = true;
       } else if (id === 'ansage-duell') {
         if (startBtn) startBtn.textContent = 'Ansage starten';
+        if (punctureBtn) punctureBtn.hidden = true;
+        if (oilBtn) oilBtn.hidden = true;
+      } else if (id === 'darts') {
+        if (startBtn) startBtn.textContent = 'Darts starten';
         if (punctureBtn) punctureBtn.hidden = true;
         if (oilBtn) oilBtn.hidden = true;
       } else {

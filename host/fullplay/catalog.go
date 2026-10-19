@@ -48,6 +48,7 @@ var frozenIDs = []string{
 	"schiessgolf-2p",
 	"turmbau-2p",
 	"ansage-duell-2p",
+	"darts-2p",
 	"analyse",
 }
 
@@ -224,6 +225,7 @@ func Catalog() []Scenario {
 		conceptScenario("schiessgolf-2p", "schiessgolf", playHighValueProgram),
 		conceptScenario("turmbau-2p", "turmbau", playHighValueProgram),
 		conceptScenario("ansage-duell-2p", "ansage-duell", playHighValueProgram),
+		conceptScenario("darts-2p", "darts", playDarts),
 		{
 			ID:         "analyse",
 			PluginID:   "analyse",

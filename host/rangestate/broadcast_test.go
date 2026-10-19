@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "srdashboard/host/games/autorennen"
+	_ "srdashboard/host/games/darts"
 	_ "srdashboard/host/games/zehnerbingo"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"

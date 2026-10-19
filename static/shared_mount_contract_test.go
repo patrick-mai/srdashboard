@@ -135,6 +135,7 @@ func TestNewSharedGamesPreserveHostClassAndLayout(t *testing.T) {
 		{"schiessgolf", "schiessgolf", "sg", "setSgSurfaceClasses", "sgPaintStale", "Golf starten"},
 		{"turmbau", "turmbau", "tw", "setTwSurfaceClasses", "twPaintStale", "Turm starten"},
 		{"ansage-duell", "ansage-duell", "ad", "setAdSurfaceClasses", "adPaintStale", "Ansage starten"},
+		{"darts", "darts", "dt", "setDtSurfaceClasses", "dtPaintStale", "Darts starten"},
 	}
 	for _, g := range games {
 		js := readRepoFile(t, "plugins", g.dir, "view.js")
@@ -520,6 +521,12 @@ func TestClassicCondensedWettkampfTileSlot(t *testing.T) {
 		"live/WS updates must paint the Wettkampf tile in place")
 	mustContain(t, crc, "function openWettkampfModal",
 		"team assignment lives on the tile, not /config")
+	mustContain(t, crc, "/api/wettkampf/bericht.pdf",
+		"the Wettkampf dialog downloads the RWK report from the live snapshot")
+	mustContain(t, crc, "crc-wk-vorlage",
+		"the Wettkampf dialog selects the RWK letterhead")
+	mustContain(t, crc, "vorlage=",
+		"the download tells the server which RWK template to fill")
 	mustContain(t, crc, "function extrasByTeamId",
 		"excluded club shooters stay listed under their Mannschaft, separated")
 	mustContain(t, crc, "function extraTeamId",
@@ -571,6 +578,12 @@ func TestAnalysePluginSelectsSessionResults(t *testing.T) {
 		"Analyse must mark frozen vs live so Classic Range can keep two starts apart")
 	mustContain(t, js, "pad2(d.getSeconds())",
 		"same shooter, same Bahn: selector labels need seconds to tell starts apart")
+	mustContain(t, core, "serien-all-toggle",
+		"Analyse all-shots switch sits in the footer next to the series selector")
+	mustContain(t, core, "overlapWarmup",
+		"all-shots view draws Probe shots overlapping the match group")
+	mustContain(t, core, "isAnalyseMount",
+		"the all-shots switch belongs to Analyse, not the hall series footer")
 }
 
 func TestTargetWheelZoomIsProportional(t *testing.T) {

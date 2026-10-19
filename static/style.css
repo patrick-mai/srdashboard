@@ -1831,6 +1831,11 @@ body.config-display {
   background: #243848;
 }
 
+#shared-master-host.dt-view,
+#shared-master-host:has(.dt-view) {
+  background: #141414;
+}
+
 #shared-master-host[hidden] {
   display: none !important;
 }
@@ -2652,6 +2657,33 @@ body.compact-display .range-plugin-view.classic-range-view {
   color: var(--muted);
   font-weight: 400;
 }
+.range-footer .serien-all-toggle {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82em;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.range-footer .serien-all-toggle:hover,
+.range-footer .serien-all-toggle:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: none;
+}
+.range-footer .serien-all-toggle.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .range-footer .serien-frac-slot {
   visibility: hidden;
 }
@@ -2667,6 +2699,10 @@ body.compact-display .range-plugin-view.classic-range-view {
 }
 .range-target.series-focus {
   outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
+}
+.range-target.all-shots-overlap {
+  outline: 1px solid color-mix(in srgb, var(--warmup-accent) 50%, var(--accent));
   outline-offset: -1px;
 }
 

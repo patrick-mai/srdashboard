@@ -79,6 +79,10 @@
     streakBonus: 'Streak-Bonus',
     pitCueWindowMs: 'Pit-Zeitfenster (ms)',
     autoStartWhenAllReady: 'Auto-Start wenn alle bereit',
+    startScore: 'Startwert',
+    doubleIn: 'Double-In',
+    doubleOut: 'Double-Out',
+    boardScale: 'Maßstab',
     requireEqualShotTotals: 'Gleiche Schusszahl erforderlich',
     fieldEventsEnabled: 'Feld-Events aktiv',
     fieldEventMinGapSec: 'Min. Abstand Feld-Events (s)',
@@ -237,6 +241,9 @@
       });
       html += '</select></label>';
       return html;
+    }
+    if ((t === 'integer' || t === 'number') && typeof value === 'boolean') {
+      value = value ? 1 : 0;
     }
     const inputType = (t === 'integer' || t === 'number') ? 'number' : 'text';
     const step = t === 'integer' ? ' step="1"' : (t === 'number' ? ' step="any"' : '');

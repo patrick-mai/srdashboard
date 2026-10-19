@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"srdashboard/config"
 	"srdashboard/host/loader"
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -35,6 +36,17 @@ type Manager struct {
 	tickStop       chan struct{}
 	tickRunning    bool
 	replaying      bool
+	// kept games survive a plugin switch. backgroundGameID still receives
+	// shots and clock ticks while a display plugin is on screen.
+	kept             map[string]*keptGame
+	backgroundGameID string
+}
+
+// keptGame is a game plugin's sessions, parked when another plugin is showing.
+type keptGame struct {
+	shared      bool
+	sharedState logicapi.SessionState
+	sessions    map[int]*RangePluginSession
 }
 
 func NewManager(numRanges int, pm *loader.Manager, activePluginID string) *Manager {
@@ -92,10 +104,15 @@ func (m *Manager) EndReplay() {
 				s.UpdatedAt = now
 			}
 		}
-		if m.sharedMode && ap.Manifest.HasLogic() {
-			m.startTickerLocked()
+		if bg := m.backgroundGameID; bg != "" {
+			if gap, gerr := m.plugins.Get(bg); gerr == nil && gap.Manifest.HasLogic() {
+				if g := m.kept[bg]; g != nil {
+					m.refreshKeptViewModelsLocked(gap, g)
+				}
+			}
 		}
 	}
+	m.syncTickerLocked()
 	m.notifyLocked()
 }
 
@@ -112,11 +129,18 @@ func (m *Manager) SetNumRanges(n int) error {
 	}
 	m.numRanges = n
 	active := m.activeID
+	bg := m.backgroundGameID
 	m.mu.Unlock()
 	if active == "" {
 		return nil
 	}
-	return m.Activate(active)
+	if err := m.Activate(active); err != nil {
+		return err
+	}
+	if bg != "" && bg != active {
+		return m.reinitParked(bg)
+	}
+	return nil
 }
 
 func (m *Manager) NumRanges() int {
@@ -191,6 +215,9 @@ func (m *Manager) tickLoop(stop <-chan struct{}) {
 }
 
 // Activate binds the given plugin as the site-active plugin on all ranges.
+// Switching away from a game parks it. Switching back restores that session
+// instead of starting over. Activating the plugin that is already running
+// (lane-count change, replay clear) still starts a fresh session.
 func (m *Manager) Activate(pluginID string) error {
 	ap, err := m.plugins.Get(pluginID)
 	if err != nil {
@@ -206,9 +233,37 @@ func (m *Manager) Activate(pluginID string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	prevID := m.activeID
 	numRanges := m.numRanges
 	cfg["numRanges"] = numRanges
 	cfg["inactiveRanges"] = append([]int(nil), m.inactiveRanges...)
+
+	leavingGame := false
+	if prevID != "" && prevID != pluginID {
+		if cur, gerr := m.plugins.Get(prevID); gerr == nil && cur.Manifest.HasLogic() {
+			m.stashGameLocked(prevID)
+			leavingGame = true
+		}
+	}
+
+	if pluginID != prevID && ap.Manifest.HasLogic() {
+		if g := m.kept[pluginID]; g != nil && len(g.sessions) > 0 {
+			m.sessions = g.sessions
+			m.sharedMode = g.shared
+			m.sharedState = g.sharedState
+			m.activeID = pluginID
+			m.backgroundGameID = ""
+			for _, s := range m.sessions {
+				if s != nil {
+					s.clearEvents()
+				}
+			}
+			m.refreshAllViewModelsLocked(ap)
+			m.syncTickerLocked()
+			m.notifyLocked()
+			return nil
+		}
+	}
 
 	// Build every session before touching manager state, so a plugin that
 	// fails to initialise partway through leaves the previous plugin running
@@ -254,16 +309,111 @@ func (m *Manager) Activate(pluginID string) error {
 		}
 	}
 
-	m.stopTickerLocked()
 	m.sharedMode = shared
 	m.sharedState = sharedSess
 	m.sessions = staged
 	m.activeID = pluginID
-	if shared && ap.Manifest.HasLogic() {
-		m.startTickerLocked()
+	if ap.Manifest.HasLogic() {
+		m.rememberGameLocked(pluginID, shared, sharedSess, staged)
+		m.backgroundGameID = ""
+	} else if leavingGame {
+		m.backgroundGameID = prevID
 	}
+	m.syncTickerLocked()
 	m.notifyLocked()
 	return nil
+}
+
+func (m *Manager) stashGameLocked(id string) {
+	if m.sessions == nil {
+		return
+	}
+	if m.kept == nil {
+		m.kept = map[string]*keptGame{}
+	}
+	g := m.kept[id]
+	if g == nil {
+		g = &keptGame{}
+		m.kept[id] = g
+	}
+	g.shared = m.sharedMode
+	g.sharedState = m.sharedState
+	g.sessions = m.sessions
+}
+
+func (m *Manager) rememberGameLocked(id string, shared bool, sharedState logicapi.SessionState, sessions map[int]*RangePluginSession) {
+	if m.kept == nil {
+		m.kept = map[string]*keptGame{}
+	}
+	m.kept[id] = &keptGame{shared: shared, sharedState: sharedState, sessions: sessions}
+}
+
+// reinitParked replaces a parked game after the lane count changes.
+// The plugin on screen stays as it is.
+func (m *Manager) reinitParked(id string) error {
+	ap, err := m.plugins.Get(id)
+	if err != nil || ap == nil || !ap.Manifest.HasLogic() {
+		return err
+	}
+	cfg := m.plugins.MergedConfig(id)
+	if cfg == nil {
+		cfg = map[string]any{}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cfg["numRanges"] = m.numRanges
+	cfg["inactiveRanges"] = append([]int(nil), m.inactiveRanges...)
+	shared := ap.Manifest.Mode == loader.ModeShared
+	sharedSess, err := ap.Logic.Init(cfg)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	staged := make(map[int]*RangePluginSession, m.numRanges)
+	for i := 1; i <= m.numRanges; i++ {
+		sess := sharedSess
+		if !shared {
+			sess, err = ap.Logic.Init(cfg)
+			if err != nil {
+				return fmt.Errorf("init range %d: %w", i, err)
+			}
+		}
+		vm, err := ap.Logic.ViewModel(sess, i)
+		if err != nil {
+			return fmt.Errorf("view model range %d: %w", i, err)
+		}
+		staged[i] = &RangePluginSession{
+			RangeNum: i, PluginID: id, Phase: PhaseActive,
+			Config: cfg, State: sess, ViewModel: vm,
+			StartedAt: now, UpdatedAt: now,
+		}
+	}
+	m.rememberGameLocked(id, shared, sharedSess, staged)
+	return nil
+}
+
+func (m *Manager) syncTickerLocked() {
+	if m.replaying {
+		m.stopTickerLocked()
+		return
+	}
+	need := false
+	if m.backgroundGameID != "" {
+		if g := m.kept[m.backgroundGameID]; g != nil && g.shared {
+			need = true
+		}
+	} else if m.sharedMode && m.activeID != "" {
+		if ap, err := m.plugins.Get(m.activeID); err == nil && ap.Manifest.HasLogic() {
+			need = true
+		}
+	}
+	if need {
+		if !m.tickRunning {
+			m.startTickerLocked()
+		}
+		return
+	}
+	m.stopTickerLocked()
 }
 
 // EnsureActive starts the configured active plugin if sessions are idle.
@@ -383,6 +533,7 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 		if m.replaying {
 			return
 		}
+		m.persistConfigFromEvents(pluginID, events)
 		if shared {
 			// Shared games broadcast range 1's session to every client
 			// (hall + all tablets). Events must live on that session, not
@@ -398,12 +549,115 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 		}
 		return
 	}
+	// Display plugin is on screen. Keep scoring the parked game.
+	if m.backgroundGameID != "" {
+		if bg, berr := m.plugins.Get(m.backgroundGameID); berr == nil {
+			m.shotKeptLocked(bg, rangeNum, shot, shotIndex)
+		}
+	}
 	s.ShotCount++
 	s.UpdatedAt = time.Now()
 	if m.replaying {
 		return
 	}
 	s.ViewModel = m.displayViewModelLocked(rangeNum, ap)
+}
+
+// persistConfigFromEvents writes keys from a persist_config event into the
+// plugin override file. The live session already has the new value.
+func (m *Manager) persistConfigFromEvents(pluginID string, events []logicapi.PluginEvent) {
+	if m.plugins == nil || pluginID == "" {
+		return
+	}
+	var patch map[string]any
+	for _, ev := range events {
+		if ev.Type != "persist_config" || ev.Data == nil {
+			continue
+		}
+		if patch == nil {
+			patch = map[string]any{}
+		}
+		for k, v := range ev.Data {
+			patch[k] = v
+		}
+	}
+	if len(patch) == 0 {
+		return
+	}
+	overrides, err := config.LoadPluginConfig(m.plugins.RootDir(), pluginID)
+	if err != nil {
+		return
+	}
+	if overrides == nil {
+		overrides = map[string]any{}
+	}
+	for k, v := range patch {
+		overrides[k] = v
+	}
+	_ = config.SavePluginConfig(m.plugins.RootDir(), pluginID, overrides)
+}
+
+func (m *Manager) shotKeptLocked(ap *loader.ActivePlugin, rangeNum int, shot state.Shot, shotIndex int) {
+	if ap == nil || !ap.Manifest.HasLogic() {
+		return
+	}
+	g := m.kept[ap.Manifest.ID]
+	if g == nil {
+		return
+	}
+	s := g.sessions[rangeNum]
+	if s == nil {
+		return
+	}
+	now := time.Now()
+	if m.replaying {
+		if !shot.At.IsZero() {
+			now = shot.At
+		} else if !shot.ReceivedAt.IsZero() {
+			now = shot.ReceivedAt
+		}
+	}
+	live := m.liveInfo(rangeNum)
+	if m.replaying && live.TotalShotsToFire <= 0 {
+		live.TotalShotsToFire = 60
+	}
+	base := s.State
+	if g.shared {
+		base = g.sharedState
+	}
+	ctx := logicapi.ShotContext{
+		RangeNum:       rangeNum,
+		Shot:           shot,
+		ShotIndex:      shotIndex,
+		Live:           live,
+		NumRanges:      m.numRanges,
+		InactiveRanges: append([]int(nil), m.inactiveRanges...),
+		Now:            now,
+		Replay:         m.replaying,
+	}
+	var newState logicapi.SessionState
+	var err error
+	if ext, ok := ap.Logic.(logicapi.ExtendedLogic); ok {
+		newState, _, err = ext.OnShotCtx(base, ctx)
+	} else {
+		newState, _, err = ap.Logic.OnShot(base, rangeNum, shot, shotIndex)
+	}
+	if err != nil {
+		return
+	}
+	if g.shared {
+		g.sharedState = newState
+		for _, sess := range g.sessions {
+			if sess != nil {
+				sess.State = newState
+			}
+		}
+	} else {
+		s.State = newState
+	}
+	s.ShotCount++
+	s.UpdatedAt = now
+	m.refreshKeptViewModelsLocked(ap, g)
 }
 
 func (m *Manager) sessionStateLocked(s *RangePluginSession) logicapi.SessionState {
@@ -416,6 +670,9 @@ func (m *Manager) sessionStateLocked(s *RangePluginSession) logicapi.SessionStat
 func (m *Manager) applyStateLocked(newState logicapi.SessionState, shared bool) {
 	if shared {
 		m.sharedState = newState
+		if g := m.kept[m.activeID]; g != nil && g.shared {
+			g.sharedState = newState
+		}
 		for i := 1; i <= m.numRanges; i++ {
 			if sess := m.sessions[i]; sess != nil {
 				sess.State = newState
@@ -454,6 +711,29 @@ func (m *Manager) refreshAllViewModelsLocked(ap *loader.ActivePlugin) {
 	}
 }
 
+func (m *Manager) refreshKeptViewModelsLocked(ap *loader.ActivePlugin, g *keptGame) {
+	if ap == nil || g == nil || ap.Logic == nil {
+		return
+	}
+	now := time.Now()
+	for i := 1; i <= m.numRanges; i++ {
+		s := g.sessions[i]
+		if s == nil {
+			continue
+		}
+		st := s.State
+		if g.shared {
+			st = g.sharedState
+		}
+		vm, err := ap.Logic.ViewModel(st, i)
+		if err != nil {
+			continue
+		}
+		s.ViewModel = vm
+		s.UpdatedAt = now
+	}
+}
+
 func (m *Manager) notifyAllSessionsLocked() {
 	if m.sharedMode {
 		// One broadcast for the whole field — clients already share state.
@@ -479,7 +759,14 @@ func (m *Manager) notifyAllSessionsLocked() {
 func (m *Manager) Tick(now time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.replaying || !m.sharedMode || m.activeID == "" {
+	if m.replaying || m.activeID == "" {
+		return
+	}
+	if m.backgroundGameID != "" {
+		m.tickKeptLocked(m.backgroundGameID, now)
+		return
+	}
+	if !m.sharedMode {
 		return
 	}
 	ap, err := m.plugins.Get(m.activeID)
@@ -498,6 +785,33 @@ func (m *Manager) Tick(now time.Time) {
 	m.appendEventsAllLocked(events)
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
+}
+
+func (m *Manager) tickKeptLocked(id string, now time.Time) {
+	g := m.kept[id]
+	if g == nil || !g.shared {
+		return
+	}
+	ap, err := m.plugins.Get(id)
+	if err != nil || ap == nil {
+		return
+	}
+	ext, ok := ap.Logic.(logicapi.ExtendedLogic)
+	if !ok {
+		return
+	}
+	newState, _, changed, err := ext.Tick(g.sharedState, now)
+	if err != nil || !changed {
+		return
+	}
+	g.sharedState = newState
+	for _, sess := range g.sessions {
+		if sess != nil {
+			sess.State = newState
+			sess.UpdatedAt = now
+		}
+	}
+	m.refreshKeptViewModelsLocked(ap, g)
 }
 
 // Control handles master actions: start, reset, field_event.
@@ -703,7 +1017,20 @@ func (m *Manager) SyncLiveReadyIfArming() {
 func (m *Manager) syncLiveReady(onlyIfArming bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.sharedMode || m.activeID == "" || m.live == nil {
+	if m.activeID == "" || m.live == nil {
+		return
+	}
+	ap, err := m.plugins.Get(m.activeID)
+	if err != nil {
+		return
+	}
+	if !ap.Manifest.HasLogic() {
+		if m.backgroundGameID != "" {
+			m.syncKeptLiveLocked(m.backgroundGameID, onlyIfArming)
+		}
+		return
+	}
+	if !m.sharedMode {
 		return
 	}
 	if onlyIfArming {
@@ -712,10 +1039,6 @@ func (m *Manager) syncLiveReady(onlyIfArming bool) {
 		if phase != "" && phase != "warmup_collect" && phase != "arming" {
 			return
 		}
-	}
-	ap, err := m.plugins.Get(m.activeID)
-	if err != nil {
-		return
 	}
 	ext, ok := ap.Logic.(logicapi.ExtendedLogic)
 	if !ok {
@@ -738,6 +1061,43 @@ func (m *Manager) syncLiveReady(onlyIfArming bool) {
 	m.appendEventsAllLocked(events)
 	m.refreshAllViewModelsLocked(ap)
 	m.notifyAllSessionsLocked()
+}
+
+func (m *Manager) syncKeptLiveLocked(id string, onlyIfArming bool) {
+	g := m.kept[id]
+	if g == nil || !g.shared {
+		return
+	}
+	ap, err := m.plugins.Get(id)
+	if err != nil || ap == nil || !ap.Manifest.HasLogic() {
+		return
+	}
+	ext, ok := ap.Logic.(logicapi.ExtendedLogic)
+	if !ok {
+		return
+	}
+	if onlyIfArming {
+		phase := sharedPhase(g.sharedState)
+		if phase != "" && phase != "warmup_collect" && phase != "arming" {
+			return
+		}
+	}
+	newState, _, err := ext.Control(g.sharedState, "sync_live", map[string]any{
+		"live":           m.liveMapLocked(),
+		"numRanges":      m.numRanges,
+		"inactiveRanges": append([]int(nil), m.inactiveRanges...),
+		"now":            time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return
+	}
+	g.sharedState = newState
+	for _, sess := range g.sessions {
+		if sess != nil {
+			sess.State = newState
+		}
+	}
+	m.refreshKeptViewModelsLocked(ap, g)
 }
 
 func (m *Manager) liveMapLocked() map[string]any {

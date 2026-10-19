@@ -312,3 +312,36 @@ func playBankOderRisiko(t *testing.T, h *Host) {
 	}
 	h.requirePhase(path, "finished")
 }
+
+func playDarts(t *testing.T, h *Host) {
+	t.Helper()
+	h.Start()
+	h.requireBothRangesPaint()
+	game := nest(h.VM(1), "game")
+	if asString(game["rulesLabel"]) != "501" {
+		t.Fatalf("rules %v", game["rulesLabel"])
+	}
+	if remainingOf(game, 1) != 501 {
+		t.Fatalf("remaining %d", remainingOf(game, 1))
+	}
+	// PlaceShot(0.0) on the first seed lands in the single-1 wedge.
+	// The next ten 10.9 shots are the inner bull (50). 1+500 = 501.
+	h.Fire(1, 0.0)
+	for i := 0; i < 10; i++ {
+		h.Fire(1, 10.9)
+	}
+	h.requirePhase([]string{"game", "phase"}, "finished")
+	if asInt(nest(h.VM(1), "game")["winnerRange"]) != 1 {
+		t.Fatalf("winner %v", nest(h.VM(1), "game")["winnerRange"])
+	}
+}
+
+func remainingOf(game map[string]any, rn int) int {
+	for _, p := range asSlice(game["players"]) {
+		pm, _ := p.(map[string]any)
+		if asInt(pm["rangeNum"]) == rn {
+			return asInt(pm["remaining"])
+		}
+	}
+	return -1
+}

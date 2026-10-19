@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/beevik/etree"
 )
@@ -106,6 +108,12 @@ func upsertPluginConfigKey(root *etree.Element, key string, v any) {
 		upsertRangeNestedMap(root, key, v)
 		return
 	}
+	if key == "boardScale" {
+		// "1" and "0" reload as bool because coerceScalar tries ParseBool first.
+		el := selectOrCreate(root, key)
+		el.SetText(formatBoardScale(v))
+		return
+	}
 	if m, ok := v.(map[string]any); ok {
 		el := selectOrCreate(root, key)
 		for _, childName := range childElementNames(el) {
@@ -121,6 +129,25 @@ func upsertPluginConfigKey(root *etree.Element, key string, v any) {
 	}
 	el := selectOrCreate(root, key)
 	setScalarText(el, v)
+}
+
+func formatBoardScale(v any) string {
+	switch x := v.(type) {
+	case bool:
+		if x {
+			return "1.0"
+		}
+		return "0.0"
+	case string:
+		if _, err := strconv.ParseFloat(strings.TrimSpace(x), 64); err != nil {
+			return x
+		}
+	}
+	text := formatScalar(v)
+	if _, err := strconv.ParseFloat(text, 64); err == nil && !strings.ContainsAny(text, ".eE") {
+		return text + ".0"
+	}
+	return text
 }
 
 func upsertRangeScalarMap(root *etree.Element, key string, v any) {

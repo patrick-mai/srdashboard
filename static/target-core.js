@@ -143,8 +143,10 @@ let prevShotsLengthByRange = {};  // viewKey -> number
 let prevIsWarmupByRange = {};     // viewKey -> last isWarmup (warmup→competition resets zoom)
 let userZoomedByRange = {};  // viewKey -> true if user zoomed via wheel/drag; cleared on target reset
 let pinFullUntilNewShotByRange = {}; // dblclick: stay at full disk until another shot arrives
-/** Per-session series focus: { index, atShotNumber } while reviewing a completed series. */
+/** Per-session series focus: { index, kind, live, atShotNumber } while reviewing a series. */
 let seriesFocusByRange = {};
+/** Analyse-only: plot every shot, with Probe shots overlapping the match group. */
+let allShotsOverlapByKey = {};
 /** Last-10 chart bar index currently hovered (null/undefined = none). */
 let hoverBarIdxByRange = {};
 
@@ -841,7 +843,7 @@ function syncRangeVisibility(data) {
     if (wasHidden && !hide && byNum[num]) {
       const chartWrap = panel.querySelector('.last10-chart-wrap');
       const data = panel._paintedRange || byNum[num];
-      if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(data), num, data);
+      if (chartWrap) renderLast10Chart(chartWrap, last10ForDisplay(data, displayOpts(panel, data)), num, data);
     }
   }
   applyLayout();
@@ -1292,9 +1294,33 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     else shotsGroup.removeChild(n);
   });
 
+  const compOrder = [];
+  const warmOrder = [];
+  const compColorAt = [];
+  const warmOrdinal = [];
+  let compColor = 0;
+  let warmN = 0;
+  for (let i = 0; i < shots.length; i++) {
+    if (shots[i] && shots[i].overlapWarmup) {
+      warmOrder.push(i);
+      warmOrdinal[i] = warmN++;
+    } else {
+      compOrder.push(i);
+      compColorAt[i] = compColor++;
+    }
+  }
+  const paintOrder = compOrder.concat(warmOrder);
+  const lastIdx = compOrder.length ? compOrder[compOrder.length - 1] : (shots.length - 1);
+  let warmupPaint = '#c2410c';
+  if (warmOrder.length && typeof getComputedStyle === 'function') {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--warmup-accent').trim();
+    if (v) warmupPaint = v;
+  }
+
   shots.forEach((s, i) => {
     const pt = dsgToSvg(Number(s.x), Number(s.y), rangeNum);
-    const paint = colorForShotIndex(i);
+    const warmupShot = !!(s && s.overlapWarmup);
+    const paint = warmupShot ? warmupPaint : colorForShotIndex(compColorAt[i] || 0);
     const fillR = getShotFillRadius(rangeNum);
     const ringR = getShotRingRadius(rangeNum);
 
@@ -1309,15 +1335,17 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     fill.setAttribute('cy', String(pt.y));
     fill.setAttribute('r', String(fillR));
     fill.setAttribute('fill', paint);
-    fill.setAttribute('fill-opacity', '1');
+    fill.setAttribute('fill-opacity', warmupShot ? '0.42' : '1');
     fill.setAttribute('stroke', 'none');
     const dec = Number(s.decValue);
     if (Number.isFinite(dec)) fill.setAttribute('data-dec-value', String(dec));
     else fill.removeAttribute('data-dec-value');
-    fill.classList.toggle('is-last', i === shots.length - 1);
+    fill.classList.toggle('is-warmup-overlap', warmupShot);
+    fill.classList.toggle('is-last', i === lastIdx);
     const title = fill.querySelector('title');
     if (title) {
-      title.textContent = `#${i + 1}: ${Number(s.decValue).toFixed(1)} (T ${Number(s.distance).toFixed(1)})`;
+      const prefix = warmupShot ? ('Probe #' + (warmOrdinal[i] + 1)) : ('#' + ((compColorAt[i] || 0) + 1));
+      title.textContent = prefix + ': ' + Number(s.decValue).toFixed(1) + ' (T ' + Number(s.distance).toFixed(1) + ')';
     }
 
     let ring = ringG.querySelector('circle[data-shot-idx="' + i + '"]');
@@ -1332,9 +1360,17 @@ function upsertShotCircles(shotsGroup, shots, rangeNum) {
     ring.setAttribute('r', String(ringR));
     ring.setAttribute('stroke', paint);
     ring.setAttribute('stroke-width', String(getShotStrokeWidth()));
-    ring.setAttribute('stroke-opacity', '1');
+    ring.setAttribute('stroke-opacity', warmupShot ? '0.95' : '1');
     ring.setAttribute('pointer-events', 'none');
-    ring.classList.toggle('is-last', i === shots.length - 1);
+    ring.classList.toggle('is-warmup-overlap', warmupShot);
+    ring.classList.toggle('is-last', i === lastIdx);
+  });
+
+  paintOrder.forEach(function (i) {
+    const fill = fillG.querySelector('circle[data-shot-idx="' + i + '"]');
+    if (fill) fillG.appendChild(fill);
+    const ring = ringG.querySelector('circle[data-shot-idx="' + i + '"]');
+    if (ring) ringG.appendChild(ring);
   });
 
   Array.prototype.slice.call(fillG.querySelectorAll('circle')).forEach(function (c) {
@@ -1372,8 +1408,9 @@ function renderTarget(container, rangeData, isWarmup, opts) {
   svg.dataset.viewKey = viewKey(rangeData, rangeNum);
 
   const key = svg.dataset.viewKey;
-  const shots = shotsForDisplay(rangeData);
-  const focusingSeries = seriesFocusByRange[key] != null;
+  const disp = displayOpts(container, rangeData);
+  const shots = shotsForDisplay(rangeData, disp);
+  const focusingSeries = !disp.allShotsOverlap && seriesFocusByRange[key] != null;
   const prevLen = prevShotsLengthByRange[key] ?? 0;
   const currentLen = shots.length;
   const warmupFlag = !!(isWarmup != null ? isWarmup : rangeData.isWarmup);
@@ -1430,7 +1467,8 @@ function renderTarget(container, rangeData, isWarmup, opts) {
   setupZoomHandlers(container, rangeNum);
   upsertShotCircles(shotsGroup, shots, rangeNum);
   container.classList.toggle('series-focus', focusingSeries);
-  container.classList.toggle('warmup', displayIsWarmup(rangeData));
+  container.classList.toggle('all-shots-overlap', !!disp.allShotsOverlap);
+  container.classList.toggle('warmup', displayIsWarmup(rangeData, disp));
 }
 
 const DEFAULT_CHART_COLORS = {
@@ -1486,12 +1524,13 @@ function liveRangeData(rangeNum) {
 }
 
 /** Map a last-10 bar index to the shot currently drawn on the scheibe (−1 if that bar is not on the disk). */
-function chartBarToShotIndex(rangeNum, barIdx, rangeData) {
+function chartBarToShotIndex(rangeNum, barIdx, rangeData, host) {
   if (barIdx == null || !Number.isFinite(barIdx) || barIdx < 0) return -1;
   const src = rangeData || liveRangeData(rangeNum);
   if (!src) return barIdx;
-  const shots = shotsForDisplay(src);
-  const values = last10ForDisplay(src);
+  const disp = displayOpts(host, src);
+  const shots = shotsForDisplay(src, disp);
+  const values = last10ForDisplay(src, disp);
   if (!shots.length) return -1;
   if (values.length === shots.length) {
     return barIdx < shots.length ? barIdx : -1;
@@ -1626,7 +1665,7 @@ function paintHoverForRange(rangeNum) {
   const barIdx = hoverBarIdxByRange[rangeNum];
   forEachRangeHost(rangeNum, function (host) {
     const data = host._paintedRange || liveRangeData(rangeNum);
-    const shotIdx = barIdx == null ? -1 : chartBarToShotIndex(rangeNum, barIdx, data);
+    const shotIdx = barIdx == null ? -1 : chartBarToShotIndex(rangeNum, barIdx, data, host);
     host.querySelectorAll('.target-shots').forEach(function (g) {
       paintShotHoverOnGroup(g, rangeNum, shotIdx);
     });
@@ -1770,33 +1809,92 @@ function seriesShotsForFocus(rangeData, focus) {
   return (rangeData.seriesShots || [])[focus.index] || [];
 }
 
+function isAnalyseMount(el) {
+  return !!(el && el.closest && el.closest('.analyse-layout, .analyse-panel'));
+}
+
+function allShotsOverlapOn(host, rangeData) {
+  if (!rangeData || !allShotsOverlapByKey[focusKey(rangeData)]) return false;
+  return isAnalyseMount(host);
+}
+
+function displayOpts(host, rangeData) {
+  return { allShotsOverlap: allShotsOverlapOn(host, rangeData) };
+}
+
+function shotCopy(s, extra) {
+  return Object.assign({}, s, extra || {});
+}
+
+/** Every retained shot: Probe first (flagged), then Wertung. Open series is not copied twice. */
+function allShotsWithWarmupOverlap(rangeData) {
+  const out = [];
+  const warm = (rangeData && rangeData.warmupShots) || [];
+  for (let i = 0; i < warm.length; i++) {
+    out.push(shotCopy(warm[i], { overlapWarmup: true }));
+  }
+  if (!rangeData || rangeData.isWarmup) return out;
+  const series = rangeData.seriesShots || [];
+  for (let i = 0; i < series.length; i++) {
+    const chunk = series[i] || [];
+    for (let j = 0; j < chunk.length; j++) out.push(shotCopy(chunk[j]));
+  }
+  const open = rangeData.shots || [];
+  if (open.length > 0 && open.length < SERIES_LEN) {
+    for (let i = 0; i < open.length; i++) out.push(shotCopy(open[i]));
+  }
+  return out;
+}
+
+function competitionShotsPresent(rangeData) {
+  if (!rangeData || rangeData.isWarmup) return false;
+  if ((rangeData.seriesShots || []).length) return true;
+  return ((rangeData.shots || []).length) > 0;
+}
+
 /** Triangle follows the series on the target: Probe review or live warmup. */
-function displayIsWarmup(rangeData) {
+function displayIsWarmup(rangeData, opts) {
+  if (opts && opts.allShotsOverlap && competitionShotsPresent(rangeData)) return false;
   const focus = rangeData && seriesFocusByRange[focusKey(rangeData)];
   if (focus != null) return (focus.kind || 'comp') === 'warmup';
   return !!(rangeData && rangeData.isWarmup);
 }
 
-/** Shots currently drawn on the target (live or a reviewed completed series). */
-function shotsForDisplay(rangeData) {
+/** Shots currently drawn on the target (live, a reviewed series, or Analyse all-shots). */
+function shotsForDisplay(rangeData, opts) {
+  if (opts && opts.allShotsOverlap) {
+    const all = allShotsWithWarmupOverlap(rangeData);
+    if (all.length) return all;
+  }
   const focus = seriesFocusByRange[focusKey(rangeData)];
   if (focus != null) {
     const series = seriesShotsForFocus(rangeData, focus);
     if (series && series.length) return series;
   }
-  return rangeData.shots || [];
+  return (rangeData && rangeData.shots) || [];
 }
 
-/** Bar-chart values for the shots currently shown (series focus or live last-10). */
-function last10ForDisplay(rangeData) {
-  const focus = seriesFocusByRange[focusKey(rangeData)];
-  if (focus != null) {
-    const series = seriesShotsForFocus(rangeData, focus);
-    if (series && series.length) {
-      return series.map(function (s) { return Number(s.decValue); });
-    }
+/** Bar-chart values for the shots currently drawn. Never a rolling window of shots already cleared off the disc. */
+function last10ForDisplay(rangeData, opts) {
+  const shots = shotsForDisplay(rangeData, opts);
+  if (shots && shots.length) {
+    const shown = shots.length > SERIES_LEN ? shots.slice(shots.length - SERIES_LEN) : shots;
+    return shown.map(function (s) { return Number(s.decValue); });
   }
-  return rangeData.last10Values || [];
+  return (rangeData && rangeData.last10Values) || [];
+}
+
+function toggleAllShotsOverlap(rangeData) {
+  const key = focusKey(rangeData);
+  if (allShotsOverlapByKey[key]) {
+    delete allShotsOverlapByKey[key];
+  } else {
+    allShotsOverlapByKey[key] = true;
+    delete seriesFocusByRange[key];
+  }
+  userZoomedByRange[key] = false;
+  pinFullUntilNewShotByRange[key] = false;
+  resetRangeZoom(key, rangeData && rangeData.rangeNum);
 }
 
 /** Drop series review when a newer shot arrives or the series list no longer has that index. */
@@ -1869,6 +1967,16 @@ function paintSeriesFocusActive(footerEl, rangeData) {
 function wireSeriesClicks(footerEl, rangeData) {
   if (!footerEl || !rangeData) return;
   footerEl.onclick = function (ev) {
+    const allBtn = ev.target.closest('.serien-all-toggle');
+    if (allBtn && footerEl.contains(allBtn)) {
+      toggleAllShotsOverlap(rangeData);
+      const data = rangeDataForRepaint(rangeData);
+      const mount = footerEl.closest('.classic-range-view') || footerEl.closest('.range-plugin-view');
+      if (mount && mount.classList.contains('classic-range-view')) {
+        renderClassicRangeView(mount, data);
+      }
+      return;
+    }
     const btn = ev.target.closest('.serien-col');
     if (!btn || !footerEl.contains(btn)) return;
     const idx = parseInt(btn.dataset.seriesIdx, 10);
@@ -1877,6 +1985,7 @@ function wireSeriesClicks(footerEl, rangeData) {
     const kind = btn.getAttribute('data-series-kind') || 'comp';
     const series = seriesShotsForFocus(rangeData, { index: idx, live: isLive, kind: kind });
     if (!series || !series.length) return;
+    delete allShotsOverlapByKey[focusKey(rangeData)];
     setSeriesFocus(rangeData, idx, rangeData, isLive, kind);
     // Frozen Analyse results keep their snapshot. Live stands refresh from the lane payload.
     const data = rangeDataForRepaint(rangeData);
@@ -1987,7 +2096,15 @@ function seriesOverviewCount(rangeData) {
   return seriesDisplayColumns(rangeData).n;
 }
 
-function renderFooter(rangeData) {
+function allShotsToggleHtml(rangeData) {
+  const on = !!allShotsOverlapByKey[focusKey(rangeData)];
+  return '<button type="button" class="serien-all-toggle' + (on ? ' is-active' : '') +
+    '" aria-pressed="' + (on ? 'true' : 'false') +
+    '" title="Alle Schüsse, Probe überlappend">Alle</button>';
+}
+
+function renderFooter(rangeData, opts) {
+  const analyse = !!(opts && opts.analyse);
   const f = config.footer || {};
   const w = rangeData.currentValue != null && f.currentShotValue ? rangeData.currentValue.toFixed(1) : '–';
   const t = rangeData.currentTeiler != null && f.teiler ? rangeData.currentTeiler.toFixed(1) : '–';
@@ -2027,7 +2144,8 @@ function renderFooter(rangeData) {
         const pad = showDec && intV !== '' ? '<span class="serien-frac-slot" aria-hidden="true">.0</span>' : '';
         const tag = hasShots ? 'button' : 'span';
         const reviewing = seriesFocusByRange[focusKey(rangeData)] != null;
-        const current = !reviewing && i === colsModel.currentIdx;
+        const allOn = analyse && !!allShotsOverlapByKey[focusKey(rangeData)];
+        const current = !reviewing && !allOn && i === colsModel.currentIdx;
         const warmupCls = col.kind === 'warmup' ? ' serien-warmup' : '';
         const titleKind = col.kind === 'warmup' ? 'Probeserie ' : 'Serie ';
         const titleNum = col.kind === 'warmup' ? (col.index + 1) : col.label;
@@ -2045,9 +2163,16 @@ function renderFooter(rangeData) {
       }
     }
     serienHtml =
-      '<div class="footer-serien-row' + (n > 4 ? ' serien-many' : '') + '">' +
+      '<div class="footer-serien-row' + (n > 4 ? ' serien-many' : '') + (analyse ? ' has-all-toggle' : '') + '">' +
       '<span class="footer-label">Serien:</span>' +
       '<span class="serien-grid serien-cols">' + cols + '</span>' +
+      (analyse ? allShotsToggleHtml(rangeData) : '') +
+      '</div>';
+  }
+  if (analyse && !serienHtml) {
+    serienHtml =
+      '<div class="footer-serien-row has-all-toggle">' +
+      allShotsToggleHtml(rangeData) +
       '</div>';
   }
 
@@ -2108,6 +2233,7 @@ function rangeChromeSignature(r) {
       const f = seriesFocusByRange[focusKey(r)];
       return f ? ((f.kind || 'comp') + ':' + f.index + ':' + (f.live ? 1 : 0)) : '';
     })(),
+    allShotsOverlapByKey[focusKey(r)] ? 1 : 0,
     r.shooterName || '',
     r.clubName || '',
     r.discipline || '',
@@ -2176,14 +2302,14 @@ if (typeof document !== 'undefined') {
       const rangeNum = panel ? parseInt(panel.dataset.range, 10) : NaN;
       let values = null;
       let rangeData = panel && panel._paintedRange;
-      if (rangeData) values = last10ForDisplay(rangeData);
+      if (rangeData) values = last10ForDisplay(rangeData, displayOpts(wrap, rangeData));
       else if (lastLiveData && lastLiveData.ranges) {
         const r = lastLiveData.ranges.find(function (x) {
           return x.rangeNum === rangeNum;
         });
         if (r) {
           rangeData = r;
-          values = last10ForDisplay(r);
+          values = last10ForDisplay(r, displayOpts(wrap, r));
         }
       }
       renderLast10Chart(wrap, values, rangeNum, rangeData);
@@ -2399,6 +2525,7 @@ function renderClassicRangeView(container, rangeData, opts) {
   container.dataset.pluginId = 'classic-range';
 
   syncSeriesFocus(rangeData);
+  const disp = displayOpts(container, rangeData);
 
   // One chart lives inside the mount; drop duplicates left on the parent panel.
   const hostPanel = container.closest('.range-panel');
@@ -2410,7 +2537,8 @@ function renderClassicRangeView(container, rangeData, opts) {
     targetEl.className = 'range-target';
     container.appendChild(targetEl);
   }
-  targetEl.classList.toggle('warmup', displayIsWarmup(rangeData));
+  targetEl.classList.toggle('warmup', displayIsWarmup(rangeData, disp));
+  targetEl.classList.toggle('all-shots-overlap', !!disp.allShotsOverlap);
 
   const f = config.footer || {};
   const showLast10 = f.last10Int || f.last10Decimal;
@@ -2426,7 +2554,7 @@ function renderClassicRangeView(container, rangeData, opts) {
       if (footerEl) container.insertBefore(chartWrap, footerEl);
       else container.appendChild(chartWrap);
     }
-    renderLast10Chart(chartWrap, last10ForDisplay(rangeData), rangeData.rangeNum, rangeData);
+    renderLast10Chart(chartWrap, last10ForDisplay(rangeData, disp), rangeData.rangeNum, rangeData);
   } else if (chartWrap) {
     chartWrap.remove();
   }
@@ -2438,7 +2566,7 @@ function renderClassicRangeView(container, rangeData, opts) {
     container.appendChild(footerEl);
   }
   const seriesN = seriesOverviewCount(rangeData);
-  footerEl.innerHTML = renderFooter(rangeData);
+  footerEl.innerHTML = renderFooter(rangeData, { analyse: isAnalyseMount(container) });
   footerEl.dataset.seriesN = String(seriesN);
   wireSeriesClicks(footerEl, rangeData);
   paintSeriesFocusActive(footerEl, rangeData);

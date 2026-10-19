@@ -49,6 +49,28 @@ func TestSavePluginConfigPreservesComments(t *testing.T) {
 	}
 }
 
+func TestSaveBoardScaleKeepsDecimal(t *testing.T) {
+	dir := t.TempDir()
+	if err := SavePluginConfig(dir, "darts", map[string]any{"boardScale": 1.0}); err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(filepath.Join(dir, "darts", "config.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(text), "<boardScale>1.0</boardScale>") {
+		t.Fatalf("scale written as bool-looking integer:\n%s", text)
+	}
+	got, err := LoadPluginConfig(dir, "darts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scale, ok := got["boardScale"].(float64)
+	if !ok || scale != 1 {
+		t.Fatalf("reloaded scale = %#v", got["boardScale"])
+	}
+}
+
 func TestSaveGlobalConfigPreservesComments(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.xml")
