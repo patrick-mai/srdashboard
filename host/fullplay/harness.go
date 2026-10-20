@@ -20,6 +20,7 @@ import (
 	_ "srdashboard/host/games/kopokal"
 	_ "srdashboard/host/games/kronenduell"
 	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/munitionstest"
 	_ "srdashboard/host/games/schiessgolf"
 	_ "srdashboard/host/games/schrumpfenderkreis"
 	_ "srdashboard/host/games/tannebaum"

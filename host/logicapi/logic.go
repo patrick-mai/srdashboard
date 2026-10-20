@@ -23,6 +23,7 @@ type LiveRangeInfo struct {
 	IsWarmup         bool
 	TotalShotsToFire int
 	Discipline       string
+	DiscType         string
 	ShooterName      string
 }
 
@@ -53,10 +54,20 @@ type Logic interface {
 	ViewModel(sess SessionState, rangeNum int) (map[string]any, error)
 }
 
-// ExtendedLogic is optional for builtin shared games (tick + control + live-aware shots).
+// ExtendedLogic is optional for builtin games (tick + control + live-aware shots).
 type ExtendedLogic interface {
 	Logic
 	OnShotCtx(sess SessionState, ctx ShotContext) (SessionState, []PluginEvent, error)
 	Tick(sess SessionState, now time.Time) (SessionState, []PluginEvent, bool, error)
 	Control(sess SessionState, action string, params map[string]any) (SessionState, []PluginEvent, error)
+}
+
+// EventFanout asks the host to copy a shared catalog into every other
+// per-range session. Shared games ignore it. The payload is the event Data.
+const EventFanout = "fanout"
+
+// FanoutLogic is optional. ApplyFanout merges a catalog payload into one
+// range session and must leave that range's own shots alone.
+type FanoutLogic interface {
+	ApplyFanout(sess SessionState, payload map[string]any) (SessionState, error)
 }

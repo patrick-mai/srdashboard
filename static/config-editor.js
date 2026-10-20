@@ -255,8 +255,13 @@
 
   function collectPluginMerged() {
     if (!panel || !pluginData) return {};
-    const merged = Object.assign({}, pluginData.manifestDefaults || {});
     const schema = (pluginData.configSchema && pluginData.configSchema.properties) || {};
+    const merged = Object.assign({}, pluginData.manifestDefaults || {});
+    // Keys the form does not edit (the lot catalog, for example) must survive a save.
+    const extra = pluginData.overrides || {};
+    Object.keys(extra).forEach(function (key) {
+      if (!schema[key]) merged[key] = extra[key];
+    });
     Object.keys(schema).forEach(function (key) {
       const prop = schema[key];
       if (key === 'rangeTargets') {

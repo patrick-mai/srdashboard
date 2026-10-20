@@ -437,6 +437,7 @@ func (m *Manager) liveInfo(rangeNum int) logicapi.LiveRangeInfo {
 			info.IsWarmup = rs.IsWarmup
 			info.TotalShotsToFire = rs.TotalShotsToFire
 			info.Discipline = rs.Discipline
+			info.DiscType = rs.DiscType
 			info.ShooterName = rs.ShooterName
 			return info
 		}
@@ -814,7 +815,34 @@ func (m *Manager) tickKeptLocked(id string, now time.Time) {
 	m.refreshKeptViewModelsLocked(ap, g)
 }
 
+// controlRange picks the per-range session a control applies to.
+// Shared games always use range 1, which holds the shared state.
+func controlRange(params map[string]any, numRanges int) int {
+	n := 1
+	if params != nil {
+		switch v := params["rangeNum"].(type) {
+		case int:
+			n = v
+		case int64:
+			n = int(v)
+		case float64:
+			n = int(v)
+		case json.Number:
+			i, err := v.Int64()
+			if err == nil {
+				n = int(i)
+			}
+		}
+	}
+	if n < 1 || n > numRanges {
+		return 1
+	}
+	return n
+}
+
 // Control handles master actions: start, reset, field_event.
+// Per-range plugins apply the action to params.rangeNum (default 1) and, when
+// the logic emits a fanout event, copy that payload into the other ranges.
 func (m *Manager) Control(action string, params map[string]any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -844,9 +872,13 @@ func (m *Manager) Control(action string, params map[string]any) error {
 		params["now"] = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 
-	sess := m.sessions[1]
+	rangeNum := 1
+	if !m.sharedMode {
+		rangeNum = controlRange(params, m.numRanges)
+	}
+	sess := m.sessions[rangeNum]
 	if sess == nil {
-		return fmt.Errorf("no session for range 1")
+		return fmt.Errorf("no session for range %d", rangeNum)
 	}
 	newState, events, err := ext.Control(m.sessionStateLocked(sess), action, params)
 	if err != nil {
@@ -854,12 +886,66 @@ func (m *Manager) Control(action string, params map[string]any) error {
 	}
 	if m.sharedMode {
 		m.applyStateLocked(newState, true)
-	} else if s := m.sessions[1]; s != nil {
-		s.State = newState
+		m.appendEventsAllLocked(events)
+		m.refreshAllViewModelsLocked(ap)
+		m.notifyAllSessionsLocked()
+		return nil
 	}
-	m.appendEventsAllLocked(events)
-	m.refreshAllViewModelsLocked(ap)
-	m.notifyAllSessionsLocked()
+	s := m.sessions[rangeNum]
+	s.State = newState
+	s.appendEvents(events)
+	s.UpdatedAt = time.Now()
+	vm, err := ap.Logic.ViewModel(s.State, rangeNum)
+	if err != nil {
+		return err
+	}
+	s.ViewModel = vm
+	m.persistConfigFromEvents(m.activeID, events)
+	if err := m.applyFanoutLocked(ap, rangeNum, events); err != nil {
+		return err
+	}
+	m.notifyRangeLocked(rangeNum)
+	return nil
+}
+
+// applyFanoutLocked copies a catalog event into every per-range session
+// except the one that already applied the control.
+func (m *Manager) applyFanoutLocked(ap *loader.ActivePlugin, origin int, events []logicapi.PluginEvent) error {
+	fan, ok := ap.Logic.(logicapi.FanoutLogic)
+	if !ok {
+		return nil
+	}
+	var payload map[string]any
+	for _, ev := range events {
+		if ev.Type == logicapi.EventFanout && ev.Data != nil {
+			payload = ev.Data
+		}
+	}
+	if payload == nil {
+		return nil
+	}
+	now := time.Now()
+	for i := 1; i <= m.numRanges; i++ {
+		if i == origin {
+			continue
+		}
+		s := m.sessions[i]
+		if s == nil {
+			continue
+		}
+		st, err := fan.ApplyFanout(s.State, payload)
+		if err != nil {
+			return err
+		}
+		s.State = st
+		vm, err := ap.Logic.ViewModel(st, i)
+		if err != nil {
+			return err
+		}
+		s.ViewModel = vm
+		s.UpdatedAt = now
+		m.notifyRangeLocked(i)
+	}
 	return nil
 }
 

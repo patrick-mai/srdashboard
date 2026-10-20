@@ -1,6 +1,8 @@
 package fullplay
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"srdashboard/udp"
@@ -59,6 +61,41 @@ func playAnalyse(t *testing.T, h *Host) {
 	h.requireBothRangesPaint()
 	if h.VM(1)["kind"] != "display" {
 		t.Fatalf("analyse kind=%v", h.VM(1)["kind"])
+	}
+}
+
+func playMunitionstest(t *testing.T, h *Host) {
+	t.Helper()
+	cfg := filepath.Join(pluginsRoot(t), "munitionstest", "config.xml")
+	_, statErr := os.Stat(cfg)
+	t.Cleanup(func() {
+		if statErr != nil {
+			_ = os.Remove(cfg)
+		}
+	})
+	if h.VM(1)["mode"] != "per-range" {
+		t.Fatalf("mode %v", h.VM(1)["mode"])
+	}
+	h.Control("addLot", map[string]any{"name": "R50", "rangeNum": 1})
+	if len(asSlice(h.VM(2)["lots"])) != 1 {
+		t.Fatalf("range 2 lots = %v", h.VM(2)["lots"])
+	}
+	h.Control("selectLot", map[string]any{"rangeNum": 1, "lotId": 1})
+	h.Control("setWeapon", map[string]any{"rangeNum": 1, "lotId": 1, "weapon": "Anschütz"})
+	h.Fire(1, 10.5)
+	h.Fire(2, 10.5)
+	active := nest(h.VM(1), "active")
+	if active == nil || asInt(active["shotCount"]) != 1 || asInt(active["abortSteps"]) != 0 {
+		t.Fatalf("range 1 active = %#v", active)
+	}
+	if asString(active["weapon"]) != "Anschütz" {
+		t.Fatalf("weapon %v", active["weapon"])
+	}
+	if h.VM(2)["active"] != nil {
+		t.Fatalf("range 2 should not share the group: %#v", h.VM(2)["active"])
+	}
+	if asString(active["name"]) == "" || active["hasAbort"] != true {
+		t.Fatalf("abort button missing: %#v", active)
 	}
 }
 

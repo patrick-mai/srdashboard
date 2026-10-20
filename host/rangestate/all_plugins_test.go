@@ -17,6 +17,7 @@ import (
 	_ "srdashboard/host/games/kopokal"
 	_ "srdashboard/host/games/kronenduell"
 	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/munitionstest"
 	_ "srdashboard/host/games/schiessgolf"
 	_ "srdashboard/host/games/schrumpfenderkreis"
 	_ "srdashboard/host/games/tannebaum"
@@ -44,7 +45,7 @@ func TestAllBundledPluginsLoadAndActivate(t *testing.T) {
 	want := []string{
 		"analyse", "ansage-duell", "autorennen", "bank-oder-risiko", "barrikade", "biathlon",
 		"classic-range", "classic-range-condensed", "darts", "fox-on-the-run", "kettenreaktion", "ko-pokal",
-		"kronen-duell", "ludo", "schiessgolf", "schrumpfender-kreis",
+		"kronen-duell", "ludo", "munitionstest", "schiessgolf", "schrumpfender-kreis",
 		"tannebaum-einzel", "tannebaum-team", "tauziehen", "turmbau", "zehner-bingo",
 	}
 	wantSet := map[string]bool{}

@@ -50,6 +50,7 @@ var frozenIDs = []string{
 	"ansage-duell-2p",
 	"darts-2p",
 	"analyse",
+	"munitionstest",
 }
 
 // Catalog is the single list of full games. go test ./host/fullplay runs all of them.
@@ -237,6 +238,30 @@ func Catalog() []Scenario {
 				Has: []string{"const PLUGIN_ID = 'analyse'", "SRPluginViews[PLUGIN_ID]", "analyse-select", "renderClassicRangeView", "pickDefaultId", "sessionResultLive"},
 				Why: "Analyse hall must register as a shared display, reuse Classic Range paint, and keep frozen starts selectable",
 			}},
+		},
+		{
+			ID:        "munitionstest",
+			PluginID:  "munitionstest",
+			NumRanges: 2,
+			Play:      playMunitionstest,
+			UI: []FileCheck{
+				{
+					Rel: []string{"plugins", "munitionstest", "view.js"},
+					Has: []string{
+						"const PLUGIN_ID = 'munitionstest'",
+						"SRPluginViews[PLUGIN_ID]",
+						"vm.surface === 'master'",
+						"data-action=\"abort\"",
+						"--mt-abort-scale",
+					},
+					Why: "Munitionstest must register, paint the master list, and keep a growing abort button",
+				},
+				{
+					Rel: []string{"static", "master.js"},
+					Has: []string{"=== 'munitionstest'", "surface: 'master'"},
+					Why: "the hall must mount one master list while each range keeps its own session",
+				},
+			},
 		},
 	}
 }

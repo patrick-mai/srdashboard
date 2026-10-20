@@ -41,6 +41,71 @@
       id === 'turmbau' || id === 'ansage-duell' || id === 'analyse' || id === 'darts';
   }
 
+  function isMunitionstest() {
+    return currentPluginId() === 'munitionstest';
+  }
+
+  function munitionViewModel() {
+    const lanes = [];
+    const lives = (core.lastLiveData && core.lastLiveData.ranges) || [];
+    Object.keys(pluginSessions).map(function (k) { return Number(k); }).sort(function (a, b) { return a - b; }).forEach(function (n) {
+      const s = pluginSessions[n];
+      if (!s || !s.viewModel) return;
+      const live = lives.find(function (r) { return r.rangeNum === n; });
+      lanes.push(Object.assign({}, s.viewModel, {
+        rangeNum: n,
+        range: live || s.viewModel.range || null
+      }));
+    });
+    return { surface: 'master', rangeNum: 0, lanes: lanes };
+  }
+
+  function updateMunitionMaster() {
+    if (!activePlugin || !window.SRPluginShell) return;
+    const host = document.getElementById('shared-master-host');
+    if (!host || host.hidden) {
+      mountAllPluginViews();
+      return;
+    }
+    window.SRPluginShell.renderPluginView(
+      host,
+      activePlugin.id,
+      activePlugin.viewUrl,
+      activePlugin.assetsBase,
+      munitionViewModel(),
+      activePlugin.themeUrl || ''
+    );
+  }
+
+  async function mountSingleHost(gen, viewModel) {
+    clearRangePluginMounts();
+    const grid = document.getElementById('ranges-grid');
+    if (!grid || !activePlugin || !window.SRPluginShell) return;
+    let host = document.getElementById('shared-master-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'shared-master-host';
+      host.className = 'shared-master-host';
+      grid.parentNode.insertBefore(host, grid);
+    }
+    grid.hidden = true;
+    grid.style.display = 'none';
+    host.hidden = false;
+    host.style.cssText = 'position:absolute;inset:0;z-index:2;';
+    const stage = document.getElementById('stage');
+    if (stage) stage.style.position = 'relative';
+    await window.SRPluginShell.renderPluginView(
+      host,
+      activePlugin.id,
+      activePlugin.viewUrl,
+      activePlugin.assetsBase,
+      viewModel,
+      activePlugin.themeUrl || ''
+    );
+    if (gen !== mountGen) return;
+    host._sharedReady = true;
+  }
+
   function isDisplayPlugin() {
     const id = currentPluginId();
     if (!id) return false;
@@ -214,6 +279,10 @@
     if (!range) return;
     const id = currentPluginId();
     core.updatePluginPanelHeader(range.rangeNum, range);
+    if (isMunitionstest()) {
+      updateMunitionMaster();
+      return;
+    }
     // Shared plugins own the stage; never paint into hidden per-range mounts.
     if (isSharedPlugin()) return;
 
@@ -292,6 +361,10 @@
 
   async function mountAllPluginViews() {
     const gen = ++mountGen;
+    if (isMunitionstest()) {
+      await mountSingleHost(gen, munitionViewModel());
+      return;
+    }
     const n = (core.config && core.config.ranges) || 1;
     const shared = isSharedPlugin();
 
@@ -431,7 +504,9 @@
         const msg = JSON.parse(ev.data);
         if (msg.type === 'plugin_session' && msg.session) {
           pluginSessions[msg.session.rangeNum] = msg.session;
-          if (isSharedPlugin()) {
+          if (isMunitionstest()) {
+            updateMunitionMaster();
+          } else if (isSharedPlugin()) {
             updateSharedPluginView(msg.session);
           } else if (!isInlineDisplayPlugin(currentPluginId())) {
             mountRangePlugin(msg.session.rangeNum, mountGen);
@@ -469,7 +544,9 @@
           else ranges.push(msg.range);
           core.lastLiveData = { ranges: ranges };
           core.bumpLiveGen();
-          if (isSharedPlugin()) {
+          if (isMunitionstest()) {
+            updateMunitionMaster();
+          } else if (isSharedPlugin()) {
             // Live scores update in place; remounting every shot races mountGen
             // and can briefly expose the classic range grid under the shared host.
             const host = document.getElementById('shared-master-host');
@@ -1109,14 +1186,18 @@
     if (core.getLiveGen() !== gen) return; // WS already newer
     if (live) {
       core.lastLiveData = live;
-      if (isSharedPlugin()) {
+      if (isMunitionstest()) {
+        updateMunitionMaster();
+      } else if (isSharedPlugin()) {
         // Prefer in-place update — full remount every SAFETY_POLL_MS flickered.
         updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
       } else {
         (live.ranges || []).forEach(function (r) { queueLiveRange(r); });
       }
     } else if (!wsOpen) {
-      if (isSharedPlugin()) {
+      if (isMunitionstest()) {
+        updateMunitionMaster();
+      } else if (isSharedPlugin()) {
         const host = document.getElementById('shared-master-host');
         if (host && !host.hidden) {
           updateSharedPluginView(pluginSessions[1] || Object.values(pluginSessions)[0] || {});
