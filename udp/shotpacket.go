@@ -11,19 +11,21 @@ import (
 
 // ShotPacketOpts describes one synthetic OpticScore Shot UDP payload.
 type ShotPacketOpts struct {
-	Range    int
-	X        int
-	Y        int
-	Distance float64
-	DecValue float64
-	IsWarmup bool
-	Shooter  string
-	Lastname string
-	Club     string
-	Team     string
-	ShotAt   time.Time // zero → omit ShotDateTime (server uses receive time)
-	MenuItem string
-	DiscType string // LG / LP / KK; empty → LG for synthetic packets
+	Range      int
+	X          int
+	Y          int
+	Distance   float64
+	DecValue   float64
+	IsWarmup   bool
+	Shooter    string
+	Lastname   string
+	Club       string
+	Team       string
+	PassNumber string    // Shooter.Identification
+	ClubID     string    // Club.ID, Vereinsnummer
+	ShotAt     time.Time // zero → omit ShotDateTime (server uses receive time)
+	MenuItem   string
+	DiscType   string // LG / LP / KK; empty → LG for synthetic packets
 }
 
 // BuildShotPacket returns JSON bytes for a DISAG Event/Shot message.
@@ -63,13 +65,23 @@ func BuildShotPacket(opts ShotPacketOpts) ([]byte, error) {
 	if !opts.ShotAt.IsZero() {
 		obj["ShotDateTime"] = state.FormatOpticScoreTime(opts.ShotAt)
 	}
-	if opts.Shooter != "" || opts.Lastname != "" || opts.Club != "" || opts.Team != "" {
+	if opts.Shooter != "" || opts.Lastname != "" || opts.Club != "" || opts.Team != "" || opts.PassNumber != "" || opts.ClubID != "" {
 		sh := map[string]any{
 			"Firstname": opts.Shooter,
 			"Lastname":  opts.Lastname,
 		}
+		if opts.PassNumber != "" {
+			sh["Identification"] = opts.PassNumber
+		}
+		club := map[string]any{}
 		if opts.Club != "" {
-			sh["Club"] = map[string]any{"Name": opts.Club}
+			club["Name"] = opts.Club
+		}
+		if opts.ClubID != "" {
+			club["ID"] = opts.ClubID
+		}
+		if len(club) > 0 {
+			sh["Club"] = club
 		}
 		if opts.Team != "" {
 			sh["Team"] = map[string]any{"Name": opts.Team}

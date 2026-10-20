@@ -93,6 +93,10 @@
   align-items: center;
 }
 
+.mt-master .mt-add {
+  padding-right: 8px;
+}
+
 .mt-add input,
 .mt-weapon {
   font: inherit;
@@ -112,6 +116,65 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  align-items: center;
+}
+
+.mt-chip-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.mt-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line, #b8c6d1);
+  background: var(--panel-strong, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+
+.mt-chip-x svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.mt-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  padding: 0;
+  flex: none;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent, #0a7a8c);
+  color: var(--accent-ink, #fff);
+  cursor: pointer;
+}
+
+.mt-icon-btn svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.mt-icon-quiet {
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--line, #b8c6d1);
+}
+
+.mt-icon-quiet svg {
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .mt-chip {
@@ -272,6 +335,24 @@
   cursor: pointer;
 }
 
+.mt-table .mt-status {
+  text-align: right;
+  padding-right: 0.35rem;
+}
+
+.mt-table .mt-act {
+  width: 2.45rem;
+  padding-left: 0;
+  padding-right: 8px;
+  text-align: center;
+}
+
+.mt-table .mt-act .mt-delete {
+  margin: 0;
+  width: 2.45rem;
+  height: 2.45rem;
+}
+
 .mt-table tbody tr.is-picked {
   background: color-mix(in srgb, var(--accent, #0a7a8c) 14%, #fff);
 }
@@ -336,6 +417,8 @@
   .mt-add,
   .mt-detail,
   .mt-abort,
+  .mt-delete,
+  .mt-chip-x,
   #mt-print,
   .mt-head p {
     display: none !important;

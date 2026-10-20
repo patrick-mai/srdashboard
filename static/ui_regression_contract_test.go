@@ -42,6 +42,10 @@ func TestUIRegressionCoversReadabilityGlitches(t *testing.T) {
 		"compact page loads /compact like shooter loads /1")
 	mustContain(t, py, `play_classic("analyse")`,
 		"Analyse is a hall display; the UI run must open it, not only Classic Range")
+	mustContain(t, py, "play_darts()",
+		"Darts is a hall game; the UI run must open it and throw a leg")
+	mustContain(t, py, "play_munitionstest()",
+		"Munitionstest is a hall display; the UI run must open the master list")
 	mustContain(t, py, `menu_item="LG 2 Schuss"`,
 		"Analyse UI play must finish a short program so the same shooter can start again")
 	mustContain(t, py, "arg=archived_id",

@@ -47,6 +47,8 @@ type fileRoster struct {
 	Club       string  `xml:"club"`
 	TeamHint   string  `xml:"teamHint"`
 	Discipline string  `xml:"discipline"`
+	PassNumber string  `xml:"passNumber,omitempty"`
+	ClubNumber string  `xml:"clubNumber,omitempty"`
 	SumInt     int     `xml:"sumInt"`
 	SumDec     float64 `xml:"sumDec"`
 	PredInt    int     `xml:"predInt"`
@@ -70,17 +72,18 @@ type Snapshot struct {
 
 // TeamView is one Mannschaft column on the tile.
 type TeamView struct {
-	ID       string       `json:"id"`
-	Name     string       `json:"name"`
-	SumInt   int          `json:"sumInt"`
-	SumDec   float64      `json:"sumDec"`
-	PredInt  int          `json:"predInt"`
-	PredDec  float64      `json:"predDec"`
-	Count    int          `json:"count"`
-	Expected int          `json:"expected"`
-	Club     string       `json:"club,omitempty"`
-	Decimal  bool         `json:"decimal,omitempty"`
-	Members  []MemberView `json:"members"`
+	ID         string       `json:"id"`
+	Name       string       `json:"name"`
+	SumInt     int          `json:"sumInt"`
+	SumDec     float64      `json:"sumDec"`
+	PredInt    int          `json:"predInt"`
+	PredDec    float64      `json:"predDec"`
+	Count      int          `json:"count"`
+	Expected   int          `json:"expected"`
+	Club       string       `json:"club,omitempty"`
+	ClubNumber string       `json:"clubNumber,omitempty"`
+	Decimal    bool         `json:"decimal,omitempty"`
+	Members    []MemberView `json:"members"`
 }
 
 // MemberView is a shooter assigned to a team.
@@ -89,6 +92,8 @@ type MemberView struct {
 	Name       string  `json:"name"`
 	Club       string  `json:"club"`
 	Discipline string  `json:"discipline,omitempty"`
+	PassNumber string  `json:"passNumber,omitempty"`
+	ClubNumber string  `json:"clubNumber,omitempty"`
 	SumInt     int     `json:"sumInt"`
 	SumDec     float64 `json:"sumDec"`
 	PredInt    int     `json:"predInt"`
@@ -108,6 +113,8 @@ type RosterView struct {
 	Club       string  `json:"club"`
 	TeamHint   string  `json:"teamHint"`
 	Discipline string  `json:"discipline"`
+	PassNumber string  `json:"passNumber,omitempty"`
+	ClubNumber string  `json:"clubNumber,omitempty"`
 	SumInt     int     `json:"sumInt"`
 	SumDec     float64 `json:"sumDec"`
 	PredInt    int     `json:"predInt"`
@@ -252,6 +259,12 @@ func (s *Store) Observe(snap state.RangeSnapshot) {
 	}
 	if d := strings.TrimSpace(snap.Discipline); d != "" {
 		e.Discipline = d
+	}
+	if p := strings.TrimSpace(snap.PassNumber); p != "" {
+		e.PassNumber = p
+	}
+	if c := strings.TrimSpace(snap.ClubNumber); c != "" {
+		e.ClubNumber = c
 	}
 	e.RangeNum = snap.RangeNum
 	e.IsWarmup = snap.IsWarmup
@@ -486,6 +499,7 @@ func (s *Store) viewLocked() Snapshot {
 		tv.PredDec = round1(tv.PredDec)
 		tv.SumDec = round1(tv.SumDec)
 		tv.Club = clubForTeam(t.ID, t.Name, s.state.Roster)
+		tv.ClubNumber = clubNumberForTeam(t.ID, s.state.Roster)
 		tv.Decimal = teamUsesDecimal(tv.Members)
 		teams = append(teams, tv)
 	}
@@ -527,6 +541,18 @@ func clubForTeam(id, name string, roster []fileRoster) string {
 	return ""
 }
 
+func clubNumberForTeam(id string, roster []fileRoster) string {
+	for _, e := range roster {
+		if e.Excluded || e.TeamID != id {
+			continue
+		}
+		if c := strings.TrimSpace(e.ClubNumber); c != "" {
+			return c
+		}
+	}
+	return ""
+}
+
 func isAuflage(discipline string) bool {
 	d := strings.ToLower(discipline)
 	return strings.Contains(d, "auflage") || strings.Contains(d, "aufgelegt")
@@ -552,6 +578,8 @@ func memberFrom(e fileRoster) MemberView {
 		Name:       e.Name,
 		Club:       e.Club,
 		Discipline: e.Discipline,
+		PassNumber: e.PassNumber,
+		ClubNumber: e.ClubNumber,
 		SumInt:     e.SumInt,
 		SumDec:     round1(e.SumDec),
 		PredInt:    e.PredInt,
@@ -572,6 +600,8 @@ func rosterFrom(e fileRoster) RosterView {
 		Club:       e.Club,
 		TeamHint:   e.TeamHint,
 		Discipline: e.Discipline,
+		PassNumber: e.PassNumber,
+		ClubNumber: e.ClubNumber,
 		SumInt:     e.SumInt,
 		SumDec:     round1(e.SumDec),
 		PredInt:    e.PredInt,

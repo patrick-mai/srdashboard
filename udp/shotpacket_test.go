@@ -66,6 +66,30 @@ func TestBuildShotPacketClubAndTeam(t *testing.T) {
 	}
 }
 
+func TestBuildShotPacketPassAndClubNumber(t *testing.T) {
+	data, err := BuildShotPacket(ShotPacketOpts{
+		Range: 1, DecValue: 10.2, Shooter: "Anna", Lastname: "Müller",
+		Club: "SV Dinker", Team: "Dinker 1", PassNumber: "10712211", ClubID: "5712",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var msg Message
+	if err := json.Unmarshal(data, &msg); err != nil {
+		t.Fatal(err)
+	}
+	var shot state.ShotPayload
+	if err := json.Unmarshal(msg.Objects[0], &shot); err != nil {
+		t.Fatal(err)
+	}
+	if string(shot.Shooter.Identification) != "10712211" {
+		t.Fatalf("pass %q", shot.Shooter.Identification)
+	}
+	if shot.Shooter.Club == nil || string(shot.Shooter.Club.ID) != "5712" || shot.Shooter.Club.Name != "SV Dinker" {
+		t.Fatalf("club %#v", shot.Shooter.Club)
+	}
+}
+
 func TestBuildShotPacketLPUsesPistolBand(t *testing.T) {
 	x, y, d := PlaceShotForDisc("LP", 9.6, 7)
 	data, err := BuildShotPacket(ShotPacketOpts{

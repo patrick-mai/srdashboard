@@ -25,10 +25,14 @@ type Shot struct {
 
 // RangeState holds the live state for one shooting range
 type RangeState struct {
-	RangeNum       int       `json:"rangeNum"`
-	ShooterName    string    `json:"shooterName"`
-	ClubName       string    `json:"clubName"`
-	TeamName       string    `json:"teamName"`
+	RangeNum    int    `json:"rangeNum"`
+	ShooterName string `json:"shooterName"`
+	ClubName    string `json:"clubName"`
+	TeamName    string `json:"teamName"`
+	// PassNumber is Shooter.Identification. ClubNumber is Club.ID.
+	// Kept for the RWK report; the hall does not show them.
+	PassNumber     string    `json:"passNumber,omitempty"`
+	ClubNumber     string    `json:"clubNumber,omitempty"`
 	Discipline     string    `json:"discipline"`
 	DiscType       string    `json:"discType"`
 	IsWarmup       bool      `json:"isWarmup"`
@@ -175,6 +179,8 @@ func (ls *LiveState) ReplaceRange(snap RangeSnapshot) bool {
 		ShooterName:      snap.ShooterName,
 		ClubName:         snap.ClubName,
 		TeamName:         snap.TeamName,
+		PassNumber:       snap.PassNumber,
+		ClubNumber:       snap.ClubNumber,
 		Discipline:       snap.Discipline,
 		DiscType:         snap.DiscType,
 		IsWarmup:         snap.IsWarmup,
@@ -229,15 +235,17 @@ type ShotPayload struct {
 
 // ShotShooter is the DISAG Shooter object nested on a Shot.
 type ShotShooter struct {
-	Firstname string    `json:"Firstname"`
-	Lastname  string    `json:"Lastname"`
-	Club      *ShotClub `json:"Club"`
-	Team      *ShotTeam `json:"Team"`
+	Firstname      string    `json:"Firstname"`
+	Lastname       string    `json:"Lastname"`
+	Identification FlexID    `json:"Identification"` // Passnummer
+	Club           *ShotClub `json:"Club"`
+	Team           *ShotTeam `json:"Team"`
 }
 
 // ShotClub is the DISAG Club object nested on Shooter.
 type ShotClub struct {
 	Name string `json:"Name"`
+	ID   FlexID `json:"ID"` // Vereinsnummer
 }
 
 // ShotTeam is the DISAG Team / Mannschaft object nested on Shooter.
@@ -512,14 +520,24 @@ func (ls *LiveState) ApplyShotAt(rng int, sp *ShotPayload, at, receivedAt time.T
 	if sp.Shooter != nil {
 		if shooterChanging {
 			rs.ShooterName = newShooterName
+			rs.PassNumber = ""
+			rs.ClubNumber = ""
 			rs.WarmupShots = nil
 			rs.StartedAt = time.Time{}
 			resetRangeFooter(rs)
 		} else {
 			rs.ShooterName = newShooterName
 		}
-		if sp.Shooter.Club != nil && sp.Shooter.Club.Name != "" {
-			rs.ClubName = sp.Shooter.Club.Name
+		if id := strings.TrimSpace(string(sp.Shooter.Identification)); id != "" {
+			rs.PassNumber = id
+		}
+		if sp.Shooter.Club != nil {
+			if name := strings.TrimSpace(sp.Shooter.Club.Name); name != "" {
+				rs.ClubName = name
+			}
+			if id := strings.TrimSpace(string(sp.Shooter.Club.ID)); id != "" {
+				rs.ClubNumber = id
+			}
 		}
 		if sp.Shooter.Team != nil {
 			if name := strings.TrimSpace(sp.Shooter.Team.Name); name != "" {
@@ -635,6 +653,8 @@ type RangeSnapshot struct {
 	ShooterName      string    `json:"shooterName"`
 	ClubName         string    `json:"clubName"`
 	TeamName         string    `json:"teamName"`
+	PassNumber       string    `json:"passNumber,omitempty"`
+	ClubNumber       string    `json:"clubNumber,omitempty"`
 	Discipline       string    `json:"discipline"`
 	DiscType         string    `json:"discType"`
 	IsWarmup         bool      `json:"isWarmup"`
@@ -705,6 +725,8 @@ func snapshotFromRange(rs *RangeState) RangeSnapshot {
 		ShooterName:      rs.ShooterName,
 		ClubName:         rs.ClubName,
 		TeamName:         rs.TeamName,
+		PassNumber:       rs.PassNumber,
+		ClubNumber:       rs.ClubNumber,
 		Discipline:       rs.Discipline,
 		DiscType:         rs.DiscType,
 		IsWarmup:         rs.IsWarmup,

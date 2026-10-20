@@ -260,3 +260,148 @@ func TestApplyFanoutKeepsRangeResults(t *testing.T) {
 		t.Fatalf("origin shots lost: %#v", a)
 	}
 }
+
+func lotsOf(t *testing.T, l *Logic, sess logicapi.SessionState) []map[string]any {
+	t.Helper()
+	vm, err := l.ViewModel(sess, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lots, _ := vm["lots"].([]map[string]any)
+	return lots
+}
+
+func resultsOf(t *testing.T, l *Logic, sess logicapi.SessionState) []map[string]any {
+	t.Helper()
+	vm, err := l.ViewModel(sess, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, _ := vm["results"].([]map[string]any)
+	return results
+}
+
+func TestRemoveLotWithoutShotsDropsIt(t *testing.T) {
+	l := newLogic(t)
+	sess := mustInit(t, l)
+	sess = mustControl(t, l, sess, "addLot", map[string]any{"name": "R50", "select": true})
+	sess = mustControl(t, l, sess, "addLot", map[string]any{"name": "R10"})
+	sess = mustControl(t, l, sess, "removeLot", map[string]any{"lotId": 1})
+	lots := lotsOf(t, l, sess)
+	if len(lots) != 1 || lots[0]["name"] != "R10" {
+		t.Fatalf("catalog = %#v", lots)
+	}
+	if results := resultsOf(t, l, sess); len(results) != 0 {
+		t.Fatalf("empty series kept: %#v", results)
+	}
+	vm, err := l.ViewModel(sess, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vm["active"] != nil || vm["activeLotId"] != 0 {
+		t.Fatalf("active lot after delete: %#v", vm)
+	}
+	_, _, err = l.Control(sess, "removeLot", map[string]any{"lotId": 1})
+	if err == nil {
+		t.Fatal("missing lot should fail")
+	}
+	sess = mustControl(t, l, sess, "addLot", map[string]any{"name": "SK"})
+	lots = lotsOf(t, l, sess)
+	if len(lots) != 2 || lots[1]["id"] != 3 {
+		t.Fatalf("id reused: %#v", lots)
+	}
+}
+
+func TestRemoveLotKeepsShots(t *testing.T) {
+	l := newLogic(t)
+	sess := mustInit(t, l)
+	sess = mustControl(t, l, sess, "addLot", map[string]any{"name": "R50", "select": true})
+	sess = mustShot(t, l, sess, 0, 0)
+	sess = mustShot(t, l, sess, 40, 0)
+	sess = mustControl(t, l, sess, "addLot", map[string]any{"name": "R10"})
+	sess = mustControl(t, l, sess, "removeLot", map[string]any{"lotId": 1})
+	lots := lotsOf(t, l, sess)
+	if len(lots) != 1 || lots[0]["name"] != "R10" {
+		t.Fatalf("catalog = %#v", lots)
+	}
+	vm, err := l.ViewModel(sess, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vm["active"] != nil || vm["activeLotId"] != 0 {
+		t.Fatalf("deleted lot still active: %#v", vm)
+	}
+	results := resultsOf(t, l, sess)
+	if len(results) != 1 {
+		t.Fatalf("results = %#v", results)
+	}
+	row := results[0]
+	if row["name"] != "R50" || row["shotCount"] != 2 || row["closed"] != true || row["open"] == true {
+		t.Fatalf("kept series: %#v", row)
+	}
+	sess = mustShot(t, l, sess, 80, 0)
+	results = resultsOf(t, l, sess)
+	if results[0]["shotCount"] != 2 {
+		t.Fatalf("shot landed in deleted lot: %#v", results[0])
+	}
+}
+
+func fanoutPayload(t *testing.T, events []logicapi.PluginEvent) map[string]any {
+	t.Helper()
+	for _, ev := range events {
+		if ev.Type == logicapi.EventFanout {
+			return ev.Data
+		}
+	}
+	t.Fatal("missing fanout")
+	return nil
+}
+
+func TestRemoveLotFanoutKeepsOtherRangeShots(t *testing.T) {
+	l := newLogic(t)
+	origin := mustInit(t, l)
+	origin = mustControl(t, l, origin, "addLot", map[string]any{"name": "R50", "select": true})
+	origin = mustShot(t, l, origin, 0, 0)
+	origin = mustShot(t, l, origin, 30, 0)
+	out, events, err := l.Control(origin, "addLot", map[string]any{"name": "R10"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin = out
+	other, err := l.ApplyFanout(mustInit(t, l), fanoutPayload(t, events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	other = mustControl(t, l, other, "selectLot", map[string]any{"lotId": 1})
+	other = mustShot(t, l, other, 10, 0)
+	other = mustShot(t, l, other, 70, 0)
+
+	out, events, err = l.Control(origin, "removeLot", map[string]any{"lotId": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin = out
+	merged, err := l.ApplyFanout(other, fanoutPayload(t, events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm, err := l.ViewModel(merged, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lots, _ := vm["lots"].([]map[string]any)
+	if len(lots) != 1 || lots[0]["name"] != "R10" {
+		t.Fatalf("fanout catalog = %#v", lots)
+	}
+	if vm["active"] != nil {
+		t.Fatalf("other range still on deleted lot: %#v", vm["active"])
+	}
+	results, _ := vm["results"].([]map[string]any)
+	if len(results) != 1 || results[0]["name"] != "R50" || results[0]["shotCount"] != 2 || results[0]["closed"] != true {
+		t.Fatalf("other range series: %#v", results)
+	}
+	kept := resultsOf(t, l, origin)
+	if len(kept) != 1 || kept[0]["name"] != "R50" || kept[0]["shotCount"] != 2 {
+		t.Fatalf("origin series: %#v", kept)
+	}
+}

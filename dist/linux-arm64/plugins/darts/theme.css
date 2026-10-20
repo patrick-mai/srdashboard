@@ -1,0 +1,112 @@
+.dt-view {
+  --dt-ink: #f4efe4;
+  --dt-muted: #c8bfae;
+  --dt-accent: #e8c547;
+  --dt-ok: #c62828;
+  --dt-line: rgba(244, 239, 228, 0.22);
+  --dt-glass: rgba(20, 20, 20, 0.45);
+  --dt-solid: #2a241c;
+  --dt-radius: 18px;
+  --dt-font: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  padding: 0 !important;
+  color: var(--dt-ink);
+  font-family: var(--dt-font);
+  position: relative;
+  isolation: isolate;
+  background-color: #141414;
+  background-image:
+    radial-gradient(ellipse 40% 28% at 80% 0%, rgba(198, 40, 40, 0.28), transparent 70%),
+    linear-gradient(180deg, #2a221c 0%, #141414 60%, #0c0c0c 100%);
+  overflow: hidden;
+}
+.dt-view * { box-sizing: border-box; }
+
+#shared-master-host.dt-view,
+#shared-master-host > .dt-view {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+}
+
+.dt-master-layout, .dt-shooter-layout, .dt-compact-layout {
+  display: flex; flex-direction: column; height: 100%; min-height: 100%;
+}
+.dt-header {
+  flex: 0 0 auto; margin: 0.45rem 0.55rem 0; padding: 0.55rem 0.95rem;
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: baseline;
+  background: rgba(42, 36, 28, 0.72); border: 1px solid var(--dt-line);
+  border-radius: var(--dt-radius);
+}
+.dt-title { font-size: 1.45rem; font-weight: 700; }
+.dt-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+  background: var(--dt-ok); color: #fff; font-weight: 700; font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.dt-meta { color: var(--dt-muted); font-size: 0.95rem; }
+.dt-status, .dt-note {
+  font-weight: 700; padding: 0.2rem 0.55rem;
+  background: var(--dt-solid); border-radius: 999px; border: 1px solid var(--dt-line);
+}
+.dt-status { margin-left: auto; }
+.dt-main {
+  flex: 1; display: grid; grid-template-columns: minmax(17rem, 0.55fr) minmax(0, 1.45fr);
+  gap: 0.4rem; padding: 0.4rem 0.45rem; min-height: 0;
+}
+.dt-target-col, .dt-board-col {
+  min-height: 0; display: flex; flex-direction: column; gap: 0.45rem;
+}
+.dt-panel {
+  background: var(--dt-solid); border: 1px solid var(--dt-line);
+  border-radius: 14px; padding: 0.5rem 0.6rem;
+}
+.dt-panel h3 { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--dt-muted); }
+.dt-scheibe-wrap {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0.4rem; background: var(--dt-glass); border: 1px solid var(--dt-line);
+  border-radius: var(--dt-radius);
+}
+.dt-scheibe-wrap svg, .dt-scheibe-svg { width: 100%; height: 100%; }
+.dt-shot-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.dt-shot-val { font-size: 1.8rem; font-weight: 700; color: var(--dt-accent); }
+.dt-muted { color: var(--dt-muted); font-size: 0.85rem; }
+.dt-block {
+  margin-bottom: 0.35rem; background: rgba(198, 40, 40, 0.2);
+  border: 1px solid rgba(198, 40, 40, 0.45); border-radius: 12px; padding: 8px 12px;
+}
+.dt-board-host {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+}
+.dt-scoreboard { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.dt-standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.dt-standings li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "swatch who rem"
+    "swatch visit visit";
+  column-gap: 0.45rem;
+  row-gap: 0.08rem;
+  align-items: center;
+  padding: 0.35rem 0.2rem;
+  border-bottom: 1px solid var(--dt-line);
+}
+.dt-swatch { grid-area: swatch; width: 14px; height: 14px; border-radius: 50%; }
+.dt-who { grid-area: who; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-rem { grid-area: rem; font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dt-visit { grid-area: visit; color: var(--dt-muted); font-size: 0.82rem; white-space: nowrap; }
+.dt-standings li.is-me { background: rgba(232, 197, 71, 0.08); border-radius: 8px; }
+.dt-standings li.is-done .dt-rem { color: var(--dt-accent); }
+
+.dt-compact-layout .dt-main {
+  grid-template-columns: minmax(12.5rem, 13.75rem) minmax(0, 1fr);
+}
+.dt-compact-layout .dt-target-col { justify-content: flex-start; }
+
+@media (max-width: 900px) {
+  .dt-main { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 1fr) minmax(240px, 1.1fr); }
+}

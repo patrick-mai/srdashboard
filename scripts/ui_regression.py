@@ -874,6 +874,35 @@ class Runner:
                     return
         self.play_started(plugin_id, shots)
 
+    def play_darts(self):
+        # Same checkout as fullplay: one single, then ten inner bulls.
+        def shots():
+            send_shot(1, 0.0, n=1)
+            for i in range(10):
+                send_shot(1, 10.9, n=10 + i)
+        self.play_started("darts", shots)
+
+    def play_munitionstest(self):
+        cfg = Path(__file__).resolve().parent.parent / "plugins" / "munitionstest" / "config.xml"
+        original = cfg.read_bytes() if cfg.is_file() else None
+
+        def shots():
+            try:
+                control("addLot", {"name": "R50", "select": True, "rangeNum": 1})
+                control("setWeapon", {"rangeNum": 1, "weapon": "Anschütz"})
+            except Exception as exc:
+                print("munitionstest setup:", exc)
+            send_shot(1, 10.5, n=1)
+            send_shot(1, 10.2, n=2)
+
+        try:
+            self.play_started("munitionstest", shots)
+        finally:
+            if original is None:
+                cfg.unlink(missing_ok=True)
+            else:
+                cfg.write_bytes(original)
+
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
@@ -910,6 +939,8 @@ def main():
                 r.play_tannebaum("tannebaum-team")
                 r.play_fox()
                 r.play_autorennen()
+                r.play_darts()
+                r.play_munitionstest()
                 for pid in (
                     "tauziehen", "kettenreaktion", "biathlon", "schrumpfender-kreis",
                     "kronen-duell", "bank-oder-risiko", "ko-pokal", "schiessgolf",

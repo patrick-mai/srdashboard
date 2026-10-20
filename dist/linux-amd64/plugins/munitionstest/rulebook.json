@@ -1,0 +1,33 @@
+{
+  "title": "Munitionstest",
+  "summary": "Mehrere Lose nacheinander auf einer Bahn. Der erste Schuss legt das Zentrum fest, der Streukreis der weiteren Schüsse ist das Ergebnis.",
+  "sections": [
+    {
+      "heading": "Lose",
+      "paragraphs": [
+        "Auf dem Master werden die Lose angelegt. Jede Bahn hat ihre eigene Serie und wählt dort ein Los. Ein Los kann auf der Bahn ergänzt werden. Löschen nimmt das Los aus der Liste. Geschossene Serien bleiben bis zur nächsten Sitzung."
+      ]
+    },
+    {
+      "heading": "Streuung",
+      "items": [
+        "Der erste Schuss eines Loses ist das Zentrum.",
+        "Jeder weitere Schuss wird vom Zentrierschuss aus gemessen, nicht von der Scheibenmitte. X und Y stehen in Millimeter auf drei Stellen, der Teiler ist die Hypotenuse dieses Abstands in DSG.",
+        "Der Streukreis ist der größte Teiler der Serie. 100 DSG sind 1 mm.",
+        "In der Regel zehn Schuss. Danach ist das Los fertig."
+      ]
+    },
+    {
+      "heading": "Abbruch",
+      "paragraphs": [
+        "Der Abbruch ist immer da. Er wird größer, sobald der Streukreis ein anderes Los auf derselben Bahn übertrifft, und noch größer für jedes weitere Zehntelring."
+      ]
+    },
+    {
+      "heading": "Waffe",
+      "paragraphs": [
+        "Die Waffe wird auf dem Master zum Ergebnis eingetragen."
+      ]
+    }
+  ]
+}

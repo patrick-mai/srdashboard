@@ -66,22 +66,36 @@ func playAnalyse(t *testing.T, h *Host) {
 
 func playMunitionstest(t *testing.T, h *Host) {
 	t.Helper()
+	// Site overrides live in a gitignored config.xml. Snapshot it so the
+	// scenario starts from an empty catalog and the hall file is unchanged.
 	cfg := filepath.Join(pluginsRoot(t), "munitionstest", "config.xml")
-	_, statErr := os.Stat(cfg)
+	original, readErr := os.ReadFile(cfg)
 	t.Cleanup(func() {
-		if statErr != nil {
+		if readErr != nil {
 			_ = os.Remove(cfg)
+			return
 		}
+		_ = os.WriteFile(cfg, original, 0644)
 	})
+	for _, lot := range asSlice(h.VM(1)["lots"]) {
+		pm, _ := lot.(map[string]any)
+		if pm == nil {
+			continue
+		}
+		h.Control("removeLot", map[string]any{"lotId": asInt(pm["id"])})
+	}
 	if h.VM(1)["mode"] != "per-range" {
 		t.Fatalf("mode %v", h.VM(1)["mode"])
 	}
 	h.Control("addLot", map[string]any{"name": "R50", "rangeNum": 1})
-	if len(asSlice(h.VM(2)["lots"])) != 1 {
+	lots := asSlice(h.VM(2)["lots"])
+	if len(lots) != 1 {
 		t.Fatalf("range 2 lots = %v", h.VM(2)["lots"])
 	}
-	h.Control("selectLot", map[string]any{"rangeNum": 1, "lotId": 1})
-	h.Control("setWeapon", map[string]any{"rangeNum": 1, "lotId": 1, "weapon": "Anschütz"})
+	added, _ := lots[0].(map[string]any)
+	lotID := asInt(added["id"])
+	h.Control("selectLot", map[string]any{"rangeNum": 1, "lotId": lotID})
+	h.Control("setWeapon", map[string]any{"rangeNum": 1, "lotId": lotID, "weapon": "Anschütz"})
 	h.Fire(1, 10.5)
 	h.Fire(2, 10.5)
 	active := nest(h.VM(1), "active")

@@ -20,6 +20,7 @@ import (
 	_ "srdashboard/host/games/kopokal"
 	_ "srdashboard/host/games/kronenduell"
 	_ "srdashboard/host/games/ludo"
+	_ "srdashboard/host/games/munitionstest"
 	_ "srdashboard/host/games/schiessgolf"
 	_ "srdashboard/host/games/schrumpfenderkreis"
 	_ "srdashboard/host/games/tannebaum"
@@ -39,7 +40,7 @@ func TestRulebooksAreServedAsPluginAssets(t *testing.T) {
 		"tannebaum-einzel", "tannebaum-team", "zehner-bingo",
 		"tauziehen", "kettenreaktion", "biathlon", "schrumpfender-kreis",
 		"kronen-duell", "bank-oder-risiko", "ko-pokal", "schiessgolf",
-		"turmbau", "ansage-duell", "darts",
+		"turmbau", "ansage-duell", "darts", "munitionstest",
 	}
 	for _, id := range ids {
 		path := "/plugins/" + id + "/rulebook.json"

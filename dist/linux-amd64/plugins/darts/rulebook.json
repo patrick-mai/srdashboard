@@ -1,0 +1,35 @@
+{
+  "title": "Darts",
+  "summary": "Countdown von 301, 501 oder 701. Jede Bahn wirft parallel, ein Pfeil pro Schuss. Double-In und Double-Out sind unabhängig und standardmäßig aus.",
+  "sections": [
+    {
+      "heading": "Spiel",
+      "items": [
+        "Startwert 301, 501 oder 701. Standard ist 501.",
+        "Wer zuerst genau 0 erreicht, gewinnt.",
+        "Ein Fehl ist 0. Einschießen zählt nicht.",
+        "Die letzten drei Pfeile sind nur zum Ablesen."
+      ]
+    },
+    {
+      "heading": "Double-In",
+      "items": [
+        "Aus: jeder Pfeil zählt sofort.",
+        "An: Punkte zählen erst ab dem ersten Double. Das äußere Bull (25) ist kein Double, das innere Bull (50) schon. Der öffnende Double zählt mit."
+      ]
+    },
+    {
+      "heading": "Double-Out",
+      "items": [
+        "Aus: genau 0 gewinnt mit jedem Pfeil. Unter 0 ist ein Bust, der Rest bleibt.",
+        "An: genau 0 muss ein Double sein. Unter 0, Rest 1, oder 0 ohne Double ist ein Bust."
+      ]
+    },
+    {
+      "heading": "Scheibe einmessen",
+      "paragraphs": [
+        "Liegt die gedruckte Scheibe nicht auf dem Foto-Maß, einmal „Scheibe einmessen“ und ein Schuss auf den äußeren Doppel-Draht. Der Mittelpunkt bleibt der Bull. Alle Ringe skalieren gleich."
+      ]
+    }
+  ]
+}

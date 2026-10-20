@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="darts" label="Darts" version="1.0.0" mode="shared" kind="game">
+  <description>Countdown von 301, 501 oder 701. Double-In und Double-Out sind Schalter. Ein Schuss auf den äußeren Doppel-Draht misst die Scheibe.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <assetsDir>assets</assetsDir>
+  <config>
+    <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <startScore>501</startScore>
+    <doubleIn>false</doubleIn>
+    <doubleOut>false</doubleOut>
+    <boardScale>1.0</boardScale>
+    <defaultTargetProfile>dartboard</defaultTargetProfile>
+    <disciplineTargets>
+      <Luftgewehr>dartboard</Luftgewehr>
+      <LG>dartboard</LG>
+      <Luftpistole>dartboard</Luftpistole>
+      <LP>dartboard</LP>
+      <Kleinkaliber>dartboard</Kleinkaliber>
+      <KK-Gewehr>dartboard</KK-Gewehr>
+      <KK>dartboard</KK>
+    </disciplineTargets>
+  </config>
+</plugin>

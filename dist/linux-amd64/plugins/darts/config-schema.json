@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "autoStartWhenAllReady": { "type": "boolean" },
+    "startScore": { "type": "integer", "enum": [301, 501, 701] },
+    "doubleIn": { "type": "boolean" },
+    "doubleOut": { "type": "boolean" },
+    "boardScale": { "type": "number" },
+    "defaultTargetProfile": { "type": "string", "enum": ["dartboard"] },
+    "disciplineTargets": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "enum": ["dartboard"] }
+    }
+  }
+}

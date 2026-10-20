@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="munitionstest" label="Munitionstest" version="1.0.0" mode="per-range" kind="game">
+  <description>Lose anlegen, auf der Bahn auswählen und den Streukreis um den ersten Schuss vergleichen.</description>
+  <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
+  <config>
+    <shotsPerLot>10</shotsPerLot>
+  </config>
+</plugin>

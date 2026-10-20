@@ -85,8 +85,10 @@ type ShotPt struct {
 }
 
 // Result is one range's group for one lot.
+// Name keeps the label after the lot leaves the catalog.
 type Result struct {
 	LotID  int      `json:"lotId"`
+	Name   string   `json:"name,omitempty"`
 	Shots  []ShotPt `json:"shots"`
 	Closed bool     `json:"closed"`
 	Weapon string   `json:"weapon"`
@@ -195,6 +197,20 @@ func (l *Logic) Control(sess logicapi.SessionState, action string, params map[st
 			}
 		}
 		events = catalogEvents(st)
+	case "removeLot":
+		id := int(gameutil.ToFloat(params["lotId"], 0))
+		if st.lotName(id) == "" {
+			return sess, nil, fmt.Errorf("Los nicht gefunden")
+		}
+		next := make([]Lot, 0, len(st.Lots)-1)
+		for _, lot := range st.Lots {
+			if lot.ID != id {
+				next = append(next, lot)
+			}
+		}
+		st.dropCatalogLots(next)
+		st.Lots = next
+		events = catalogEvents(st)
 	case "selectLot":
 		if err := st.selectLot(int(gameutil.ToFloat(params["lotId"], 0))); err != nil {
 			return sess, nil, err
@@ -240,7 +256,9 @@ func (l *Logic) ApplyFanout(sess logicapi.SessionState, payload map[string]any) 
 		return encodeState(st)
 	}
 	if _, ok := payload["lotsJson"]; ok {
-		st.Lots = parseLots(payload["lotsJson"])
+		nextLots := parseLots(payload["lotsJson"])
+		st.dropCatalogLots(nextLots)
+		st.Lots = nextLots
 	}
 	next := int(gameutil.ToFloat(payload["nextId"], float64(st.NextID)))
 	if next > st.NextID {
@@ -303,7 +321,7 @@ func (st *session) resultView(r *Result) map[string]any {
 	shots, groupTeiler := shotViews(r.Shots)
 	view := map[string]any{
 		"lotId":       r.LotID,
-		"name":        st.lotName(r.LotID),
+		"name":        st.displayName(r),
 		"weapon":      r.Weapon,
 		"shots":       shots,
 		"shotCount":   len(r.Shots),
@@ -419,6 +437,42 @@ func (st *session) lotName(id int) string {
 	return ""
 }
 
+func (st *session) displayName(r *Result) string {
+	if name := st.lotName(r.LotID); name != "" {
+		return name
+	}
+	return r.Name
+}
+
+// dropCatalogLots keeps shot rows for lots that leave the catalog.
+// Empty series are dropped. A series with shots is closed and keeps its name.
+func (st *session) dropCatalogLots(next []Lot) {
+	keep := map[int]struct{}{}
+	for _, lot := range next {
+		keep[lot.ID] = struct{}{}
+	}
+	kept := st.Results[:0]
+	for i := range st.Results {
+		r := st.Results[i]
+		if _, ok := keep[r.LotID]; ok {
+			kept = append(kept, r)
+			continue
+		}
+		if len(r.Shots) == 0 {
+			continue
+		}
+		if r.Name == "" {
+			r.Name = st.lotName(r.LotID)
+		}
+		r.Closed = true
+		kept = append(kept, r)
+	}
+	st.Results = kept
+	if _, ok := keep[st.ActiveLot]; !ok {
+		st.ActiveLot = 0
+	}
+}
+
 func (st *session) bestOther(exclude int) (mm, teiler float64, name string, ok bool) {
 	for i := range st.Results {
 		r := &st.Results[i]
@@ -433,7 +487,7 @@ func (st *session) bestOther(exclude int) (mm, teiler float64, name string, ok b
 			ok = true
 			mm = d
 			_, teiler = shotViews(r.Shots)
-			name = st.lotName(r.LotID)
+			name = st.displayName(r)
 		}
 	}
 	return mm, teiler, name, ok

@@ -33,6 +33,36 @@ func wertungSnap(name, club, team string, rng, shot, total, sumInt int, sumDec f
 	}
 }
 
+func TestObserveKeepsPassAndClubNumber(t *testing.T) {
+	s, err := Open("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap := wertungSnap("Anna Müller", "SV Dinker", "Dinker 1", 1, 30, 30, 280, 303.5)
+	snap.PassNumber = "10712211"
+	snap.ClubNumber = "5712"
+	snap.Discipline = "LG 30 Schuss Auflage"
+	s.Observe(snap)
+	v := s.View()
+	if len(v.Teams) != 1 || v.Teams[0].ClubNumber != "5712" {
+		t.Fatalf("team %#v", v.Teams)
+	}
+	if len(v.Teams[0].Members) != 1 || v.Teams[0].Members[0].PassNumber != "10712211" {
+		t.Fatalf("member %#v", v.Teams[0].Members)
+	}
+	if v.Roster[0].PassNumber != "10712211" || v.Roster[0].ClubNumber != "5712" {
+		t.Fatalf("roster %#v", v.Roster[0])
+	}
+	snap.PassNumber = ""
+	snap.ClubNumber = ""
+	snap.ShotNumber = 30
+	s.Observe(snap)
+	v = s.View()
+	if v.Roster[0].PassNumber != "10712211" || v.Teams[0].ClubNumber != "5712" {
+		t.Fatalf("empty follow-up wiped ids: %#v", v.Roster[0])
+	}
+}
+
 func TestObserveUpsertAndTeamHint(t *testing.T) {
 	s, err := Open("")
 	if err != nil {

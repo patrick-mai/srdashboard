@@ -102,6 +102,8 @@
         const rangeNum = Number(btn.getAttribute('data-range') || vm.rangeNum || 1);
         if (action === 'selectLot') {
           send('selectLot', { rangeNum: rangeNum, lotId: Number(btn.getAttribute('data-lot') || 0) });
+        } else if (action === 'removeLot') {
+          send('removeLot', { rangeNum: rangeNum, lotId: Number(btn.getAttribute('data-lot') || 0) });
         } else if (action === 'abort') {
           send('abort', { rangeNum: rangeNum });
         } else if (action === 'undo') {
@@ -186,8 +188,11 @@
     }
     return '<div class="mt-chips">' + lots.map(function (lot) {
       const on = Number(lot.id) === Number(activeId);
-      return '<button type="button" class="mt-chip' + (on ? ' is-on' : '') + '" data-action="selectLot" data-lot="' +
-        esc(lot.id) + '" data-range="' + esc(rangeNum) + '">' + esc(lot.name) + '</button>';
+      return '<span class="mt-chip-wrap">' +
+        '<button type="button" class="mt-chip' + (on ? ' is-on' : '') + '" data-action="selectLot" data-lot="' +
+        esc(lot.id) + '" data-range="' + esc(rangeNum) + '">' + esc(lot.name) + '</button>' +
+        '<button type="button" class="mt-chip-x" data-action="removeLot" data-lot="' + esc(lot.id) +
+        '" data-range="' + esc(rangeNum) + '" aria-label="Los löschen">' + iconTrash() + '</button></span>';
     }).join('') + '</div>';
   }
 
@@ -384,7 +389,7 @@
       '<div id="mt-lots"></div>' +
       '<form class="mt-add" data-select="1" data-range="' + esc(rangeNum) + '">' +
       '<input class="mt-draft" id="mt-new-lot" name="lot" placeholder="Los ergänzen" autocomplete="off">' +
-      '<button type="submit" class="btn">Anlegen</button></form></div>' +
+      '<button type="submit" class="mt-icon-btn" aria-label="Los anlegen">' + iconPlus() + '</button></form></div>' +
       '<div class="mt-lane-main">' +
       '<div class="mt-scheibe" id="mt-scheibe"></div>' +
       '<aside class="mt-side">' +
@@ -503,6 +508,21 @@
       (body || '<p class="mt-muted">Noch keine Lose.</p>');
   }
 
+  function iconPlus() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+  }
+
+  function iconTrash() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13M10 11v6M14 11v6"/></svg>';
+  }
+
+  function removeLotButton(lotId, rangeNum) {
+    if (!canControl()) return '';
+    const rangeAttr = isFinite(Number(rangeNum)) ? ' data-range="' + esc(rangeNum) + '"' : '';
+    return '<button type="button" class="mt-icon-btn mt-icon-quiet mt-delete" data-action="removeLot" data-lot="' +
+      esc(lotId) + '"' + rangeAttr + ' aria-label="Los löschen">' + iconTrash() + '</button>';
+  }
+
   function weaponCell(rangeNum, row, pending) {
     if (pending) return '–';
     if (!canControl()) return esc(row.weapon || '');
@@ -512,7 +532,7 @@
   }
 
   function ensureMaster(container) {
-    if (container.dataset.mtSurface === 'master' && container.querySelector('#mt-print-list')) return;
+    if (container.dataset.mtSurface === 'master' && container.querySelector('#mt-table + form.mt-add')) return;
     container.dataset.mtSurface = 'master';
     container.classList.add('shared-master-host');
     container.classList.add('mt-master');
@@ -520,10 +540,10 @@
       '<div class="mt-master-body">' +
       '<header class="mt-head"><h1>Munitionstest</h1>' +
       '<p class="mt-muted">Zeile wählen zeigt das Los. Die Gesamtliste ist zum Drucken.</p></header>' +
+      '<div id="mt-table"></div>' +
       '<form class="mt-add" data-select="0" data-range="1">' +
       '<input class="mt-draft" id="mt-new-lot-master" name="lot" placeholder="Neues Los" autocomplete="off">' +
-      '<button type="submit" class="btn btn-primary">Los anlegen</button></form>' +
-      '<div id="mt-table"></div>' +
+      '<button type="submit" class="mt-icon-btn" aria-label="Los anlegen">' + iconPlus() + '</button></form>' +
       '<section class="mt-detail" id="mt-detail" hidden>' +
       '<div class="mt-scheibe" id="mt-detail-scheibe"></div>' +
       '<div class="mt-detail-side" id="mt-detail-side"></div></section>' +
@@ -547,7 +567,7 @@
         table.innerHTML = '<p class="mt-muted">Noch kein Ergebnis. Lose anlegen, auf der Bahn auswählen, schießen.</p>';
       } else {
         table.innerHTML = '<table class="mt-table"><thead><tr>' +
-          '<th>Los</th><th>Bahn</th><th>Waffe</th><th>Schüsse</th><th>Streukreis</th><th></th>' +
+          '<th>Los</th><th>Bahn</th><th>Waffe</th><th>Schüsse</th><th>Streukreis</th><th></th><th class="mt-act"></th>' +
           '</tr></thead><tbody>' + rows.map(function (item) {
             const r = item.row;
             const on = picked && pickKey(item.rangeNum, r.lotId) === container._mtPick;
@@ -558,7 +578,8 @@
               '<td>' + weaponCell(item.rangeNum, r, item.pending) + '</td>' +
               '<td>' + (item.pending ? '–' : esc(r.shotCount) + '/' + esc(item.shotsPer)) + '</td>' +
               '<td>' + groupText(r) + '</td>' +
-              '<td>' + (item.pending ? 'bereit' : esc(statusText(r))) + abortHtml(item.active, item.rangeNum, true) + '</td>' +
+              '<td class="mt-status">' + (item.pending ? 'bereit' : esc(statusText(r))) + abortHtml(item.active, item.rangeNum, true) + '</td>' +
+              '<td class="mt-act">' + removeLotButton(r.lotId, item.rangeNum) + '</td>' +
               '</tr>';
           }).join('') + '</tbody></table>';
       }

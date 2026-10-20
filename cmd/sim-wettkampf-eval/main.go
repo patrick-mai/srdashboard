@@ -25,11 +25,15 @@ type shooter struct {
 	Skill                   float64
 }
 
+// shotIDs supplies Passnummer and Vereinsnummer for synthetic packets.
+// Key is "First Last". Empty unless a scenario fills it.
+var shotIDs map[string][2]string
+
 func main() {
 	httpBase := flag.String("http", "http://127.0.0.1:8080", "dashboard HTTP")
 	udpAddr := flag.String("udp", "127.0.0.1:30169", "dashboard UDP")
 	pause := flag.Duration("pause", 20*time.Millisecond, "delay between shots")
-	scenario := flag.String("scenario", "full", "full, club5, fourteam (14 shooters / 4 Mannschaften), or club24 (24 shooters / 6 Mannschaften)")
+	scenario := flag.String("scenario", "full", "full, dual5 (2×5 LGA 30), club5, fourteam (14 shooters / 4 Mannschaften), or club24 (24 shooters / 6 Mannschaften)")
 	kind := flag.String("program", "LG40", "club5 program: LG40 or LGA30")
 	stopAfter := flag.Int("stop-after-wertung", 0, "full scenario: fire only N Wertung shots then exit")
 	resumeFrom := flag.Int("resume-wertung", -1, "full scenario: skip reset and fire remaining Wertung from this index")
@@ -38,6 +42,10 @@ func main() {
 	log.SetFlags(0)
 
 	must(postJSON(*httpBase+"/api/plugins/activate", map[string]any{"id": "classic-range-condensed"}))
+	if *scenario == "dual5" {
+		runDual5(*httpBase, *udpAddr, *pause)
+		return
+	}
 	if *scenario == "club5" {
 		menu, disc, n := "LG 40 Schuss", "LG", 40
 		if strings.EqualFold(strings.TrimSpace(*kind), "LGA30") {
@@ -207,6 +215,50 @@ func main() {
 	dump(*httpBase, "after Nach Verein zuordnen")
 	requireTeamCount(*httpBase, "Adler I", 3)
 	requireTeamCount(*httpBase, "Mitte I", 3)
+}
+
+func runDual5(httpBase, udpAddr string, pause time.Duration) {
+	const menu = "LG 30 Schuss Auflage"
+	shotIDs = map[string][2]string{
+		"Anna Müller":  {"10000001", "8801"},
+		"Peter Klein":  {"10000002", "8801"},
+		"Lisa Wolf":    {"10000003", "8801"},
+		"Uwe Hart":     {"10000004", "8801"},
+		"Ina Berg":     {"10000005", "8801"},
+		"Jonas Becker": {"20000001", "8802"},
+		"Sara Lang":    {"20000002", "8802"},
+		"Tim Koch":     {"20000003", "8802"},
+		"Mia Feld":     {"20000004", "8802"},
+		"Otto See":     {"20000005", "8802"},
+	}
+	defer func() { shotIDs = nil }()
+	must(putJSON(httpBase+"/api/wettkampf", map[string]any{"reset": true, "expectedPerTeam": 5}))
+	clearHall(httpBase)
+
+	adler := []shooter{
+		{"Anna", "Müller", "SV Adler", "Adler I", 1, 10.4},
+		{"Peter", "Klein", "SV Adler", "Adler I", 3, 10.1},
+		{"Lisa", "Wolf", "SV Adler", "Adler I", 5, 9.8},
+		{"Uwe", "Hart", "SV Adler", "Adler I", 1, 9.6},
+		{"Ina", "Berg", "SV Adler", "Adler I", 3, 10.2},
+	}
+	mitte := []shooter{
+		{"Jonas", "Becker", "KSG Mitte", "Mitte I", 2, 10.3},
+		{"Sara", "Lang", "KSG Mitte", "Mitte I", 4, 9.9},
+		{"Tim", "Koch", "KSG Mitte", "Mitte I", 6, 9.5},
+		{"Mia", "Feld", "KSG Mitte", "Mitte I", 2, 10.0},
+		{"Otto", "See", "KSG Mitte", "Mitte I", 4, 9.7},
+	}
+	log.Println("=== dual5 wave 1: Adler I and Mitte I, 3+3, LGA 30 ===")
+	fireHall(httpBase, udpAddr, programsMenu(append(adler[:3], mitte[:3]...), 5, 30, menu, "LG"), pause)
+	log.Println("=== dual5 wave 2: remaining 2+2 on Bahnen 1–4 ===")
+	fireHall(httpBase, udpAddr, programsMenu(append(adler[3:], mitte[3:]...), 5, 30, menu, "LG"), pause)
+	dump(httpBase, "2 teams × 5, LGA 30")
+	requireTeamCount(httpBase, "Adler I", 5)
+	requireTeamCount(httpBase, "Mitte I", 5)
+	for _, p := range append(append([]shooter{}, adler...), mitte...) {
+		requireShots(httpBase, p.First+" "+p.Last, 30, true)
+	}
 }
 
 func runClub5(httpBase, udpAddr string, pause time.Duration, menu, disc string, wertung int) {
@@ -606,6 +658,9 @@ func sendShot(addr string, p shooter, warmup bool, dec float64, n int, menu, dis
 		Range: p.Range, DecValue: dec, IsWarmup: warmup,
 		Shooter: p.First, Lastname: p.Last, Club: p.Club, Team: p.Team,
 		MenuItem: menu, DiscType: disc,
+	}
+	if id, ok := shotIDs[p.First+" "+p.Last]; ok {
+		opts.PassNumber, opts.ClubID = id[0], id[1]
 	}
 	x, y, dist := udp.PlaceShotForDisc(disc, dec, p.Range*100+n)
 	opts.X, opts.Y, opts.Distance = x, y, dist

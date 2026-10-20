@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 	"time"
@@ -33,6 +34,47 @@ func TestApplyShotRecordsTimestamps(t *testing.T) {
 	}
 	if !started.Equal(shot.At) {
 		t.Errorf("StartedAt = %v, want shot.At %v", started, shot.At)
+	}
+}
+
+func TestApplyShotKeepsPassAndClubNumber(t *testing.T) {
+	raw := []byte(`{"DecValue":10.1,"FullValue":10,"IsHot":true,"Shooter":{"Firstname":"Anna","Lastname":"Müller","Identification":"10712211","Club":{"Name":"SV Dinker","ID":5712}}}`)
+	var sp ShotPayload
+	if err := json.Unmarshal(raw, &sp); err != nil {
+		t.Fatal(err)
+	}
+	if string(sp.Shooter.Identification) != "10712211" || string(sp.Shooter.Club.ID) != "5712" {
+		t.Fatalf("parsed ids %#v", sp.Shooter)
+	}
+	ls := NewLiveState(1)
+	if !ls.ApplyShot(1, &sp) {
+		t.Fatal("apply")
+	}
+	snap, ok := ls.RangeSnapshot(1)
+	if !ok || snap.PassNumber != "10712211" || snap.ClubNumber != "5712" {
+		t.Fatalf("snapshot %#v", snap)
+	}
+	follow := &ShotPayload{
+		DecValue: 9.8, FullValue: 9, IsHot: true,
+		Shooter: &ShotShooter{Firstname: "Anna", Lastname: "Müller"},
+	}
+	if !ls.ApplyShot(1, follow) {
+		t.Fatal("follow")
+	}
+	snap, _ = ls.RangeSnapshot(1)
+	if snap.PassNumber != "10712211" || snap.ClubNumber != "5712" {
+		t.Fatalf("partial packet wiped ids: %#v", snap)
+	}
+	next := &ShotPayload{
+		DecValue: 9.5, FullValue: 9, IsHot: true,
+		Shooter: &ShotShooter{Firstname: "Jonas", Lastname: "Becker"},
+	}
+	if !ls.ApplyShot(1, next) {
+		t.Fatal("next shooter")
+	}
+	snap, _ = ls.RangeSnapshot(1)
+	if snap.PassNumber != "" || snap.ClubNumber != "" {
+		t.Fatalf("previous ids stuck: %#v", snap)
 	}
 }
 

@@ -458,6 +458,17 @@ button.range-disc-toggle:focus-visible {
   gap: 10px;
 }
 
+.crc-wk-bericht {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.crc-wk-bericht .crc-wk-field {
+  flex: 1;
+}
+
 .crc-wk-field {
   display: flex;
   flex-direction: column;
