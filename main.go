@@ -38,6 +38,7 @@ import (
 	"srdashboard/host/loader"
 	"srdashboard/host/rangestate"
 	"srdashboard/recovery"
+	"srdashboard/rwkbericht"
 	"srdashboard/state"
 	"srdashboard/udp"
 	"srdashboard/wettkampf"
@@ -56,6 +57,7 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
+	rwkbericht.SetPluginDir(cfg.Plugins.Dir)
 	pm := loader.NewManager(cfg.Plugins.Dir)
 	if err := pm.Reload(); err != nil {
 		log.Printf("load plugins: %v", err)

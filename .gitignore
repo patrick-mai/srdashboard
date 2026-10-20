@@ -49,5 +49,9 @@ static/sfx/bingo-call.mp3
 static/sfx/bingo-fanfare.mp3
 static/sfx/bingo-applause.mp3
 
+# Soest-Lippstadt letterhead stays local and is not part of the delivery
+plugins/classic-range-condensed/*[Ss]oest*
+plugins/classic-range-condensed/*[Ll]ippstadt*
+
 # DISAG ShotsApp → Ring Reader iOS shortcut (proprietary key schedule — keep local)
 /shortcut/

@@ -17,7 +17,8 @@ import (
 const formRows = 3
 
 // FromSnapshot builds a report from the condensed-board Wettkampf snapshot.
-// Passnummer, Jahrgang, Durchgang, Gruppe and Mannschaftsnummer are not in the snapshot.
+// Passnummer and Vereinsnummer come from the UDP shot when OpticScore sends them.
+// Jahrgang, Durchgang, Gruppe and Mannschaftsnummer are not in the snapshot.
 func FromSnapshot(snap wettkampf.Snapshot, heimID, gastID string, now time.Time) (Bericht, error) {
 	if strings.TrimSpace(heimID) == "" || strings.TrimSpace(gastID) == "" {
 		return Bericht{}, fmt.Errorf("heim und gast sind erforderlich")
@@ -51,7 +52,7 @@ func teamByID(snap wettkampf.Snapshot, id string) (wettkampf.TeamView, bool) {
 
 func sideFrom(snap wettkampf.Snapshot, team wettkampf.TeamView) Side {
 	side := Side{
-		Verein:    MatchVerein(team.Club),
+		Verein:    matchTeamVerein(team),
 		Disziplin: MatchDisziplin(disciplineOf(snap, team)),
 		Summe:     teamScore(team),
 	}
@@ -61,6 +62,7 @@ func sideFrom(snap wettkampf.Snapshot, team wettkampf.TeamView) Side {
 		}
 		side.Members = append(side.Members, Shooter{
 			Name:     m.Name,
+			Passnr:   m.PassNumber,
 			Ergebnis: memberScore(m, team.Decimal),
 		})
 	}
@@ -68,13 +70,33 @@ func sideFrom(snap wettkampf.Snapshot, team wettkampf.TeamView) Side {
 		if len(side.Einzel) >= formRows {
 			break
 		}
-		sh := Shooter{Name: m.Name}
+		sh := Shooter{Name: m.Name, Passnr: m.PassNumber}
 		if m.HasWertung {
 			sh.Ergebnis = rosterScore(m, team.Decimal || isAuflage(m.Discipline))
 		}
 		side.Einzel = append(side.Einzel, sh)
 	}
 	return side
+}
+
+// matchTeamVerein prefers the UDP Vereinsnummer when it names one catalog club.
+// Otherwise the club name is written as text. The shipped form has no club dropdown.
+func matchTeamVerein(team wettkampf.TeamView) string {
+	if hit := MatchVereinID(team.ClubNumber); hit != "" {
+		return hit
+	}
+	if hit := MatchVerein(team.Club); hit != "" {
+		return hit
+	}
+	name := strings.TrimSpace(team.Club)
+	num := strings.TrimSpace(team.ClubNumber)
+	if num != "" && name != "" {
+		return num + " " + name
+	}
+	if name != "" {
+		return name
+	}
+	return num
 }
 
 func disciplineOf(snap wettkampf.Snapshot, team wettkampf.TeamView) string {

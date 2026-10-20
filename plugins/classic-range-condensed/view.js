@@ -840,16 +840,29 @@ function openWettkampfModal() {
   const body = modal.querySelector('.crc-wk-dialog-body');
   body.innerHTML = '<p>Laden…</p>';
   modal.hidden = false;
-  fetch('/api/wettkampf', { cache: 'no-store' }).then(function (res) {
-    return res.json();
-  }).then(function (data) {
-    paintWettkampfModal(modal, data);
+  Promise.all([
+    fetch('/api/wettkampf', { cache: 'no-store' }).then(function (res) { return res.json(); }),
+    loadWettkampfVorlagen()
+  ]).then(function (pair) {
+    modal._rwkVorlagen = pair[1];
+    paintWettkampfModal(modal, pair[0]);
   }).catch(function () {
     body.innerHTML = '<p>Wettkampf konnte nicht geladen werden.</p>';
   });
 }
 
+function loadWettkampfVorlagen() {
+  return fetch('/api/wettkampf/vorlagen', { cache: 'no-store' }).then(function (res) {
+    if (!res.ok) return [];
+    return res.json();
+  }).then(function (list) {
+    return Array.isArray(list) ? list : [];
+  }).catch(function () { return []; });
+}
+
 function paintWettkampfModal(modal, data) {
+  const picked = modal.querySelector('#crc-wk-vorlage');
+  if (picked && picked.value) modal._rwkVorlage = picked.value;
   const body = modal.querySelector('.crc-wk-dialog-body');
   const teams = (data && data.teams) || [];
   const roster = (data && data.roster) || [];
@@ -869,9 +882,7 @@ function paintWettkampfModal(modal, data) {
     '<label class="crc-wk-field">Gast<select id="crc-wk-gast" class="crc-wk-assign">' +
     wettkampfTeamOptions(teams, gastPick) + '</select></label>' +
     '<label class="crc-wk-field">Vorlage<select id="crc-wk-vorlage" class="crc-wk-assign">' +
-    '<option value="soest" selected>Schützenkreis Soest-Lippstadt</option>' +
-    '<option value="neutral">Ohne Kopf</option>' +
-    '</select></label>' +
+    wettkampfVorlageOptions(modal) + '</select></label>' +
     '<button type="button" class="btn btn-primary" data-wk="bericht">RWK-Bericht</button></div>';
   html += '<label class="crc-wk-field">Schützen pro Mannschaft (0 = ohne Bruch)' +
     '<input type="number" min="0" max="20" id="crc-wk-expected" value="' + escapeHtml(String(exp)) + '"></label>';
@@ -909,6 +920,20 @@ function wettkampfTeamRow(id, name) {
   return '<div class="crc-wk-team-edit" data-id="' + escapeHtml(id || '') + '">' +
     '<input type="text" class="crc-wk-team-name" value="' + escapeHtml(name || '') + '">' +
     '<button type="button" class="btn" data-wk="del-team">Entfernen</button></div>';
+}
+
+function wettkampfVorlageOptions(modal) {
+  const list = (modal && modal._rwkVorlagen) || [];
+  const prev = (modal && modal._rwkVorlage) || '';
+  if (!list.length) return '<option value="">Keine Vorlage</option>';
+  let html = '';
+  list.forEach(function (v, i) {
+    const id = v.id || '';
+    const selected = (prev && id === prev) || (!prev && i === 0);
+    html += '<option value="' + escapeHtml(id) + '"' + (selected ? ' selected' : '') + '>' +
+      escapeHtml(v.name || id) + '</option>';
+  });
+  return html;
 }
 
 function wettkampfTeamOptions(teams, selected) {
@@ -996,7 +1021,15 @@ function downloadWettkampfBericht(modal) {
     alert('Bitte zwei verschiedene Mannschaften als Heim und Gast wählen.');
     return;
   }
-  const vorlage = (modal.querySelector('#crc-wk-vorlage') || {}).value || 'soest';
+  const vorlage = (modal.querySelector('#crc-wk-vorlage') || {}).value || '';
+  if (!vorlage) {
+    alert('Keine RWK-Vorlage. Lege eine PDF in plugins/classic-range-condensed.');
+    return;
+  }
+  modal._rwkVorlage = vorlage;
+  const heimName = selectedOptionText(modal.querySelector('#crc-wk-heim'));
+  const gastName = selectedOptionText(modal.querySelector('#crc-wk-gast'));
+  const filename = rwkBerichtFilename(heimName, gastName);
   const url = '/api/wettkampf/bericht.pdf?heim=' + encodeURIComponent(heim) + '&gast=' + encodeURIComponent(gast) + '&vorlage=' + encodeURIComponent(vorlage);
   fetch(url, { cache: 'no-store' }).then(function (res) {
     if (!res.ok) return res.text().then(function (t) { throw new Error(t || res.status); });
@@ -1004,7 +1037,7 @@ function downloadWettkampfBericht(modal) {
   }).then(function (blob) {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'RWK-Bericht.pdf';
+    a.download = filename;
     const href = a.href;
     document.body.appendChild(a);
     a.click();
@@ -1013,6 +1046,20 @@ function downloadWettkampfBericht(modal) {
   }).catch(function (err) {
     alert('RWK-Bericht: ' + (err && err.message ? err.message : err));
   });
+}
+
+function selectedOptionText(sel) {
+  if (!sel || sel.selectedIndex < 0) return '';
+  const opt = sel.options[sel.selectedIndex];
+  return opt ? opt.text : '';
+}
+
+function rwkBerichtFilename(heimName, gastName) {
+  function part(name) {
+    const s = String(name || '').replace(/[\\/:*?"<>|]/g, '_').replace(/[\u0000-\u001f]/g, '').trim();
+    return s || 'Mannschaft';
+  }
+  return 'RWK_bericht_' + part(heimName) + '-' + part(gastName) + '.pdf';
 }
 
 function resetWettkampfModal() {

@@ -10,6 +10,20 @@ import (
 	"srdashboard/wettkampf"
 )
 
+func TestBerichtFilenameUsesTeamNames(t *testing.T) {
+	got := berichtFilename("Adler I", "Mitte I")
+	if got != "RWK_bericht_Adler I-Mitte I.pdf" {
+		t.Fatalf("filename %q", got)
+	}
+	got = berichtFilename("SSV Öchtringhausen", "A/B")
+	if got != "RWK_bericht_SSV Öchtringhausen-A_B.pdf" {
+		t.Fatalf("filename %q", got)
+	}
+	if berichtFilename("", "  ") != "RWK_bericht_Mannschaft-Mannschaft.pdf" {
+		t.Fatalf("empty names: %q", berichtFilename("", "  "))
+	}
+}
+
 func TestWettkampfBerichtRequiresTeams(t *testing.T) {
 	h, _ := testHandlers(t, "s3cret")
 	store, err := wettkampf.Open("")
@@ -74,13 +88,30 @@ func TestWettkampfBerichtPDF(t *testing.T) {
 	if !strings.HasPrefix(rec.Body.String(), "%PDF") {
 		t.Fatal("body is not a pdf")
 	}
+	if strings.Contains(rec.Body.String(), "DCTDecode") {
+		t.Fatal("default report still embeds the JPEG crest")
+	}
+	wantName := "RWK_bericht_" + view.Teams[0].Name + "-SV Dinker.pdf"
+	if disp := rec.Header().Get("Content-Disposition"); !strings.Contains(disp, wantName) {
+		t.Fatalf("disposition %q, want %q", disp, wantName)
+	}
 	rec = httptest.NewRecorder()
 	h.ServeWettkampfBericht(rec, httptest.NewRequest(http.MethodGet, url+"&vorlage=neutral", nil))
-	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") {
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("neutral status %d %s", rec.Code, rec.Body.String())
 	}
-	if strings.Contains(rec.Body.String(), "DCTDecode") {
-		t.Fatal("neutral download still embeds the JPEG crest")
+	rec = httptest.NewRecorder()
+	h.ServeWettkampfBericht(rec, httptest.NewRequest(http.MethodGet, url+"&vorlage=Ohne%20Kopf", nil))
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") {
+		t.Fatalf("ohne kopf status %d %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "Lippstadt") || strings.Contains(rec.Body.String(), "Soest") {
+		t.Fatal("report still contains the Soest-Lippstadt club list")
+	}
+	rec = httptest.NewRecorder()
+	h.ServeWettkampfBericht(rec, httptest.NewRequest(http.MethodGet, url+"&vorlage=soest", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("soest vorlage status %d", rec.Code)
 	}
 	rec = httptest.NewRecorder()
 	h.ServeWettkampfBericht(rec, httptest.NewRequest(http.MethodGet, url+"&vorlage=logo", nil))

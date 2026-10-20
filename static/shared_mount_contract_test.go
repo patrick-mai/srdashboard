@@ -525,8 +525,16 @@ func TestClassicCondensedWettkampfTileSlot(t *testing.T) {
 		"the Wettkampf dialog downloads the RWK report from the live snapshot")
 	mustContain(t, crc, "crc-wk-vorlage",
 		"the Wettkampf dialog selects the RWK letterhead")
+	mustContain(t, crc, "/api/wettkampf/vorlagen",
+		"the Vorlage list is read from the Classic Range Condensed plugin")
+	mustNotContain(t, crc, "Schützenkreis Soest-Lippstadt",
+		"the Soest-Lippstadt letterhead is not a shipped template")
 	mustContain(t, crc, "vorlage=",
 		"the download tells the server which RWK template to fill")
+	mustContain(t, crc, "function rwkBerichtFilename",
+		"the RWK download is named from the selected Heim and Auswärts teams")
+	mustContain(t, crc, "RWK_bericht_",
+		"the RWK file name starts with RWK_bericht_")
 	mustContain(t, crc, "function extrasByTeamId",
 		"excluded club shooters stay listed under their Mannschaft, separated")
 	mustContain(t, crc, "function extraTeamId",

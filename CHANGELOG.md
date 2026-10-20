@@ -1,5 +1,12 @@
 # Änderungsnotizen
 
+## v0.5
+
+- **Darts** — Countdown 301, 501 oder 701, Standard 501. Jede Bahn wirft parallel, ein Pfeil pro Schuss. Double-In und Double-Out sind eigene Schalter und standardmäßig aus. Ein Fehl ist 0, Einschießen zählt nicht. Wer zuerst genau 0 erreicht, gewinnt. Unter 0 ist ein Bust, der Rest bleibt; bei Double-Out auch Rest 1 oder genau 0 ohne Double. Die letzten drei Pfeile sind nur zum Ablesen. Liegt die gedruckte Scheibe nicht auf dem Foto-Maß, einmal **Scheibe einmessen** und ein Schuss auf den äußeren Doppel-Draht. Der Bull bleibt die Mitte, alle Ringe skalieren gleich.
+- **RWK-Bericht** — im Wettkampf-Dialog von Classic Range Condensed. Die Formulare liegen als PDF in `plugins/classic-range-condensed/` und werden von dort gelesen. Mitgeliefert wird nur **Ohne Kopf**: ohne Briefkopf und ohne die Vereinsliste von Soest-Lippstadt. Die Soest-Lippstadt-Vorlage wird nicht ausgeliefert.
+- **Munitionstest** — Auf dem Master werden Lose angelegt, die Tablets wählen sie und können welche ergänzen. Der erste Schuss setzt das Zentrum; alles Weitere wird von diesem Schuss gemessen. X und Y in Millimeter, der Streukreis ist der größte Teiler (100 DSG = 1 mm). In der Regel zehn Schuss, danach ist das Los fertig. Die Waffe steht auf dem Master am Ergebnis. Der Master listet alle Bahnen und Lose und druckt die Gesamtliste. Der Abbruch wächst, sobald der Streukreis ein anderes Los derselben Bahn übertrifft, und noch einmal je weiteres Zehntel.
+
+
 ## v0.4
 
 - **Wettkampf (Classic Range Condensed)** — extra Kachel rechts neben den Bahnen: Mannschaften mit Summe, Prognose und `n/Soll`. Bahnwahl-Häkchen **Wettkampf** (nur CRC). Bahn-Reset löscht die Kachel nicht.

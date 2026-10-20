@@ -33,8 +33,8 @@ func ParseSheet(words []Word, pageW float64) rwkbericht.Bericht {
 	}
 	mid := pageW / 2
 	if heim, gast, ok := pairLabels(words, pageW); ok {
-		b.Heim.Verein = rwkbericht.MatchVerein(heim)
-		b.Gast.Verein = rwkbericht.MatchVerein(gast)
+		b.Heim.Verein = rwkbericht.ClubLabel(heim)
+		b.Gast.Verein = rwkbericht.ClubLabel(gast)
 	}
 	var heimShots, gastShots []shotLine
 	var heimSum, gastSum string

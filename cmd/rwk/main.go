@@ -20,7 +20,7 @@ func run(args []string) int {
 	}
 	vorlage, files, ok := parseArgs(args)
 	if !ok {
-		fmt.Fprintln(os.Stderr, "Verwendung: rwk.exe --check | rwk.exe [--vorlage soest|neutral] quelle.pdf [ziel.pdf]")
+		fmt.Fprintln(os.Stderr, "Verwendung: rwk.exe --check | rwk.exe [--vorlage Name] quelle.pdf [ziel.pdf]")
 		return 2
 	}
 	in := files[0]
@@ -51,7 +51,7 @@ func run(args []string) int {
 }
 
 func parseArgs(args []string) (vorlage string, files []string, ok bool) {
-	vorlage = rwkbericht.VorlageSoest
+	vorlage = ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--vorlage" || a == "-vorlage" {

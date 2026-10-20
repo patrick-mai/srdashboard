@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 
 	"srdashboard/wettkampf"
 )
@@ -38,6 +43,56 @@ func TestMatchVereinAndDisziplin(t *testing.T) {
 	}
 	if got := MatchDisziplin("KK 50m"); got != "KK 50 m Auflage" {
 		t.Fatalf("KK -> %q", got)
+	}
+	if got := MatchVereinID("5712"); got != "5712 SV Dinker N. u. D." {
+		t.Fatalf("5712 -> %q", got)
+	}
+	if got := MatchVereinID("57"); got != "" {
+		t.Fatalf("short id -> %q", got)
+	}
+	if got := MatchVereinID(""); got != "" {
+		t.Fatalf("empty id -> %q", got)
+	}
+	if got := ClubLabel("TSV Beispiel"); got != "TSV Beispiel" {
+		t.Fatalf("unknown club -> %q", got)
+	}
+}
+
+func TestFromSnapshotFillsPassAndVereinNumber(t *testing.T) {
+	snap := wettkampf.Snapshot{
+		Teams: []wettkampf.TeamView{
+			{
+				ID: "t1", Name: "Dinker 1", Club: "SSV", ClubNumber: "5739", Decimal: true, SumDec: 303.5,
+				Members: []wettkampf.MemberView{
+					{Name: "Anna Müller", HasWertung: true, SumDec: 303.5, PassNumber: "10712211", ClubNumber: "5739"},
+				},
+			},
+			{
+				ID: "t2", Name: "Weslarn", Club: "SSC Weslarn", ClubNumber: "9999", Decimal: true, SumDec: 300.5,
+				Members: []wettkampf.MemberView{
+					{Name: "Jonas Becker", HasWertung: true, SumDec: 300.5, PassNumber: "20823322"},
+				},
+			},
+		},
+		Roster: []wettkampf.RosterView{
+			{Name: "Ina Berg", Club: "SSV", Excluded: true, HasWertung: true, SumDec: 297.5, TeamID: "t1", PassNumber: "30934433"},
+		},
+	}
+	b, err := FromSnapshot(snap, "t1", "t2", time.Date(2026, 10, 20, 12, 0, 0, 0, time.Local))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Heim.Verein != "5739 SSV Eikeloh" {
+		t.Fatalf("heim verein %q", b.Heim.Verein)
+	}
+	if b.Gast.Verein != "5741 SSC Weslarn" {
+		t.Fatalf("unknown club number should fall back to the name, got %q", b.Gast.Verein)
+	}
+	if b.Heim.Members[0].Passnr != "10712211" || b.Heim.Einzel[0].Passnr != "30934433" {
+		t.Fatalf("pass %#v %#v", b.Heim.Members[0], b.Heim.Einzel[0])
+	}
+	if b.Gast.Members[0].Passnr != "20823322" {
+		t.Fatalf("gast pass %q", b.Gast.Members[0].Passnr)
 	}
 }
 
@@ -109,7 +164,7 @@ func TestFillRoundTrip(t *testing.T) {
 			}},
 		},
 	}
-	pdf, err := Fill(b, VorlageSoest)
+	pdf, err := Fill(b, "Ohne Kopf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,37 +202,147 @@ func TestFillRoundTrip(t *testing.T) {
 	if strings.TrimSpace(got["heim_durchgang"]) != "" {
 		t.Fatalf("durchgang should stay empty, got %q", got["heim_durchgang"])
 	}
-	neutral, err := Fill(b, VorlageNeutral)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(neutral, []byte("DCTDecode")) {
-		t.Fatal("neutral report still embeds the JPEG crest")
-	}
-	same, err := filledValues(neutral)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range want {
-		if same[k] != v {
-			t.Errorf("neutral %s = %q want %q", k, same[k], v)
-		}
-	}
 	if _, err := Fill(b, "logo"); !errors.Is(err, ErrUnknownVorlage) {
 		t.Fatalf("unknown vorlage: %v", err)
 	}
+	if _, err := Fill(b, "soest"); !errors.Is(err, ErrUnknownVorlage) {
+		t.Fatalf("soest vorlage must not ship: %v", err)
+	}
 }
 
-func TestNeutralTemplateDropsLetterhead(t *testing.T) {
-	if bytes.Contains(templateNeutral, []byte("DCTDecode")) {
-		t.Fatal("neutral template still has the JPEG crest")
+func TestFillChoiceIndexMatchesValue(t *testing.T) {
+	b := Bericht{
+		Heim: Side{
+			Disziplin: "10m Luftgewehr Auflage",
+			Verein:    "5712 SV Dinker N. u. D.",
+		},
+		Gast: Side{Disziplin: "10m Luftgewehr"},
 	}
-	if !bytes.Contains(templateSoest, []byte("DCTDecode")) {
-		t.Fatal("soest template lost its crest")
+	for _, id := range []string{"", "Ohne Kopf"} {
+		pdf, err := Fill(b, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := assertChoiceIndexes(pdf); err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
 	}
-	if len(templateNeutral) >= len(templateSoest)/2 {
-		t.Fatalf("neutral template is not smaller: %d vs %d", len(templateNeutral), len(templateSoest))
+}
+
+func assertChoiceIndexes(pdf []byte) error {
+	ctx, err := api.ReadValidateAndOptimize(bytes.NewReader(pdf), model.NewDefaultConfiguration())
+	if err != nil {
+		return err
 	}
+	xref := ctx.XRefTable
+	seen := 0
+	for n := 1; n < *xref.Size; n++ {
+		entry, ok := xref.FindTableEntry(n, 0)
+		if !ok || entry == nil || entry.Object == nil {
+			continue
+		}
+		d, ok := entry.Object.(types.Dict)
+		if !ok {
+			continue
+		}
+		if _, found := d.Find("Opt"); !found {
+			continue
+		}
+		sl := d.StringLiteralEntry("V")
+		if sl == nil {
+			continue
+		}
+		value, err := types.StringLiteralToString(*sl)
+		if err != nil {
+			return err
+		}
+		opts, err := choiceOptions(xref, d)
+		if err != nil {
+			return err
+		}
+		ind, ok := d["I"].(types.Array)
+		if !ok || len(ind) != 1 {
+			return fmt.Errorf("%q has no choice index", strings.TrimSpace(value))
+		}
+		i, ok := ind[0].(types.Integer)
+		if !ok || int(i) < 0 || int(i) >= len(opts) {
+			return fmt.Errorf("%q index %v", value, ind[0])
+		}
+		if opts[int(i)] != strings.TrimSpace(value) {
+			return fmt.Errorf("index %d is %q, value is %q", i, opts[int(i)], strings.TrimSpace(value))
+		}
+		seen++
+	}
+	if seen < 2 {
+		return fmt.Errorf("checked %d choice fields, want at least 2", seen)
+	}
+	return nil
+}
+
+func TestShippedVorlageDropsLetterheadAndClubs(t *testing.T) {
+	files, err := vorlageFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shipped *vorlageFile
+	for i := range files {
+		id := strings.ToLower(files[i].ID)
+		if strings.Contains(id, "soest") || strings.Contains(id, "lippstadt") {
+			t.Fatalf("Soest-Lippstadt template must not ship: %s", files[i].path)
+		}
+		if files[i].ID == "Ohne Kopf" {
+			shipped = &files[i]
+		}
+	}
+	if shipped == nil || !strings.Contains(filepath.ToSlash(shipped.path), "plugins/classic-range-condensed/") {
+		t.Fatalf("template must live in the plugin, got %#v", shipped)
+	}
+	raw, err := os.ReadFile(shipped.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("DCTDecode")) {
+		t.Fatal("shipped template still has the JPEG crest")
+	}
+	for _, club := range []string{"Lippstadt", "Soest", "Böckum", "Geseke"} {
+		if bytes.Contains(raw, []byte(club)) || bytes.Contains(raw, utf16BE(club)) {
+			t.Fatalf("shipped template still contains %q", club)
+		}
+	}
+	f, err := os.Open(shipped.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	fields, err := api.FormFields(f, model.NewDefaultConfiguration())
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, field := range fields {
+		if field.Name != "heim_verein" && field.Name != "gast_verein" {
+			continue
+		}
+		seen++
+		if field.Typ.String() != "Textfield" {
+			t.Fatalf("%s is %s, want a text field without the club list", field.Name, field.Typ)
+		}
+		if field.Opts != "" {
+			t.Fatalf("%s still has options %q", field.Name, field.Opts)
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("verein fields %d", seen)
+	}
+}
+
+func utf16BE(s string) []byte {
+	enc := utf16.Encode([]rune(s))
+	b := make([]byte, 0, len(enc)*2)
+	for _, r := range enc {
+		b = append(b, byte(r>>8), byte(r))
+	}
+	return b
 }
 
 func filledValues(pdf []byte) (map[string]string, error) {

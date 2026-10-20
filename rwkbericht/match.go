@@ -6,8 +6,28 @@ import (
 	"unicode"
 )
 
-// MatchVerein returns the ComboBox entry for a club label, or "" when the
-// label does not pick exactly one entry. pdfcpu rejects any other value.
+// MatchVereinID returns the ComboBox entry whose leading Vereinsnummer is id.
+// An unknown or ambiguous id returns "" so the form is left blank.
+func MatchVereinID(id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ""
+	}
+	var hits []string
+	for _, opt := range Vereine {
+		num, _, ok := strings.Cut(opt, " ")
+		if ok && num == id {
+			hits = append(hits, opt)
+		}
+	}
+	if len(hits) == 1 {
+		return hits[0]
+	}
+	return ""
+}
+
+// MatchVerein returns the catalog entry for a club label, or "" when the
+// label does not pick exactly one entry.
 func MatchVerein(label string) string {
 	if hit := matchChoice(label, Vereine); hit != "" {
 		return hit
@@ -22,6 +42,15 @@ func MatchVerein(label string) string {
 		}
 	}
 	return ""
+}
+
+// ClubLabel returns the catalog entry when the label matches one club,
+// otherwise the trimmed label. The shipped form writes that text directly.
+func ClubLabel(label string) string {
+	if hit := MatchVerein(label); hit != "" {
+		return hit
+	}
+	return strings.TrimSpace(label)
 }
 
 // MatchDisziplin maps an OpticScore discipline label onto the ComboBox list.

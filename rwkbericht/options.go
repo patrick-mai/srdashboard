@@ -10,7 +10,8 @@ var Disziplinen = []string{
 	"25m Großkaliberpistole 9 mm",
 }
 
-// Vereine are the ComboBox values of the RWK template.
+// Vereine are catalog names used to recognize a club on the report.
+// The shipped "Ohne Kopf" form does not offer this list as a dropdown.
 var Vereine = []string{
 	"5703 SSV Böckum-Norddorf",
 	"5704 SSC Büecke",

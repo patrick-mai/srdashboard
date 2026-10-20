@@ -214,7 +214,7 @@ You need a Windows PC on the same network as OpticScore (hall PC or a dedicated 
 1. Copy the Windows package so these stay **in the same folder**:
   - `srdashboard.exe`
   - `config.xml`
-  - `plugins\` (one folder per plugin, not zip files)
+  - `plugins\` (one folder per plugin, not zip files). The RWK form is `plugins\classic-range-condensed\Ohne Kopf.pdf`, without the Soest-Lippstadt letterhead or club list.
    A pre-built tree lives at `[dist/windows-amd64/](dist/windows-amd64/)` in this repo. You can copy that folder to e.g. `C:\SRDashboard`.
 2. Double-click `srdashboard.exe`.
   If Windows Firewall asks, allow it on the **private** range network.
