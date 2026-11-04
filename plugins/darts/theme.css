@@ -155,7 +155,21 @@
 .dt-cricket-lights { display:flex; gap:calc(.1rem * var(--dt-player-scale, 1)); align-items:center; justify-content:center; }
 .dt-cricket-light { display:block; width:calc(.48rem * var(--dt-player-scale, 1)); height:calc(.48rem * var(--dt-player-scale, 1)); border-radius:50%; background:#26323b; border:1px solid #59636d; box-shadow:inset 0 0 2px rgba(0,0,0,.8); }
 .dt-cricket-light.lit { background:#35e878; border-color:#a4ffc2; box-shadow:0 0 5px rgba(53,232,120,.85), inset 0 0 2px rgba(255,255,255,.65); }
-@media (max-width:480px) { .dt-cricket-marks { grid-template-columns:repeat(7, minmax(calc(2rem * var(--dt-player-scale, 1)), calc(2.5rem * var(--dt-player-scale, 1)))); gap:calc(.04rem * var(--dt-player-scale, 1)); } .dt-cricket-light { width:calc(.38rem * var(--dt-player-scale, 1)); height:calc(.38rem * var(--dt-player-scale, 1)); } }
+@media (max-width:480px) { .dt-cricket-marks { grid-template-columns:repeat(7, minmax(calc(2rem * var(--dt-player-scale, 1)), calc(2.5rem * var(--dt-player-scale, 1)))); gap:calc(.04rem * var(--dt-player-scale, 1)); } .dt-cricket-light { width:calc(.55rem * var(--dt-player-scale, 1)); height:calc(.55rem * var(--dt-player-scale, 1)); } }
+
+/* Cricket: Trefferleuchten deutlich groesser, aber innerhalb der sieben Zielkaestchen. */
+.dt-player.dt-player-cricket .dt-cricket-lights { gap:calc(.12rem * var(--dt-player-scale, 1)); }
+.dt-player.dt-player-cricket .dt-cricket-light {
+  width:calc(.68rem * var(--dt-player-scale, 1));
+  height:calc(.68rem * var(--dt-player-scale, 1));
+}
+@media (max-width:480px) {
+  .dt-player.dt-player-cricket .dt-cricket-lights { gap:calc(.08rem * var(--dt-player-scale, 1)); }
+  .dt-player.dt-player-cricket .dt-cricket-light {
+    width:calc(.55rem * var(--dt-player-scale, 1));
+    height:calc(.55rem * var(--dt-player-scale, 1));
+  }
+}
 
 /* Cricket: Kopfzeile und Spielerwerte in drei klar ausgerichteten Spalten. */
 .dt-player-head-cricket { grid-template-columns:minmax(0,1fr) auto auto; gap:.45rem; padding-left:.5rem; }
@@ -190,29 +204,34 @@
 .dt-player.dt-player-cricket > div:nth-child(2) > .dt-stat:not(.dt-open) { grid-column: 1 / -1; text-align: left; }
 
 
-/* Cricket-Layout: Überschriften und Werte in exakt denselben Spalten.
-   Spielerinformationen bleiben links, Trefferziele darunter kompakt linksbündig. */
+/* Cricket-Layout: Überschriften und Werte in denselben, ausreichend breiten Spalten.
+   Die Spalten für Punkte und Offen sind verbreitert, damit die Überschriften
+   auch bei größerer responsiver Schriftgröße nicht ineinanderlaufen. */
 .dt-player-head-cricket {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 3.5rem 3.5rem !important;
+  grid-template-columns: minmax(0, 1fr) calc(4.5rem * var(--dt-player-scale, 1)) calc(4.5rem * var(--dt-player-scale, 1)) !important;
   gap: calc(.45rem * var(--dt-player-scale, 1)) !important;
   align-items: center;
+  font-size: calc(.82rem * var(--dt-player-scale, 1));
 }
 .dt-player-head-cricket .dt-player-head-title { grid-column: 1; text-align: left; }
 .dt-player-head-cricket span:nth-child(2),
 .dt-player-head-cricket span:nth-child(3) { min-width: 0; text-align: right; }
 
-.dt-player.dt-player-cricket {
-  grid-template-columns: calc(9px * var(--dt-player-scale, 1)) minmax(0, 1fr) calc(3.5rem * var(--dt-player-scale, 1)) calc(3.5rem * var(--dt-player-scale, 1)) !important;
-  column-gap: calc(.45rem * var(--dt-player-scale, 1));
-  row-gap: calc(.2rem * var(--dt-player-scale, 1));
-}
+ .dt-player.dt-player-cricket {
+   grid-template-columns: calc(9px * var(--dt-player-scale, 1)) minmax(0, 1fr) calc(4.5rem * var(--dt-player-scale, 1)) calc(4.5rem * var(--dt-player-scale, 1)) !important;
+   grid-template-rows: min-content min-content;
+   align-content: center;
+   column-gap: calc(.45rem * var(--dt-player-scale, 1));
+   row-gap: calc(.08rem * var(--dt-player-scale, 1));
+   padding-block: calc(.22rem * var(--dt-player-scale, 1));
+ }
 .dt-player.dt-player-cricket > div:nth-child(2) { display: contents !important; }
 .dt-player.dt-player-cricket .dt-who { grid-column: 2; grid-row: 1; min-width: 0; }
 .dt-player.dt-player-cricket .dt-score { grid-column: 3; grid-row: 1; min-width: 0; text-align: right; }
 .dt-player.dt-player-cricket .dt-stat.dt-open { grid-column: 4; grid-row: 1; min-width: 0; text-align: right; }
 .dt-player.dt-player-cricket .dt-darts { grid-column: 2 / -1; grid-row: 2; margin-top: 0; }
-.dt-player.dt-player-cricket .dt-cricket-marks { grid-column: 2 / -1; grid-row: 3; justify-content: start; margin-top: calc(.25rem * var(--dt-player-scale, 1)); }
+.dt-player.dt-player-cricket .dt-cricket-marks { grid-column: 2 / -1; grid-row: 2; justify-content: start; margin-top: 0; }
 .dt-player.dt-player-cricket > .dt-stat:not(.dt-open) { grid-column: 2 / -1; text-align: left; }
 
 
@@ -224,3 +243,21 @@
   font-weight: 800;
   padding: calc(.12rem * var(--dt-player-scale, 1)) calc(.1rem * var(--dt-player-scale, 1));
 }
+
+
+
+/* Around the Clock: nur Ziel und verbleibende Darts anzeigen;
+   Kopfzeile und Werte verwenden identische Spaltenbreiten. */
+.dt-player-head-around-clock {
+  grid-template-columns: 9px minmax(0, 1fr) calc(6rem * var(--dt-player-scale, 1)) calc(3.5rem * var(--dt-player-scale, 1));
+  gap: calc(.45rem * var(--dt-player-scale, 1));
+}
+.dt-player-head-around-clock .dt-player-head-title { grid-column: 1 / 3; }
+.dt-player-head-around-clock span:nth-child(n+2) { min-width: 0; text-align: right; }
+.dt-player.dt-player-clock {
+  grid-template-columns: calc(9px * var(--dt-player-scale, 1)) minmax(0, 1fr) calc(6rem * var(--dt-player-scale, 1)) calc(3.5rem * var(--dt-player-scale, 1));
+  column-gap: calc(.45rem * var(--dt-player-scale, 1));
+}
+.dt-player.dt-player-clock .dt-score { min-width: 0; text-align: right; }
+.dt-player.dt-player-clock > .dt-stat:not(.dt-open) { display: none; }
+.dt-player.dt-player-clock > .dt-stat.dt-open { min-width: 0; text-align: right; }

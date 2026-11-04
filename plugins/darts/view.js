@@ -1283,7 +1283,7 @@ window.SRPluginViews = window.SRPluginViews || {};
           (game.gameMode === 'cricket' ? '<div class="dt-stat dt-open"><strong>' + esc(p.openDarts) + '</strong></div>' : '') +
           (game.gameMode === 'cricket' ? '<div class="dt-cricket-marks" aria-label="Cricket-Zieltreffer">' + ['20','19','18','17','16','15','B'].map(function(k){ var count = Math.max(0, Math.min(3, Number(p.cricketMarks && p.cricketMarks[k] || 0))); return '<div class="dt-cricket-target"><span class="dt-cricket-target-label">' + k + '</span><span class="dt-cricket-lights">' + [0,1,2].map(function(i){ return '<i class="dt-cricket-light' + (i < count ? ' lit' : '') + '" aria-label="' + (i < count ? 'getroffen' : 'offen') + '"></i>'; }).join('') + '</span></div>'; }).join('') + '</div>' : '') +
 
-          (game.gameMode !== 'cricket' ? '<div class="dt-stat"><strong>' + esc(p.roundScore) + '</strong></div>' : '') +
+          (game.gameMode !== 'cricket' && game.gameMode !== 'around_clock' ? '<div class="dt-stat"><strong>' + esc(p.roundScore) + '</strong></div>' : '') +
 
           (game.gameMode !== 'cricket' ? '<div class="dt-stat dt-open"><strong>' + esc(p.openDarts) + '</strong></div>' : '') +
 
@@ -1476,7 +1476,10 @@ window.SRPluginViews = window.SRPluginViews || {};
           const available = Math.max(0, listHeight - gap * Math.max(0, rows.length - 1));
           const perRow = available / rows.length;
           const cricket = rows.some(row => row.classList.contains('dt-player-cricket'));
-          const baseHeight = cricket ? 82 : 72;
+          // Cricket benötigt zusätzlich zur Namens-/Punktezeile eine eigene
+          // Zeile für die sieben Trefferanzeigen. Deshalb darf die Cricket-Zeile
+          // bei größeren verfügbaren Höhen stärker wachsen als normale Spielerzeilen.
+          const baseHeight = cricket ? 96 : 72;
           const scale = Math.max(0.3, Math.min(1.5, perRow / baseHeight));
           const nextScale = scale.toFixed(3);
           if (side.style.getPropertyValue('--dt-player-scale') !== nextScale) {
@@ -1663,7 +1666,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     players.innerHTML =
       (isX01
         ? '<div class="dt-player-head" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Gesamt</span><span>Aktuell</span><span>Offen</span></div>'
-        : (game.gameMode === 'cricket' ? '<div class="dt-player-head dt-player-head-cricket" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Punkte</span><span>Offen</span></div>' : (game.gameMode === 'around_clock' ? '<div class="dt-player-head" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Nächstes Ziel</span></div>' : '<h3>Spieler</h3>'))) +
+        : (game.gameMode === 'cricket' ? '<div class="dt-player-head dt-player-head-cricket" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Punkte</span><span>Offen</span></div>' : (game.gameMode === 'around_clock' ? '<div class="dt-player-head dt-player-head-around-clock" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Nächstes Ziel</span><span>Offen</span></div>' : '<h3>Spieler</h3>'))) +
       '<div class="dt-players">' +
       playersHtml(game, vm.inactiveRanges) +
       '</div>';
@@ -1796,7 +1799,7 @@ window.SRPluginViews = window.SRPluginViews || {};
             playerList.innerHTML =
               (isX01Mode
                 ? '<div class="dt-player-head" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Gesamt</span><span>Aktuell</span><span>Offen</span></div>'
-                : (game.gameMode === 'cricket' ? '<div class="dt-player-head dt-player-head-cricket" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Punkte</span><span>Offen</span></div>' : (game.gameMode === 'around_clock' ? '<div class="dt-player-head" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Nächstes Ziel</span></div>' : '<h3>Spieler</h3>'))) +
+                : (game.gameMode === 'cricket' ? '<div class="dt-player-head dt-player-head-cricket" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Punkte</span><span>Offen</span></div>' : (selectedMode === 'around_clock' ? '<div class="dt-player-head dt-player-head-around-clock" aria-hidden="true"><span class="dt-player-head-title">Spieler</span><span>Nächstes Ziel</span><span>Offen</span></div>' : '<h3>Spieler</h3>'))) +
               '<div class="dt-players">' +
               playersHtml(selectedGame, vm.inactiveRanges) +
               '</div>';
