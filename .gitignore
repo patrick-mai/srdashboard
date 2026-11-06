@@ -55,3 +55,6 @@ plugins/classic-range-condensed/*[Ll]ippstadt*
 
 # DISAG ShotsApp → Ring Reader iOS shortcut (proprietary key schedule — keep local)
 /shortcut/
+
+# Optional local UDP forwarder, not part of the release
+/vizfeed/

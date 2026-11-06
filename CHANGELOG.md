@@ -45,4 +45,4 @@
 - **Ring-Reader-QR** — Serien-IDs enthalten die Uhrzeit des ersten Schusses (`hh:mm`), damit zwei Starts am selben Tag unterscheidbar bleiben.
 - **Zehner-Bingo** — Karte 8,5–10,9, gemischt beim Start; Clips für Glas-Treffer und Bingo-Gewinn.
 
-Nur Repository: Standprotokolle (`exampledata/`) und `docs/DISAG_QR.md` werden nicht mehr mitgeliefert.
+Nur Repository: Standprotokolle und die DISAG-QR-Notiz werden nicht mehr mitgeliefert.

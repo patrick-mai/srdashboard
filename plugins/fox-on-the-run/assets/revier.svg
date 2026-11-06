@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 664" class="fox-revier-svg">
-  <desc>Revier map from Style C Lichtung preview art</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 666.67" class="fox-revier-svg">
+  <desc>Waldtal mit Bachlauf: Meute unten links, Fuchsbau oben rechts</desc>
   <defs>
     <g id="fox-sprite">
       <path d="M-10 6 C-18 2 -20 -6 -12 -10 L-6 -18 L0 -10 L8 -12 L16 -6 C22 -2 22 6 16 10 L10 12 L14 16 L6 14 L-2 14 L-10 10 Z"
@@ -11,32 +11,47 @@
     </g>
   </defs>
 
-  <image href="/plugins/fox-on-the-run/assets/revier-map.png?v=6" x="0" y="0" width="1000" height="664"
+  <image href="/plugins/fox-on-the-run/assets/revier-map.png?v=7" x="0" y="0" width="1000" height="666.67"
          preserveAspectRatio="xMidYMid meet"/>
 
-  <!-- Gameplay Fhrte along preview dirt path (Meute bottom-left ? Bau top-right) -->
-  <path id="fahrte" d="M 80 560
-    C 140 500, 175 460, 230 440
-    S 310 420, 370 400
-    S 450 370, 510 340
-    S 580 295, 640 250
-    S 720 195, 800 150
-    S 870 110, 930 90"
+  <!-- Fahrte along the dirt path: Meute bottom-left, across the bridge, Bau at the den -->
+  <path id="fahrte" d="M 22.2 651.1
+    C 35.6 651.1, 77.8 651.1, 102.2 651.1
+    C 126.7 651.1, 146.3 653.3, 168.9 651.1
+    C 191.5 648.9, 215.2 643.0, 237.8 637.8
+    C 260.4 632.6, 282.2 627.8, 304.4 620.0
+    C 326.7 612.2, 354.8 605.6, 371.1 591.1
+    C 387.4 576.7, 406.3 549.3, 402.2 533.3
+    C 398.1 517.4, 367.8 504.1, 346.7 495.6
+    C 325.6 487.0, 300.4 486.1, 275.6 482.2
+    C 250.7 478.3, 218.1 482.2, 197.8 472.2
+    C 177.4 462.2, 153.0 435.2, 153.3 422.2
+    C 153.7 409.3, 179.3 399.1, 200.0 394.4
+    C 220.7 389.8, 251.9 398.1, 277.8 394.4
+    C 303.7 390.7, 331.5 380.6, 355.6 372.2
+    C 379.6 363.9, 396.3 350.9, 422.2 344.4
+    C 448.1 338.0, 481.5 334.3, 511.1 333.3
+    C 540.7 332.4, 572.2 340.3, 600.0 338.9
+    C 627.8 337.5, 654.6 332.4, 677.8 325.0
+    C 700.9 317.6, 721.8 306.5, 738.9 294.4
+    C 756.0 282.4, 767.8 265.3, 780.6 252.8
+    C 793.3 240.3, 805.3 226.6, 815.6 219.4
+    C 825.8 212.3, 837.8 211.6, 842.2 210.0"
     fill="none" stroke="transparent" stroke-width="28"/>
 
-  <g transform="translate(80,560)">
-    <circle r="15" fill="#264653" stroke="#fff" stroke-width="2.5"/>
-    <circle r="5.5" fill="#f7f4ee"/>
+  <g transform="translate(48,651)">
+    <circle r="14" fill="#264653" stroke="#fff" stroke-width="2.5"/>
+    <circle r="5" fill="#f7f4ee"/>
   </g>
-  <text x="80" y="598" text-anchor="middle"
+  <text x="48" y="626" text-anchor="middle"
         font-family="Segoe UI, system-ui, -apple-system, Roboto, Noto Sans, sans-serif" font-size="18" font-weight="700"
         fill="#264653" stroke="rgba(255,255,255,0.85)" stroke-width="4" paint-order="stroke">Meute</text>
 
-  <g transform="translate(930,90)">
-    <circle r="15" fill="#e85d04" stroke="#fff" stroke-width="2.5"/>
-    <circle r="5.5" fill="#fff7ed"/>
+  <g transform="translate(842,210)">
+    <circle r="14" fill="#e85d04" stroke="#fff" stroke-width="2.5"/>
+    <circle r="5" fill="#fff7ed"/>
   </g>
-  <text x="930" y="128" text-anchor="middle"
+  <text x="842" y="248" text-anchor="middle"
         font-family="Segoe UI, system-ui, -apple-system, Roboto, Noto Sans, sans-serif" font-size="18" font-weight="700"
         fill="#e85d04" stroke="rgba(255,255,255,0.85)" stroke-width="4" paint-order="stroke">Bau</text>
 

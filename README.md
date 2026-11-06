@@ -262,6 +262,139 @@ On a network that is not only the range LAN **and** you only use the admin port,
 
 
 
+## Linux installation (Raspberry Pi)
+
+Use **64-bit** Raspberry Pi OS (Bookworm or Trixie) on a **Pi 4 or 5**. The binary is `linux-arm64`. A Pi 3B+ should run the same archive, and is not a recommended machine for the Master Display (see below). The Pi and the OpticScore PC must be on the same network; Ethernet is the steadier path for the shot packets.
+
+The Pi can be only the server (Raspberry Pi OS Lite, browsers on other screens) or the server and the Master Display (desktop image, HDMI into the TV). On a Pi 4 or 5, 2 GB is enough for the server. Use 4 GB when Chromium runs on the same Pi.
+
+A normal x86-64 Linux PC uses the same steps with [`dist/linux-amd64/`](dist/linux-amd64/) (`uname -m` prints `x86_64`).
+
+### Raspberry Pi 3B+
+
+A Pi 3B+ is not recommended. It should still run this same `linux-arm64` archive, with the same paths, user and systemd unit as below. Install the **64-bit** image so `uname -m` prints `aarch64`. The 32-bit image reports `armv7l` and will not run the binary. A Pi 3B is the same case.
+
+If one is already in use, run it as the server only (Raspberry Pi OS Lite) and open the Master Display on another screen. 1 GB is enough for that, and the Ethernet covers OpticScore plus a few browsers. The kiosk on the 3B+ itself shares that 1 GB between Chromium and a 1920×1080 Master Display, so the page swaps and stays slow.
+
+1. On the Pi, confirm the architecture:
+
+```bash
+uname -m
+```
+
+`aarch64` is the machine this package runs on. `armv7l` means the 32-bit image — write the 64-bit image and boot that.
+
+2. Install the release archive `srdashboard-linux-arm64.tar.gz`. It is the [`dist/linux-arm64/`](dist/linux-arm64/) tree with one top-level directory `linux-arm64/`, and these stay **in the same folder**:
+  - `srdashboard`
+  - `config.xml`
+  - `plugins/` (one folder per plugin, not zip files). The RWK form is `plugins/classic-range-condensed/Ohne Kopf.pdf`, without the Soest-Lippstadt letterhead or club list.
+
+Pack it from this repo:
+
+```bash
+tar -C dist -czf srdashboard-linux-arm64.tar.gz linux-arm64
+```
+
+On the Pi:
+
+```bash
+sudo mkdir -p /opt/srdashboard
+sudo tar -xzf srdashboard-linux-arm64.tar.gz -C /opt/srdashboard --strip-components=1
+sudo adduser --system --group --home /opt/srdashboard --no-create-home srdashboard
+sudo chown -R srdashboard:srdashboard /opt/srdashboard
+sudo chmod +x /opt/srdashboard/srdashboard
+```
+
+Copying the folder over USB or `scp` is the same install. The binary still needs `chmod +x` after a copy from Windows.
+
+3. Try it once in the foreground, then stop it with Ctrl-C before enabling the service:
+
+```bash
+cd /opt/srdashboard
+sudo -u srdashboard ./srdashboard
+```
+
+Open a browser on the Pi: **[http://localhost:8080](http://localhost:8080)**. From another machine use `http://<pi-ip>:8080`. `hostname -I` prints the Pi's address.
+
+4. Start it on boot. The process reads and writes `config.xml`, `runtime.xml`, `wettkampf.xml`, `plugins/*/config.xml` and `log/` from its working directory, so the unit keeps that directory:
+
+```bash
+sudo tee /etc/systemd/system/srdashboard.service >/dev/null <<'EOF'
+[Unit]
+Description=SRDashboard Master Display
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=srdashboard
+Group=srdashboard
+WorkingDirectory=/opt/srdashboard
+ExecStart=/opt/srdashboard/srdashboard
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now srdashboard
+```
+
+`journalctl -u srdashboard -f` follows the service log. Session files for **Einstellungen → Wiederherstellung** are `log/<start-time>.txt` under `/opt/srdashboard`.
+
+Another HTTP port, set in the unit (then `sudo systemctl daemon-reload && sudo systemctl restart srdashboard`):
+
+```ini
+Environment=PORT=9090
+```
+
+A config path as the first argument. Keep `WorkingDirectory=/opt/srdashboard`, because `log/` is still created there:
+
+```ini
+ExecStart=/opt/srdashboard/srdashboard /opt/srdashboard/config.xml
+```
+
+5. In **DISAG OpticScore**, enable **JSON Live** and send it to the Pi's address on UDP port **30169** (the default in `config.xml`). As soon as a stand fires, the matching panel fills.
+6. Tablets and extra screens use the same URLs as on Windows: Master Display `http://<pi-ip>:8080`, compact `/compact`, stand `/1`, settings `/config`. Admin and public ports are the same `config.xml` settings as in the Windows section.
+
+Raspberry Pi OS does not filter inbound traffic. If `ufw` is on:
+
+```bash
+sudo ufw allow 8080/tcp
+sudo ufw allow 30169/udp
+```
+
+### Master Display on the Pi
+
+Use this when the Pi's HDMI output is the Master Display. The desktop image needs to boot to the desktop and log in on its own. In `sudo raspi-config`, turn screen blanking off.
+
+Chromium is on the desktop image (`sudo apt install chromium` if the command is missing). As the user who logs in on the TV, add one line to the labwc autostart. Current Raspberry Pi OS merges this file with the system autostart, so the panel stays:
+
+```bash
+mkdir -p ~/.config/labwc
+printf '%s\n' '/usr/bin/lwrespawn chromium --kiosk --noerrdialogs --disable-infobars --no-first-run http://127.0.0.1:8080 &' >> ~/.config/labwc/autostart
+```
+
+Reboot. The service is up before the desktop, and Chromium opens the Master Display full screen. `pgrep -a labwc` shows the compositor this file belongs to. An image that still prints `wayfire` or `Xorg` from `pgrep -a 'wayfire|Xorg'` needs **labwc** under Wayland in `raspi-config`, or just open the browser by hand.
+
+### Update
+
+Stop the service, replace the binary, and refresh `plugins/`. Leave the club's `config.xml`, `runtime.xml`, `wettkampf.xml` and `log/` in place. Plugin settings saved in Einstellungen are `plugins/<id>/config.xml`; the archive does not ship those files, and the copy below leaves them.
+
+```bash
+sudo systemctl stop srdashboard
+sudo tar -xzf srdashboard-linux-arm64.tar.gz -C /tmp
+sudo install -m 0755 /tmp/linux-arm64/srdashboard /opt/srdashboard/srdashboard
+sudo cp -a /tmp/linux-arm64/plugins/. /opt/srdashboard/plugins/
+sudo chown -R srdashboard:srdashboard /opt/srdashboard
+sudo systemctl start srdashboard
+```
+
+---
+
+
+
 ## Displays
 
 
@@ -304,7 +437,7 @@ python scripts/ui_regression.py
 
 `host/fullplay` plays every bundled game to a finish. `python scripts/ui_regression.py` is the UI check that was ordered: a **complete game of each plugin** at **1920×1080**, screenshot hall (including menu open) + shooter, fail leftover-space scrollbars. Needs a running `./srdashboard.exe`.
 
-Raspberry Pi / ARM:
+Raspberry Pi / ARM binary (install steps: [Linux installation](#linux-installation-raspberry-pi)):
 
 ```powershell
 .\scripts\build-arm64.ps1
