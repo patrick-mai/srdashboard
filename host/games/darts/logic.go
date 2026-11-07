@@ -54,9 +54,14 @@ func (l *Logic) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"autoStartWhenAllReady": map[string]any{"type": "boolean"},
+			"gameMode":              map[string]any{"type": "string", "enum": []any{"x01", "cricket", "around_clock"}},
 			"startScore":            map[string]any{"type": "integer", "enum": []any{301, 501, 701}},
 			"doubleIn":              map[string]any{"type": "boolean"},
 			"doubleOut":             map[string]any{"type": "boolean"},
+			"orderMode":             map[string]any{"type": "string", "enum": []any{"range", "beginner"}},
+			"beginnerRange":         map[string]any{"type": "integer", "minimum": 1},
+			"requireFunDart":        map[string]any{"type": "boolean"},
+			"visitHoldMs":           map[string]any{"type": "integer", "minimum": 0},
 			"boardScale":            map[string]any{"type": "number"},
 			"defaultTargetProfile":  map[string]any{"type": "string"},
 		},
@@ -66,9 +71,14 @@ func (l *Logic) ConfigSchema() map[string]any {
 func defaultConfig() map[string]any {
 	return map[string]any{
 		"autoStartWhenAllReady": true,
+		"gameMode":              "x01",
 		"startScore":            501,
 		"doubleIn":              false,
 		"doubleOut":             false,
+		"orderMode":             "range",
+		"beginnerRange":         1,
+		"requireFunDart":        false,
+		"visitHoldMs":           1500,
 		"boardScale":            1.0,
 		"defaultTargetProfile":  "dartboard",
 		"disciplineTargets": map[string]any{
@@ -84,18 +94,24 @@ func defaultConfig() map[string]any {
 }
 
 type Player struct {
-	RangeNum    int      `json:"rangeNum"`
-	Active      bool     `json:"active"`
-	Seated      bool     `json:"seated"`
-	Ready       bool     `json:"ready"`
-	WasWarmup   bool     `json:"wasWarmup"`
-	ShooterName string   `json:"shooterName"`
-	Discipline  string   `json:"discipline"`
-	Color       string   `json:"color"`
-	Remaining   int      `json:"remaining"`
-	Opened      bool     `json:"opened"`
-	Finished    bool     `json:"finished"`
-	LastThree   []string `json:"lastThree"`
+	RangeNum      int            `json:"rangeNum"`
+	Active        bool           `json:"active"`
+	Seated        bool           `json:"seated"`
+	Ready         bool           `json:"ready"`
+	WasWarmup     bool           `json:"wasWarmup"`
+	ShooterName   string         `json:"shooterName"`
+	Discipline    string         `json:"discipline"`
+	Color         string         `json:"color"`
+	Remaining     int            `json:"remaining"`
+	VisitStart    int            `json:"visitStart"`
+	OpenDarts     int            `json:"openDarts"`
+	Opened        bool           `json:"opened"`
+	Finished      bool           `json:"finished"`
+	LastThree     []string       `json:"lastThree"`
+	LastResult    string         `json:"lastResult,omitempty"`
+	CricketMarks  map[string]int `json:"cricketMarks,omitempty"`
+	CricketPoints int            `json:"cricketPoints,omitempty"`
+	ClockTarget   int            `json:"clockTarget,omitempty"`
 }
 
 type ShotMark struct {
@@ -124,6 +140,13 @@ type GameState struct {
 	FieldOpen          bool               `json:"fieldOpen"`
 	Calibrating        bool               `json:"calibrating"`
 	Calibrated         bool               `json:"calibrated"`
+	GameMode           string             `json:"gameMode"`
+	Order              []int              `json:"order,omitempty"`
+	CurrentPos         int                `json:"currentPos"`
+	ActiveRange        int                `json:"activeRange"`
+	NextRange          int                `json:"nextRange"`
+	TurnPending        bool               `json:"turnPending"`
+	HoldUntil          time.Time          `json:"holdUntil,omitempty"`
 }
 
 func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
@@ -173,7 +196,9 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 
 	if gs.Calibrating {
 		ev := gs.applyCalibration(p, ctx.Shot)
-		gs.refreshLabels()
+		if gs.Calibrating {
+			gs.refreshLabels()
+		}
 		if ev != nil {
 			events = append(events, *ev)
 		}
@@ -200,13 +225,26 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 		gs.refreshLabels()
 		return marshalWithEvents(gs, events)
 	}
+	if gs.requireFunDart() && !funDartShot(ctx) {
+		gs.plot(p, ctx.Shot, "—", 0, "ignored", "keine Fun-Scheibe")
+		gs.StatusLine = playerLabel(p) + ": keine Fun-Scheibe"
+		return marshalWithEvents(gs, events)
+	}
+	if !gs.acceptThrow(ctx.RangeNum, ctx.Now) {
+		gs.plot(p, ctx.Shot, "—", 0, "wait", "nicht dran")
+		gs.refreshLabels()
+		return marshalWithEvents(gs, events)
+	}
 
 	hit := Classify(ctx.Shot.X, ctx.Shot.Y, cfgScale(gs.Config))
-	note := gs.applyHit(p, hit)
+	note := gs.applyDart(p, hit, ctx.Now)
 	gs.plot(p, ctx.Shot, hit.Label, hit.Points, resultOf(note), note)
 	if p.Finished && gs.WinnerRange == 0 {
 		gs.WinnerRange = p.RangeNum
 		gs.Phase = gameutil.PhaseFinished
+		gs.ActiveRange = 0
+		gs.TurnPending = false
+		gs.NextRange = 0
 		events = append(events, logicapi.PluginEvent{Type: "win", Data: map[string]any{"rangeNum": p.RangeNum}})
 		events = append(events, logicapi.PluginEvent{Type: "match_finished", Data: map[string]any{"winnerRange": p.RangeNum}})
 	}
@@ -215,7 +253,23 @@ func (l *Logic) OnShotCtx(sess logicapi.SessionState, ctx logicapi.ShotContext) 
 }
 
 func (l *Logic) Tick(sess logicapi.SessionState, now time.Time) (logicapi.SessionState, []logicapi.PluginEvent, bool, error) {
-	return sess, nil, false, nil
+	gs, err := unmarshalState(sess)
+	if err != nil {
+		return sess, nil, false, err
+	}
+	gs.ensure()
+	if gs.Phase != gameutil.PhasePlaying || !gs.TurnPending || gs.WinnerRange != 0 {
+		return sess, nil, false, nil
+	}
+	if !gs.HoldUntil.IsZero() && now.Before(gs.HoldUntil) {
+		return sess, nil, false, nil
+	}
+	gs.advanceTurn()
+	gs.refreshLabels()
+	st, events, err := marshalWithEvents(gs, []logicapi.PluginEvent{{
+		Type: "turn_start", Data: map[string]any{"rangeNum": gs.ActiveRange},
+	}})
+	return st, events, true, err
 }
 
 func (l *Logic) Control(sess logicapi.SessionState, action string, params map[string]any) (logicapi.SessionState, []logicapi.PluginEvent, error) {
@@ -239,6 +293,7 @@ func (l *Logic) Control(sess logicapi.SessionState, action string, params map[st
 			}
 		}
 	case "start":
+		gs.readOptions(params)
 		events = append(events, gs.beginPlay()...)
 	case "calibrate":
 		gs.Calibrating = true
@@ -311,9 +366,15 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 			"calibrated":           gs.Calibrated,
 			"boardScale":           scale,
 			"outerDoubleMm":        doubleOutMM * scale,
+			"gameMode":             gs.mode(),
 			"startScore":           startScore(gs.Config),
 			"doubleIn":             gs.doubleIn(),
 			"doubleOut":            gs.doubleOut(),
+			"requireFunDart":       gs.requireFunDart(),
+			"activeRange":          gs.ActiveRange,
+			"nextRange":            gs.NextRange,
+			"turnPending":          gs.TurnPending,
+			"order":                append([]int(nil), gs.Order...),
 			"players":              players,
 			"recentShots":          recentVM,
 			"defaultTargetProfile": "dartboard",
@@ -334,42 +395,62 @@ func (gs *GameState) applyCalibration(p *Player, shot state.Shot) *logicapi.Plug
 	gs.Calibrating = false
 	gs.Calibrated = true
 	note := "Außenkante Doppel: " + formatMM(doubleOutMM*scale) + " mm"
+	gs.StatusLine = note
 	gs.plot(p, shot, "Maß", 0, "calibrate", note)
 	return &logicapi.PluginEvent{Type: "persist_config", Data: map[string]any{"boardScale": scale}}
 }
 
-func (gs *GameState) applyHit(p *Player, hit Hit) string {
+func (gs *GameState) applyDart(p *Player, hit Hit, now time.Time) string {
+	switch gs.mode() {
+	case "cricket":
+		return gs.applyCricket(p, hit, now)
+	case "around_clock":
+		return gs.applyClock(p, hit, now)
+	default:
+		return gs.applyX01(p, hit, now)
+	}
+}
+
+func (gs *GameState) applyX01(p *Player, hit Hit, now time.Time) string {
 	gs.pushVisit(p, hit.Label)
 	if gs.doubleIn() && !p.Opened {
 		if !hit.IsDouble || hit.Points <= 0 {
+			if len(p.LastThree) >= 3 {
+				gs.finishVisit(p, now)
+			}
 			return "Double-In"
 		}
 		p.Opened = true
 	}
 	if hit.Points == 0 {
+		if len(p.LastThree) >= 3 {
+			gs.finishVisit(p, now)
+		}
 		return "0"
 	}
 	next := p.Remaining - hit.Points
+	bust := next < 0
 	if gs.doubleOut() {
-		if next < 0 || next == 1 || (next == 0 && !hit.IsDouble) {
-			return "Bust"
-		}
-	} else if next < 0 {
+		bust = next < 0 || next == 1 || (next == 0 && !hit.IsDouble)
+	}
+	if bust {
+		p.Remaining = p.VisitStart
+		p.LastResult = "Bust"
+		gs.finishVisit(p, now)
 		return "Bust"
 	}
 	p.Remaining = next
 	if next == 0 {
 		p.Finished = true
+		p.LastResult = "Checkout"
+		gs.finishVisit(p, now)
 		return "Checkout"
 	}
-	return hit.Label
-}
-
-func (gs *GameState) pushVisit(p *Player, label string) {
-	p.LastThree = append(p.LastThree, label)
-	if len(p.LastThree) > 3 {
-		p.LastThree = p.LastThree[len(p.LastThree)-3:]
+	p.LastResult = hit.Label
+	if len(p.LastThree) >= 3 {
+		gs.finishVisit(p, now)
 	}
+	return hit.Label
 }
 
 func (gs *GameState) plot(p *Player, shot state.Shot, label string, points int, result, note string) {
@@ -399,24 +480,67 @@ func resultOf(note string) string {
 
 func (gs *GameState) beginPlay() []logicapi.PluginEvent {
 	gs.ensure()
-	seated := gs.seatNow()
+	gs.GameMode = gs.mode()
+	order := gs.seatOrder()
+	if len(order) == 0 {
+		gs.StartBlockedReason = "Keine aktive Bahn"
+		gs.refreshLabels()
+		return nil
+	}
+	if gs.orderMode() == "beginner" {
+		idx := -1
+		for i, rn := range order {
+			if rn == gs.beginnerRange() {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			gs.StartBlockedReason = fmt.Sprintf("Beginner-Stand %d ist nicht aktiv", gs.beginnerRange())
+			gs.refreshLabels()
+			return nil
+		}
+		order = append(append([]int{}, order[idx:]...), order[:idx]...)
+	}
 	start := startScore(gs.Config)
-	open := !gs.doubleIn()
-	for _, p := range seated {
+	if gs.GameMode != "x01" {
+		start = 0
+	}
+	open := gs.GameMode != "x01" || !gs.doubleIn()
+	for _, rn := range order {
+		p := gs.player(rn)
+		if p == nil {
+			continue
+		}
 		p.Seated = true
 		p.Ready = true
 		p.WasWarmup = false
 		p.Remaining = start
+		p.VisitStart = start
 		p.Opened = open
 		p.Finished = false
 		p.LastThree = nil
+		p.LastResult = ""
+		p.OpenDarts = 0
+		p.CricketPoints = 0
+		p.ClockTarget = 1
+		p.CricketMarks = newCricketMarks()
 	}
+	gs.Order = order
+	gs.CurrentPos = 0
 	gs.Phase = gameutil.PhasePlaying
 	gs.WinnerRange = 0
 	gs.FieldOpen = true
+	gs.TurnPending = false
+	gs.HoldUntil = time.Time{}
 	gs.StartBlockedReason = ""
+	gs.ActiveRange = order[0]
+	gs.beginVisit(gs.player(order[0]))
+	gs.NextRange = gs.peekNext()
 	gs.refreshLabels()
-	return []logicapi.PluginEvent{{Type: "match_start", Data: map[string]any{"startScore": start}}}
+	return []logicapi.PluginEvent{{Type: "match_start", Data: map[string]any{
+		"startScore": start, "gameMode": gs.GameMode, "activeRange": gs.ActiveRange, "order": gs.Order,
+	}}}
 }
 
 func (gs *GameState) refreshLabels() {
@@ -429,20 +553,46 @@ func (gs *GameState) refreshLabels() {
 		gs.StatusLine = gs.RulesLabel + " — " + winnerLabel(gs) + " gewinnt"
 		return
 	}
+	if gs.Phase == gameutil.PhasePlaying {
+		if gs.TurnPending && gs.NextRange != 0 {
+			gs.StatusLine = "Nächster Pfeil: " + playerLabel(gs.player(gs.NextRange))
+			return
+		}
+		if p := gs.player(gs.ActiveRange); p != nil {
+			gs.StatusLine = playerLabel(p) + " ist dran"
+			return
+		}
+	}
 	if gs.Calibrated {
 		gs.StatusLine = "Außenkante Doppel: " + formatMM(doubleOutMM*cfgScale(gs.Config)) + " mm"
+		return
+	}
+	if gs.StartBlockedReason != "" && gs.Phase != gameutil.PhasePlaying {
+		gs.StatusLine = gs.StartBlockedReason
 		return
 	}
 	gs.StatusLine = gs.RulesLabel
 }
 
 func rulesLabel(cfg map[string]any) string {
-	parts := []string{strconv.Itoa(startScore(cfg))}
-	if gameutil.CfgBool(cfg, "doubleIn", false) {
-		parts = append(parts, "Double-In")
+	mode := gameutil.CfgString(cfg, "gameMode", "x01")
+	var parts []string
+	switch mode {
+	case "cricket":
+		parts = []string{"Cricket"}
+	case "around_clock":
+		parts = []string{"Around the Clock"}
+	default:
+		parts = []string{strconv.Itoa(startScore(cfg))}
+		if gameutil.CfgBool(cfg, "doubleIn", false) {
+			parts = append(parts, "Double-In")
+		}
+		if gameutil.CfgBool(cfg, "doubleOut", false) {
+			parts = append(parts, "Double-Out")
+		}
 	}
-	if gameutil.CfgBool(cfg, "doubleOut", false) {
-		parts = append(parts, "Double-Out")
+	if gameutil.CfgBool(cfg, "requireFunDart", false) {
+		parts = append(parts, "Fun-Scheibe")
 	}
 	return strings.Join(parts, ", ")
 }
@@ -665,11 +815,16 @@ func (gs *GameState) recentShots(n int) []ShotMark {
 
 func playerVM(p *Player) map[string]any {
 	three := append([]string(nil), p.LastThree...)
+	marks := map[string]int{}
+	for k, v := range p.CricketMarks {
+		marks[k] = v
+	}
 	return map[string]any{
 		"rangeNum": p.RangeNum, "active": p.Active, "seated": p.Seated, "ready": p.Ready,
 		"shooterName": p.ShooterName, "color": p.Color, "label": playerLabel(p),
 		"remaining": p.Remaining, "opened": p.Opened, "finished": p.Finished,
-		"lastThree": three,
+		"lastThree": three, "openDarts": p.OpenDarts, "lastResult": p.LastResult,
+		"cricketMarks": marks, "cricketPoints": p.CricketPoints, "clockTarget": p.ClockTarget,
 	}
 }
 
@@ -687,6 +842,9 @@ func shotVM(s ShotMark, gs *GameState) map[string]any {
 }
 
 func playerLabel(p *Player) string {
+	if p == nil {
+		return "Stand"
+	}
 	if p.ShooterName != "" {
 		return p.ShooterName
 	}

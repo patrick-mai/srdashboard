@@ -875,11 +875,20 @@ class Runner:
         self.play_started(plugin_id, shots)
 
     def play_darts(self):
-        # Same checkout as fullplay: one single, then ten inner bulls.
+        # One lane throws three darts, then the next. Follow the server's turn.
         def shots():
-            send_shot(1, 0.0, n=1)
-            for i in range(10):
-                send_shot(1, 10.9, n=10 + i)
+            for i in range(36):
+                _ph, vm = phase_of(session())
+                game = vm.get("game") or {}
+                if str(game.get("phase") or "").lower().startswith("finish"):
+                    return
+                active = int(game.get("activeRange") or 0)
+                if not active:
+                    active = int(game.get("nextRange") or 0)
+                if not active:
+                    time.sleep(0.2)
+                    continue
+                send_shot(active, 10.9 if active == 1 else 8.0, n=i + 1)
         self.play_started("darts", shots)
 
     def play_munitionstest(self):

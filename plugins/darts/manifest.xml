@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin id="darts" label="Darts" version="1.0.0" mode="shared" kind="game">
-  <description>Countdown von 301, 501 oder 701. Double-In und Double-Out sind Schalter. Ein Schuss auf den äußeren Doppel-Draht misst die Scheibe.</description>
+  <description>301, 501, 701, Cricket oder Around the Clock. Drei Pfeile pro Aufnahme, eine Bahn nach der anderen. Fun-Scheibe ist ein Schalter. Ein Schuss auf den äußeren Doppel-Draht misst die Scheibe.</description>
   <entrypoints view="view.js" theme="theme.css" logic="builtin"/>
   <assetsDir>assets</assetsDir>
   <config>
     <autoStartWhenAllReady>true</autoStartWhenAllReady>
+    <gameMode>x01</gameMode>
     <startScore>501</startScore>
     <doubleIn>false</doubleIn>
     <doubleOut>false</doubleOut>
+    <orderMode>range</orderMode>
+    <beginnerRange>1</beginnerRange>
+    <requireFunDart>false</requireFunDart>
+    <visitHoldMs>1500</visitHoldMs>
     <boardScale>1.0</boardScale>
     <defaultTargetProfile>dartboard</defaultTargetProfile>
     <disciplineTargets>

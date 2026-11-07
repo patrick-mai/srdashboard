@@ -107,14 +107,16 @@ func (p *Pipeline) ingest(data []byte, verbose bool) int {
 		}
 		if p.OnShot != nil {
 			s := state.Shot{
-				X:          shot.X,
-				Y:          shot.Y,
-				Distance:   shot.Distance,
-				FullValue:  shot.FullValue,
-				DecValue:   shot.DecValue,
-				IsWarmup:   shot.IsWarmup,
-				IsHot:      shot.IsHot,
-				ReceivedAt: applyReceived,
+				X:           shot.X,
+				Y:           shot.Y,
+				Distance:    shot.Distance,
+				FullValue:   shot.FullValue,
+				DecValue:    shot.DecValue,
+				IsWarmup:    shot.IsWarmup,
+				IsHot:       shot.IsHot,
+				ReceivedAt:  applyReceived,
+				DiscType:    shot.DiscType,
+				DiscTypeRaw: shot.DiscTypeRaw,
 			}
 			if hasShotAt {
 				s.At = shotAt

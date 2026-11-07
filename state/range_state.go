@@ -12,15 +12,17 @@ import (
 
 // Shot represents a single shot on the target
 type Shot struct {
-	X          int       `json:"x"`
-	Y          int       `json:"y"`
-	Distance   float64   `json:"distance"`
-	FullValue  int       `json:"fullValue"`
-	DecValue   float64   `json:"decValue"`
-	IsWarmup   bool      `json:"isWarmup"`
-	IsHot      bool      `json:"isHot,omitempty"`      // DISAG Wertungsschuss; omitted when unknown
-	At         time.Time `json:"at,omitempty"`         // OpticScore ShotDateTime when available
-	ReceivedAt time.Time `json:"receivedAt,omitempty"` // Server time when UDP packet was handled
+	X           int       `json:"x"`
+	Y           int       `json:"y"`
+	Distance    float64   `json:"distance"`
+	FullValue   int       `json:"fullValue"`
+	DecValue    float64   `json:"decValue"`
+	IsWarmup    bool      `json:"isWarmup"`
+	IsHot       bool      `json:"isHot,omitempty"`      // DISAG Wertungsschuss; omitted when unknown
+	At          time.Time `json:"at,omitempty"`         // OpticScore ShotDateTime when available
+	ReceivedAt  time.Time `json:"receivedAt,omitempty"` // Server time when UDP packet was handled
+	DiscType    string    `json:"discType,omitempty"`
+	DiscTypeRaw string    `json:"discTypeRaw,omitempty"`
 }
 
 // RangeState holds the live state for one shooting range

@@ -1,10 +1,12 @@
 package fullplay
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"srdashboard/state"
 	"srdashboard/udp"
 )
 
@@ -375,11 +377,39 @@ func playDarts(t *testing.T, h *Host) {
 	if remainingOf(game, 1) != 501 {
 		t.Fatalf("remaining %d", remainingOf(game, 1))
 	}
-	// PlaceShot(0.0) on the first seed lands in the single-1 wedge.
-	// The next ten 10.9 shots are the inner bull (50). 1+500 = 501.
-	h.Fire(1, 0.0)
-	for i := 0; i < 10; i++ {
-		h.Fire(1, 10.9)
+	if asInt(game["activeRange"]) != 1 {
+		t.Fatalf("active %v", game["activeRange"])
+	}
+	// 501, no double-out. Six T20 leave 141, then T20 T20 S20 leave 1, then S1.
+	// Lane 2 throws three misses whenever the turn is not lane 1.
+	t20 := [2]int{0, 3960}
+	s20 := [2]int{0, 2000}
+	rad := 18 * math.Pi / 180
+	s1 := [2]int{int(math.Round(math.Sin(rad) * 2000)), int(math.Round(math.Cos(rad) * 2000))}
+	lane1 := [][2]int{t20, t20, t20, t20, t20, t20, t20, t20, s20, s1}
+	n1 := 0
+	for n1 < len(lane1) {
+		game = nest(h.VM(1), "game")
+		if asString(game["phase"]) == "finished" {
+			break
+		}
+		active := asInt(game["activeRange"])
+		if active == 0 {
+			active = asInt(game["nextRange"])
+		}
+		if active == 1 {
+			h.shotIndex[1]++
+			h.PS.OnShot(1, state.Shot{X: lane1[n1][0], Y: lane1[n1][1], DecValue: 8, FullValue: 8}, h.shotIndex[1])
+			n1++
+			continue
+		}
+		if active < 1 {
+			t.Fatalf("no active lane after %d lane-1 darts", n1)
+		}
+		for dart := 0; dart < 3; dart++ {
+			h.shotIndex[active]++
+			h.PS.OnShot(active, state.Shot{X: 0, Y: 8600, DecValue: 0, FullValue: 0}, h.shotIndex[active])
+		}
 	}
 	h.requirePhase([]string{"game", "phase"}, "finished")
 	if asInt(nest(h.VM(1), "game")["winnerRange"]) != 1 {

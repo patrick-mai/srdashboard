@@ -2,7 +2,7 @@
 
 Live hall display for **DISAG OpticScore**. It shows every stand on a large screen (or one stand on a tablet), plots shots on the target, and can switch from the classic range view into game plugins.
 
-**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.4](CHANGELOG.md).
+**Stack:** Go HTTP/WebSocket server + vanilla JS frontend. **License:** [AGPL-3.0](LICENSE). **Release:** [v0.5](CHANGELOG.md).
 
 Comments at the [meisterschuetzen.org](https://meisterschuetzen.org) forum or here.
 
@@ -192,6 +192,12 @@ Tallest tower wins, standing or at the moment it fell.
 Before each round, pick a contract from the stand tablet. Contracts are relative to your own par (for example average at least par + 0.5, or land a hole-in-hole). Deliver it and you take the bid points; fail and you lose a fraction of that reward.
 
 Highest points after all rounds wins.
+
+### Darts
+
+One lane throws at a time, three darts a visit, then the next lane. 301, 501 or 701, Cricket, or Around the Clock. Double-in and double-out are switches. A bust voids the whole visit and puts the score back to the start of that visit. The order follows the lanes, or it opens on a chosen beginner lane.
+
+The board is read from the pellet coordinates. **Nur Fun-Scheibe** is off by default, so a lane that does not send `fun_dart` still scores. Turn it on and only a `fun` or `fun_dart` disc counts. **Scheibe einmessen** plus one shot on the outer double wire scales every ring from the bull.
 
 ---
 

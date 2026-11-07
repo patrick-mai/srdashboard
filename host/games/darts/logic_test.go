@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"testing"
+	"time"
 
 	"srdashboard/host/logicapi"
 	"srdashboard/state"
@@ -15,6 +16,9 @@ func started(t *testing.T, cfg map[string]any) (*Logic, logicapi.SessionState) {
 		cfg = map[string]any{}
 	}
 	cfg["numRanges"] = 2
+	if _, ok := cfg["visitHoldMs"]; !ok {
+		cfg["visitHoldMs"] = 0
+	}
 	l := New(nil)
 	sess, err := l.Init(cfg)
 	if err != nil {
@@ -80,12 +84,60 @@ func knownDarts() []dart {
 	}
 }
 
+func passTo(t *testing.T, l *Logic, sess logicapi.SessionState, rn int) logicapi.SessionState {
+	t.Helper()
+	for i := 0; i < 16; i++ {
+		gs := stateOf(t, sess)
+		if gs.Phase != "playing" {
+			return sess
+		}
+		if gs.TurnPending {
+			var err error
+			sess, _, _, err = l.Tick(sess, time.Now().Add(5*time.Second))
+			if err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if gs.ActiveRange == rn {
+			return sess
+		}
+		if gs.ActiveRange == 0 {
+			t.Fatal("no active lane")
+		}
+		sess, _ = fire(t, l, sess, gs.ActiveRange, 0, 8600, 0, false)
+	}
+	t.Fatal("could not reach the lane")
+	return sess
+}
+
+func shoot(t *testing.T, l *Logic, sess logicapi.SessionState, rn, x, y int, dec float64) logicapi.SessionState {
+	t.Helper()
+	sess = passTo(t, l, sess, rn)
+	sess, _ = fire(t, l, sess, rn, x, y, dec, false)
+	return sess
+}
+
+func alignVisit(t *testing.T, l *Logic, sess logicapi.SessionState, rn int) logicapi.SessionState {
+	t.Helper()
+	for i := 0; i < 4; i++ {
+		sess = passTo(t, l, sess, rn)
+		p := stateOf(t, sess).Players[strconv.Itoa(rn)]
+		if p != nil && p.OpenDarts >= 3 {
+			return sess
+		}
+		sess, _ = fire(t, l, sess, rn, 0, 8600, 0, false)
+	}
+	t.Fatalf("lane %d did not reach a fresh visit", rn)
+	return sess
+}
+
 func reduceTo(t *testing.T, l *Logic, sess logicapi.SessionState, rn, target int) logicapi.SessionState {
 	t.Helper()
 	for i := 0; i < 40; i++ {
 		cur := rem(stateOf(t, sess), rn)
 		if cur == target {
-			return sess
+			return alignVisit(t, l, sess, rn)
 		}
 		gs := stateOf(t, sess)
 		fired := false
@@ -100,7 +152,7 @@ func reduceTo(t *testing.T, l *Logic, sess logicapi.SessionState, rn, target int
 			if gs.doubleIn() && !gs.Players[strconv.Itoa(rn)].Opened && !d.double {
 				continue
 			}
-			sess, _ = fire(t, l, sess, rn, d.x, d.y, 8.0, false)
+			sess = shoot(t, l, sess, rn, d.x, d.y, 8.0)
 			got := stateOf(t, sess)
 			if rem(got, rn) != next {
 				t.Fatalf("%s from %d left %d, want %d", d.label, cur, rem(got, rn), next)
@@ -276,37 +328,165 @@ func TestDoubleInAndOut(t *testing.T) {
 		t.Fatalf("non-double finish rem=%d", rem(stateOf(t, sess), 1))
 	}
 	dx, dy := at(66.35, 108) // D10
-	sess, _ = fire(t, l, sess, 1, dx, dy, 8.0, false)
+	sess = shoot(t, l, sess, 1, dx, dy, 8.0)
 	gs = stateOf(t, sess)
 	if gs.Shots[len(gs.Shots)-1].Label != "D10" || gs.WinnerRange != 1 || rem(gs, 1) != 0 {
 		t.Fatalf("double finish label=%s rem=%d winner=%d", gs.Shots[len(gs.Shots)-1].Label, rem(gs, 1), gs.WinnerRange)
 	}
 }
 
-func TestParallelBustAndLastThree(t *testing.T) {
+func TestVisitBustRestoresTheWholeTurn(t *testing.T) {
 	l, sess := started(t, map[string]any{"startScore": 301})
-	sess = reduceTo(t, l, sess, 1, 20)
-	sess, _ = fire(t, l, sess, 1, 0, 3960, 7.0, false)
-	sess = reduceTo(t, l, sess, 2, 20)
-	sess, _ = fire(t, l, sess, 2, 0, 2000, 7.0, false)
-	gs := stateOf(t, sess)
-	if rem(gs, 1) != 20 || rem(gs, 2) != 0 || gs.WinnerRange != 2 {
-		t.Fatalf("parallel rem=%d/%d winner=%d", rem(gs, 1), rem(gs, 2), gs.WinnerRange)
+	sess = reduceTo(t, l, sess, 1, 40)
+	sess = shoot(t, l, sess, 1, 0, 2000, 8.0) // S20 leaves 20
+	if rem(stateOf(t, sess), 1) != 20 {
+		t.Fatalf("after single rem=%d", rem(stateOf(t, sess), 1))
 	}
+	sess = shoot(t, l, sess, 1, 0, 3960, 8.0) // T20 busts the visit
+	gs := stateOf(t, sess)
+	if rem(gs, 1) != 40 || gs.WinnerRange != 0 || gs.Players["1"].LastResult != "Bust" {
+		t.Fatalf("visit bust rem=%d winner=%d result=%s", rem(gs, 1), gs.WinnerRange, gs.Players["1"].LastResult)
+	}
+	if gs.ActiveRange == 1 {
+		t.Fatalf("bust should end the visit, active=%d", gs.ActiveRange)
+	}
+}
 
-	l, sess = started(t, nil)
-	sess, _ = fire(t, l, sess, 1, 0, 2000, 8.0, false)
+func TestOtherLaneWaitsForTheVisit(t *testing.T) {
+	l, sess := started(t, nil)
 	sess, _ = fire(t, l, sess, 2, 0, 2000, 8.0, false)
+	gs := stateOf(t, sess)
+	if rem(gs, 2) != 501 || gs.Shots[len(gs.Shots)-1].Result != "wait" {
+		t.Fatalf("early lane 2 rem=%d mark=%+v", rem(gs, 2), gs.Shots[len(gs.Shots)-1])
+	}
+	sess, _ = fire(t, l, sess, 1, 0, 2000, 8.0, false)
 	sess, _ = fire(t, l, sess, 1, 2000, 0, 8.0, false)
-	sess, _ = fire(t, l, sess, 1, 0, 8000, 8.0, false)
 	sess, _ = fire(t, l, sess, 1, 0, 6635, 8.0, false)
 	gs = stateOf(t, sess)
 	three := gs.Players["1"].LastThree
-	if len(three) != 3 || three[0] != "S6" || three[1] != "0" || three[2] != "D20" {
-		t.Fatalf("last three %v", three)
+	if len(three) != 3 || three[0] != "S20" || three[1] != "S6" || three[2] != "D20" {
+		t.Fatalf("visit %v", three)
 	}
-	if rem(gs, 2) != 481 {
-		t.Fatalf("other lane rem=%d", rem(gs, 2))
+	if rem(gs, 1) != 501-20-6-40 || gs.ActiveRange != 2 {
+		t.Fatalf("after visit rem=%d active=%d", rem(gs, 1), gs.ActiveRange)
+	}
+}
+
+func TestCricketScoresOnlyWhileAnOpponentIsOpen(t *testing.T) {
+	l, sess := started(t, map[string]any{"gameMode": "cricket"})
+	sess = shoot(t, l, sess, 1, 0, 3960, 8.0) // T20 closes
+	gs := stateOf(t, sess)
+	if gs.Players["1"].CricketMarks["20"] != 3 || gs.Players["1"].CricketPoints != 0 {
+		t.Fatalf("close marks=%d points=%d", gs.Players["1"].CricketMarks["20"], gs.Players["1"].CricketPoints)
+	}
+	sess = shoot(t, l, sess, 1, 0, 2000, 8.0) // S20 scores
+	gs = stateOf(t, sess)
+	if gs.Players["1"].CricketPoints != 20 {
+		t.Fatalf("points=%d", gs.Players["1"].CricketPoints)
+	}
+}
+
+func TestAroundTheClockHitsInOrder(t *testing.T) {
+	l, sess := started(t, map[string]any{"gameMode": "around_clock"})
+	s1x, s1y := at(20, 18)
+	sess = shoot(t, l, sess, 1, s1x, s1y, 8.0)
+	gs := stateOf(t, sess)
+	if gs.Players["1"].ClockTarget != 2 {
+		t.Fatalf("after 1 target=%d", gs.Players["1"].ClockTarget)
+	}
+	sess = shoot(t, l, sess, 1, 0, 2000, 8.0) // S20 is not 2
+	if stateOf(t, sess).Players["1"].ClockTarget != 2 {
+		t.Fatal("wrong number advanced the clock")
+	}
+}
+
+func TestBeginnerOpensTheLeg(t *testing.T) {
+	l := New(nil)
+	sess, err := l.Init(map[string]any{"numRanges": 4, "visitHoldMs": 0, "orderMode": "beginner", "beginnerRange": 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, _, err = l.Control(sess, "start", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := stateOf(t, sess)
+	want := []int{3, 4, 1, 2}
+	if len(gs.Order) != len(want) || gs.ActiveRange != 3 {
+		t.Fatalf("order=%v active=%d", gs.Order, gs.ActiveRange)
+	}
+	for i := range want {
+		if gs.Order[i] != want[i] {
+			t.Fatalf("order=%v", gs.Order)
+		}
+	}
+}
+
+func TestFunDartFilterIsOptional(t *testing.T) {
+	l, sess := started(t, nil)
+	sess, _ = fire(t, l, sess, 1, 0, 2000, 8.0, false)
+	if rem(stateOf(t, sess), 1) != 481 {
+		t.Fatalf("plain disc rem=%d", rem(stateOf(t, sess), 1))
+	}
+
+	l, sess = started(t, map[string]any{"requireFunDart": true})
+	if stateOf(t, sess).RulesLabel != "501, Fun-Scheibe" {
+		t.Fatalf("rules %s", stateOf(t, sess).RulesLabel)
+	}
+	sess, _ = fire(t, l, sess, 1, 0, 2000, 8.0, false)
+	gs := stateOf(t, sess)
+	if rem(gs, 1) != 501 || gs.Shots[len(gs.Shots)-1].Result != "ignored" {
+		t.Fatalf("lg rem=%d mark=%+v", rem(gs, 1), gs.Shots[len(gs.Shots)-1])
+	}
+	sess, _, err := l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1,
+		Shot:     state.Shot{X: 0, Y: 2000, DecValue: 8, FullValue: 8, DiscTypeRaw: "fun_dart"},
+		Live:     logicapi.LiveRangeInfo{ShooterName: "S1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rem(stateOf(t, sess), 1) != 481 {
+		t.Fatalf("fun_dart rem=%d", rem(stateOf(t, sess), 1))
+	}
+	sess, _, err = l.OnShotCtx(sess, logicapi.ShotContext{
+		RangeNum: 1,
+		Shot:     state.Shot{X: 0, Y: 2000, DecValue: 8, FullValue: 8, DiscType: "Fun"},
+		Live:     logicapi.LiveRangeInfo{ShooterName: "S1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rem(stateOf(t, sess), 1) != 461 {
+		t.Fatalf("fun rem=%d", rem(stateOf(t, sess), 1))
+	}
+}
+
+func TestHoldExpiresOnTheServer(t *testing.T) {
+	l, sess := started(t, map[string]any{"visitHoldMs": 1000})
+	now := time.Date(2026, 11, 6, 20, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		var err error
+		sess, _, err = l.OnShotCtx(sess, logicapi.ShotContext{
+			RangeNum: 1, Now: now,
+			Shot: state.Shot{X: 0, Y: 2000, DecValue: 8, FullValue: 8},
+			Live: logicapi.LiveRangeInfo{ShooterName: "S1"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	gs := stateOf(t, sess)
+	if gs.ActiveRange != 0 || !gs.TurnPending || gs.NextRange != 2 {
+		t.Fatalf("hold active=%d pending=%v next=%d", gs.ActiveRange, gs.TurnPending, gs.NextRange)
+	}
+	sess, _, changed, err := l.Tick(sess, now.Add(200*time.Millisecond))
+	if err != nil || changed {
+		t.Fatalf("early tick changed=%v err=%v", changed, err)
+	}
+	sess, _, changed, err = l.Tick(sess, now.Add(1000*time.Millisecond))
+	if err != nil || !changed || stateOf(t, sess).ActiveRange != 2 {
+		t.Fatalf("tick changed=%v active=%d err=%v", changed, stateOf(t, sess).ActiveRange, err)
 	}
 }
 

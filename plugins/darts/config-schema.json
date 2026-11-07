@@ -2,9 +2,14 @@
   "type": "object",
   "properties": {
     "autoStartWhenAllReady": { "type": "boolean" },
+    "gameMode": { "type": "string", "enum": ["x01", "cricket", "around_clock"] },
     "startScore": { "type": "integer", "enum": [301, 501, 701] },
     "doubleIn": { "type": "boolean" },
     "doubleOut": { "type": "boolean" },
+    "orderMode": { "type": "string", "enum": ["range", "beginner"] },
+    "beginnerRange": { "type": "integer", "minimum": 1 },
+    "requireFunDart": { "type": "boolean" },
+    "visitHoldMs": { "type": "integer", "minimum": 0 },
     "boardScale": { "type": "number" },
     "defaultTargetProfile": { "type": "string", "enum": ["dartboard"] },
     "disciplineTargets": {
