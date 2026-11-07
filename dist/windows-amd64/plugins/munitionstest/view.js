@@ -128,7 +128,9 @@
   }
 
   function ensureRegistry() {
-    if (window.SRTargetRegistry && window.SRTargetRegistry.buildScale) {
+    // A previous game (Darts) leaves its own registry on the page. Only the
+    // classic face knows the air-rifle / pistol / smallbore profiles.
+    if (window.SRTargetRegistry && window.SRTargetRegistry.ownerPluginId === 'classic-range' && window.SRTargetRegistry.buildScale) {
       return Promise.resolve();
     }
     return new Promise(function (resolve) {

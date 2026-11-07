@@ -1,14 +1,23 @@
 {
   "title": "Darts",
-  "summary": "Countdown von 301, 501 oder 701. Jede Bahn wirft parallel, ein Pfeil pro Schuss. Double-In und Double-Out sind unabhängig und standardmäßig aus.",
+  "summary": "Drei Pfeile pro Aufnahme, eine Bahn nach der anderen. 301, 501 oder 701, Cricket oder Around the Clock. Die Fun-Scheibe ist ein Schalter und standardmäßig aus.",
   "sections": [
     {
-      "heading": "Spiel",
+      "heading": "Aufnahme",
+      "items": [
+        "Es wirft immer nur die Bahn, die dran ist. Drei Pfeile, dann die nächste Bahn.",
+        "Nach der Aufnahme wartet das Spiel kurz. Ein Pfeil der nächsten Bahn zählt sofort, auch in dieser Pause.",
+        "Ein Pfeil einer anderen Bahn ändert nichts.",
+        "Einschießen zählt nicht. Die Reihenfolge folgt den Bahnen, oder sie beginnt am Beginner-Stand."
+      ]
+    },
+    {
+      "heading": "301 / 501 / 701",
       "items": [
         "Startwert 301, 501 oder 701. Standard ist 501.",
         "Wer zuerst genau 0 erreicht, gewinnt.",
-        "Ein Fehl ist 0. Einschießen zählt nicht.",
-        "Die letzten drei Pfeile sind nur zum Ablesen."
+        "Ein Fehl ist 0.",
+        "Bust macht die ganze Aufnahme ungültig. Der Rest vom Beginn der Aufnahme kommt zurück."
       ]
     },
     {
@@ -21,8 +30,31 @@
     {
       "heading": "Double-Out",
       "items": [
-        "Aus: genau 0 gewinnt mit jedem Pfeil. Unter 0 ist ein Bust, der Rest bleibt.",
+        "Aus: genau 0 gewinnt mit jedem Pfeil. Unter 0 ist ein Bust.",
         "An: genau 0 muss ein Double sein. Unter 0, Rest 1, oder 0 ohne Double ist ein Bust."
+      ]
+    },
+    {
+      "heading": "Cricket",
+      "items": [
+        "Es zählen 20, 19, 18, 17, 16, 15 und Bull. Jede Zahl braucht drei Treffer. Double zählt zwei, Triple drei. Äußeres Bull einen, inneres Bull zwei.",
+        "Punkte gibt es nur für eine geschlossene Zahl, solange ein Gegner sie noch offen hat.",
+        "Gewonnen hat, wer alle Zahlen geschlossen hat und nicht weniger Punkte als ein Gegner."
+      ]
+    },
+    {
+      "heading": "Around the Clock",
+      "items": [
+        "Der Reihe nach 1 bis 20, dann Bull.",
+        "Single, Double und Triple treffen dieselbe Zahl. Bull ist das innere oder das äußere.",
+        "Wer als Erster das Bull trifft, gewinnt."
+      ]
+    },
+    {
+      "heading": "Fun-Scheibe",
+      "items": [
+        "Aus: jeder Schuss wird an der Scheibe gelesen. Das ist der Standard, weil nicht jeder Stand fun_dart sendet.",
+        "An: es zählen nur Schüsse mit Scheibentyp fun_dart oder fun. Andere Schüsse lassen den Spielstand stehen."
       ]
     },
     {

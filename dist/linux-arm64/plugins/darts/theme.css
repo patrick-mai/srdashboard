@@ -100,6 +100,7 @@
 .dt-rem { grid-area: rem; font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .dt-visit { grid-area: visit; color: var(--dt-muted); font-size: 0.82rem; white-space: nowrap; }
 .dt-standings li.is-me { background: rgba(232, 197, 71, 0.08); border-radius: 8px; }
+.dt-standings li.is-turn { outline: 2px solid var(--dt-accent); border-radius: 8px; }
 .dt-standings li.is-done .dt-rem { color: var(--dt-accent); }
 
 .dt-compact-layout .dt-main {

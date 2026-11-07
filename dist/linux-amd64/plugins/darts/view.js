@@ -133,18 +133,51 @@ window.SRPluginViews = window.SRPluginViews || {};
     return three.join(' · ');
   }
 
+  function clockLabel(n) {
+    n = Number(n) || 1;
+    if (n > 21) return 'fertig';
+    if (n === 21) return 'Bull';
+    return String(n);
+  }
+
+  function scoreOf(p, game) {
+    const mode = (game && game.gameMode) || 'x01';
+    if (mode === 'cricket') return p.cricketPoints || 0;
+    if (mode === 'around_clock') return clockLabel(p.clockTarget);
+    return p.remaining;
+  }
+
+  function scoreTitle(game) {
+    const mode = (game && game.gameMode) || 'x01';
+    if (mode === 'cricket') return 'Punkte';
+    if (mode === 'around_clock') return 'Ziel';
+    return 'Rest';
+  }
+
+  function marksText(p) {
+    const marks = p && p.cricketMarks;
+    if (!marks) return '';
+    return ['20', '19', '18', '17', '16', '15', 'B'].map(function (key) {
+      const n = Number(marks[key]) || 0;
+      return key + ':' + (n > 3 ? 3 : n);
+    }).join(' ');
+  }
+
   function standingsHtml(game, focusRange) {
     const players = (game && game.players) || [];
     const rows = players.filter(function (p) { return p && p.active; });
     if (!rows.length) return '<div class="dt-muted">Keine Bahn aktiv</div>';
+    const mode = (game && game.gameMode) || 'x01';
     return '<ul class="dt-standings">' + rows.map(function (p) {
       const me = focusRange && Number(p.rangeNum) === Number(focusRange);
+      const turn = Number(p.rangeNum) === Number(game && game.activeRange);
       const visit = visitText(p);
-      return '<li class="' + (me ? 'is-me' : '') + (p.finished ? ' is-done' : '') + '">' +
+      const extra = mode === 'cricket' ? marksText(p) : visit;
+      return '<li class="' + (me ? 'is-me' : '') + (turn ? ' is-turn' : '') + (p.finished ? ' is-done' : '') + '">' +
         '<span class="dt-swatch" style="background:' + esc(p.color || '#888') + '"></span>' +
         '<span class="dt-who">' + esc(p.label || ('Stand ' + p.rangeNum)) + '</span>' +
-        '<span class="dt-rem">' + esc(p.remaining) + '</span>' +
-        (visit ? '<span class="dt-visit">' + esc(visit) + '</span>' : '<span class="dt-visit"></span>') +
+        '<span class="dt-rem">' + esc(scoreOf(p, game)) + '</span>' +
+        (extra ? '<span class="dt-visit">' + esc(extra) + '</span>' : '<span class="dt-visit"></span>') +
         '</li>';
     }).join('') + '</ul>';
   }
@@ -246,8 +279,10 @@ window.SRPluginViews = window.SRPluginViews || {};
     }
     const recentHost = container.querySelector('[data-recent]');
     if (recentHost && isShooter && me) {
-      recentHost.innerHTML = '<div class="dt-panel"><h3>Rest</h3><div class="dt-shot-val">' +
-        esc(me.remaining) + '</div></div>';
+      const mine = Number(me.rangeNum) === Number(game.activeRange);
+      recentHost.innerHTML = '<div class="dt-panel"><h3>' + esc(scoreTitle(game)) +
+        (mine ? ' · dran' : '') + '</h3><div class="dt-shot-val">' +
+        esc(scoreOf(me, game)) + '</div></div>';
     } else if (recentHost) {
       recentHost.innerHTML = '';
     }
@@ -255,7 +290,7 @@ window.SRPluginViews = window.SRPluginViews || {};
     if (board) {
       board.innerHTML =
         (game.startBlockedReason ? '<div class="dt-block">' + esc(game.startBlockedReason) + '</div>' : '') +
-        '<div class="dt-panel dt-scoreboard"><h3>Rest</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
+        '<div class="dt-panel dt-scoreboard"><h3>' + esc(scoreTitle(game)) + '</h3>' + standingsHtml(game, isShooter ? focusRange : null) + '</div>';
     }
     if (container.id === 'shared-master-host') {
       container._sharedReady = true;
