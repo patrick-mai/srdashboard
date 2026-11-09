@@ -418,6 +418,52 @@ func (m *Manager) OnShot(rangeNum int, shot state.Shot, shotIndex int) {
 	s.ViewModel = m.displayViewModelLocked(rangeNum, ap)
 }
 
+// OnOccupancy synchronizes occupancy metadata into the active plugin session.
+// Display-only plugins already read directly from LiveSource; game plugins can
+// opt in through logicapi.OccupancyAwareLogic.
+func (m *Manager) OnOccupancy(rangeNum int, shooterName string) {
+	if m == nil || rangeNum < 1 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.replaying || m.activeID == "" {
+		return
+	}
+	ap, err := m.plugins.Get(m.activeID)
+	if err != nil || !ap.Manifest.HasLogic() {
+		return
+	}
+	occupancyLogic, ok := ap.Logic.(logicapi.OccupancyAwareLogic)
+	if !ok {
+		return
+	}
+	if m.sharedMode {
+		newState, err := occupancyLogic.OnOccupancy(m.sharedState, rangeNum, shooterName)
+		if err != nil {
+			return
+		}
+		m.applyStateLocked(newState, true)
+		m.refreshAllViewModelsLocked(ap)
+		m.notifyAllSessionsLocked()
+		return
+	}
+	s := m.sessions[rangeNum]
+	if s == nil || s.PluginID != m.activeID {
+		return
+	}
+	newState, err := occupancyLogic.OnOccupancy(s.State, rangeNum, shooterName)
+	if err != nil {
+		return
+	}
+	s.State = newState
+	if vm, err := ap.Logic.ViewModel(newState, rangeNum); err == nil {
+		s.ViewModel = vm
+	}
+	s.UpdatedAt = time.Now()
+	m.notifyRangeLocked(rangeNum)
+}
+
 // normalizedDiscType normalizes the raw OpticScore disc type without guessing
 // from score values or geometry. DiscTypeRaw is the authoritative ID.
 func normalizedDiscType(shot state.Shot) string {

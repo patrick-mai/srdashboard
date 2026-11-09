@@ -10,13 +10,5 @@
     <orderMode>range</orderMode>
     <beginnerRange>1</beginnerRange>
     <autoStartWhenAllReady>false</autoStartWhenAllReady>
-    <distanceUnitsPerMm>100</distanceUnitsPerMm>
-    <boardRadiusMm>70</boardRadiusMm>
-    <tripleInnerRadiusMm>36.8</tripleInnerRadiusMm>
-    <tripleOuterRadiusMm>44.3</tripleOuterRadiusMm>
-    <doubleInnerRadiusMm>61</doubleInnerRadiusMm>
-    <doubleOuterRadiusMm>69.5</doubleOuterRadiusMm>
-    <outerBullRadiusMm>9</outerBullRadiusMm>
-    <bullRadiusMm>4</bullRadiusMm>
   </config>
 </plugin>

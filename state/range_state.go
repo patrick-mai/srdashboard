@@ -446,6 +446,50 @@ func snapshotStartedAt(rs *RangeState) time.Time {
 	return earliestShotTime(rs)
 }
 
+// UpdateRangeOccupancy applies shooter and discipline metadata from an OpticScore
+// Event/Notification without creating a shot or changing the range's score state.
+func (ls *LiveState) UpdateRangeOccupancy(rng int, sp *ShotPayload) bool {
+	if ls == nil || sp == nil || rng < 1 {
+		return false
+	}
+	// A Notification with no assigned shooter (null Shooter or an empty name)
+	// means the lane was vacated. Reset the shared range state so both
+	// classic-range and classic-range-condensed immediately show an empty lane.
+	if sp.Shooter == nil || strings.TrimSpace(strings.TrimSpace(sp.Shooter.Firstname)+" "+strings.TrimSpace(sp.Shooter.Lastname)) == "" {
+		return ls.ResetRange(rng)
+	}
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	rs, ok := ls.Ranges[rng]
+	if !ok {
+		return false
+	}
+	if sp.Shooter != nil {
+		name := strings.TrimSpace(strings.TrimSpace(sp.Shooter.Firstname) + " " + strings.TrimSpace(sp.Shooter.Lastname))
+		rs.ShooterName = name
+		// Notification describes the current occupancy; absent/null values clear
+		// stale metadata from the previously assigned shooter.
+		rs.ClubName = ""
+		if sp.Shooter.Club != nil {
+			rs.ClubName = strings.TrimSpace(sp.Shooter.Club.Name)
+		}
+		rs.TeamName = ""
+		if sp.Shooter.Team != nil {
+			if name := strings.TrimSpace(sp.Shooter.Team.Name); name != "" {
+				rs.TeamName = name
+			} else {
+				rs.TeamName = strings.TrimSpace(sp.Shooter.Team.ShortName)
+			}
+		}
+	}
+	if sp.DiscType != "" {
+		rs.DiscType = sp.DiscType
+	} else if sp.DiscTypeRaw != "" {
+		rs.DiscType = sp.DiscTypeRaw
+	}
+	return true
+}
+
 // ApplyShot updates range state with a new shot, timestamped from the payload
 // when it carries a ShotDateTime. Call from UDP handler only.
 // Reports whether the range exists.

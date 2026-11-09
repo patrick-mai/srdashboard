@@ -50,14 +50,6 @@ func defaultConfig() map[string]any {
 		"orderMode":             "range",
 		"beginnerRange":         1,
 		"autoStartWhenAllReady": false,
-		"distanceUnitsPerMm":    100.0,
-		"boardRadiusMm":         70.5,
-		"tripleInnerRadiusMm":   36.0,
-		"tripleOuterRadiusMm":   43.6,
-		"doubleInnerRadiusMm":   62.7,
-		"doubleOuterRadiusMm":   70,
-		"outerBullRadiusMm":     9.57,
-		"bullRadiusMm":          5.47,
 	}
 }
 
@@ -148,6 +140,22 @@ func (l *Logic) Init(cfg map[string]any) (logicapi.SessionState, error) {
 		StatusLine:    "Dart — bereit",
 	}
 	gs.ensure()
+	return marshalState(gs)
+}
+
+// OnOccupancy keeps the displayed player label synchronized with the live stand
+// assignment. An empty name deliberately clears a previous assignment.
+func (l *Logic) OnOccupancy(sess logicapi.SessionState, rangeNum int, shooterName string) (logicapi.SessionState, error) {
+	gs, err := unmarshalState(sess)
+	if err != nil {
+		return nil, err
+	}
+	gs.ensure()
+	p := gs.Players[strconv.Itoa(rangeNum)]
+	if p == nil {
+		return sess, nil
+	}
+	p.ShooterName = strings.TrimSpace(shooterName)
 	return marshalState(gs)
 }
 
@@ -425,6 +433,7 @@ func (l *Logic) ViewModel(sess logicapi.SessionState, rangeNum int) (map[string]
 		"game": map[string]any{
 			"phase":              gs.Phase,
 			"gameMode":           gs.GameMode,
+			"dartboardGeometry":  dartboardGeometry(),
 			"clockTargetOrder":   append([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}, []int{}...),
 			"cricketTargets":     []string{"20", "19", "18", "17", "16", "15", "B"},
 			"statusLine":         gs.StatusLine,
@@ -643,6 +652,7 @@ func (gs *GameState) advanceTurn(events []logicapi.PluginEvent) (logicapi.Sessio
 	if !gs.TurnPending || len(gs.Order) == 0 {
 		return marshalWithEvents(gs, events)
 	}
+	endedRange := gs.Order[gs.CurrentPos]
 	for step := 1; step <= len(gs.Order); step++ {
 		pos := (gs.CurrentPos + step) % len(gs.Order)
 		rn := gs.Order[pos]
@@ -653,6 +663,9 @@ func (gs *GameState) advanceTurn(events []logicapi.PluginEvent) (logicapi.Sessio
 		gs.CurrentPos = pos
 		gs.ActiveRange = rn
 		gs.TurnPending = false
+		if previous := gs.Players[strconv.Itoa(endedRange)]; previous != nil && previous.LastResult == "Bust" {
+			previous.LastResult = ""
+		}
 		next.RoundStartScore = next.Score
 		next.RoundScore = 0
 		next.OpenDarts = 3
@@ -753,10 +766,8 @@ func minInt(a, b int) int {
 }
 
 func classifyDart(shot state.Shot, index int, cfg map[string]any) DartMark {
-	units := gameutil.CfgFloat(cfg, "distanceUnitsPerMm", 100)
-	if units <= 0 {
-		units = 100
-	}
+	geometry := dartboardGeometry()
+	units := geometry.DistanceUnitsPerMm
 
 	distMm := shot.Distance / units
 	fullValue := shot.FullValue
@@ -774,13 +785,13 @@ func classifyDart(shot state.Shot, index int, cfg map[string]any) DartMark {
 		Score:      0,
 	}
 
-	boardRadius := gameutil.CfgFloat(cfg, "boardRadiusMm", 70.5)
-	bull := gameutil.CfgFloat(cfg, "bullRadiusMm", 5.47)
-	outerBull := gameutil.CfgFloat(cfg, "outerBullRadiusMm", 9.57)
-	tripleInner := gameutil.CfgFloat(cfg, "tripleInnerRadiusMm", 36.0)
-	tripleOuter := gameutil.CfgFloat(cfg, "tripleOuterRadiusMm", 43.6)
-	doubleInner := gameutil.CfgFloat(cfg, "doubleInnerRadiusMm", 62.7)
-	doubleOuter := gameutil.CfgFloat(cfg, "doubleOuterRadiusMm", 70)
+	boardRadius := geometry.BoardRadiusMm
+	bull := geometry.BullRadiusMm
+	outerBull := geometry.OuterBullRadiusMm
+	tripleInner := geometry.TripleInnerRadiusMm
+	tripleOuter := geometry.TripleOuterRadiusMm
+	doubleInner := geometry.DoubleInnerRadiusMm
+	doubleOuter := geometry.DoubleOuterRadiusMm
 
 	if fullValue == 50 && distMm <= bull {
 		d.Ring = "bullseye"

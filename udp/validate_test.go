@@ -163,3 +163,39 @@ func abs(v float64) float64 {
 	}
 	return v
 }
+
+func TestIngestNotificationUpdatesRangeOccupancyWithoutShot(t *testing.T) {
+	st := state.NewLiveState(1)
+	notifiedShots := 0
+	p := Pipeline{State: st, OnShot: func(int, state.Shot, int) { notifiedShots++ }}
+	packet := []byte(`{
+		"MessageType":"Event",
+		"MessageVerb":"Notification",
+		"Ranges":1,
+		"Objects":[{
+			"Range":1,
+			"Shooter":{"Firstname":"Max","Lastname":"Mustermann","Club":null,"Team":null},
+			"DiscType":"LG",
+			"DiscTypeRaw":"lg"
+		}]
+	}`)
+	if got := p.Ingest(packet); got != 0 {
+		t.Fatalf("Ingest() = %d, want 0 shots for occupancy notification", got)
+	}
+	snap, ok := st.RangeSnapshot(1)
+	if !ok {
+		t.Fatal("range 1 missing")
+	}
+	if snap.ShooterName != "Max Mustermann" {
+		t.Fatalf("ShooterName = %q, want %q", snap.ShooterName, "Max Mustermann")
+	}
+	if snap.DiscType != "LG" {
+		t.Fatalf("DiscType = %q, want LG", snap.DiscType)
+	}
+	if snap.ShotNumber != 0 || len(snap.Shots) != 0 {
+		t.Fatalf("notification must not create a shot: ShotNumber=%d Shots=%d", snap.ShotNumber, len(snap.Shots))
+	}
+	if notifiedShots != 0 {
+		t.Fatalf("OnShot called %d times, want 0", notifiedShots)
+	}
+}

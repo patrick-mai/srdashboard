@@ -2,6 +2,7 @@ package udp
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"srdashboard/state"
@@ -19,16 +20,17 @@ type DiscTypeShotFilter interface {
 	AllowDiscTypeShot(rng int, discTypeRaw string, discType string) bool
 }
 
-// Pipeline is the shot path after the UDP socket: decode, validate, apply, notify.
+// Pipeline decodes and applies OpticScore shot and occupancy-notification events.
 // Live OpticScore and every synthetic injector must go through Ingest.
 type Pipeline struct {
-	State  *state.LiveState
-	OnShot ShotNotifier
-	Filter ShotFilter
+	State       *state.LiveState
+	OnShot      ShotNotifier
+	OnOccupancy OccupancyNotifier
+	Filter      ShotFilter
 }
 
-// Ingest handles one OpticScore Event/Shot datagram (same as the listener read loop).
-// It returns the number of shots applied to live state.
+// Ingest handles one OpticScore Event datagram (Shot or Notification).
+// It returns the number of shots applied; occupancy notifications return zero.
 func (p *Pipeline) Ingest(data []byte) int {
 	return p.ingest(data, true)
 }
@@ -51,9 +53,9 @@ func (p *Pipeline) ingest(data []byte, verbose bool) int {
 		}
 		return 0
 	}
-	if msg.MessageType != "Event" || msg.MessageVerb != "Shot" {
+	if msg.MessageType != "Event" || (msg.MessageVerb != "Shot" && msg.MessageVerb != "Notification") {
 		if verbose {
-			log.Printf("UDP: ignored message MessageType=%q MessageVerb=%q (expected Event/Shot)", msg.MessageType, msg.MessageVerb)
+			log.Printf("UDP: ignored message MessageType=%q MessageVerb=%q (expected Event/Shot or Event/Notification)", msg.MessageType, msg.MessageVerb)
 		}
 		return 0
 	}
@@ -70,6 +72,34 @@ func (p *Pipeline) ingest(data []byte, verbose bool) int {
 		if err := decodeOpticScoreJSON(raw, &shot); err != nil {
 			if verbose {
 				log.Printf("UDP: failed to parse shot object[%d]: %v", oi, err)
+			}
+			continue
+		}
+		if msg.MessageVerb == "Notification" {
+			rng := shot.Range
+			if rng == 0 {
+				rng = msg.Ranges
+			}
+			if rng == 0 {
+				rng = 1
+			}
+			if p.Filter != nil && !p.Filter.AllowShot(rng) {
+				if verbose {
+					log.Printf("UDP: dropped occupancy notification for unconfigured or inactive range=%d", rng)
+				}
+				continue
+			}
+			if !p.State.UpdateRangeOccupancy(rng, &shot) {
+				if verbose {
+					log.Printf("UDP: dropped occupancy notification for unknown range=%d", rng)
+				}
+				continue
+			}
+			if verbose && p.OnOccupancy != nil {
+				p.OnOccupancy(rng)
+			}
+			if verbose {
+				log.Printf("UDP: occupancy updated range=%d shooter=%q discType=%q", rng, occupancyShooterName(shot.Shooter), shot.DiscType)
 			}
 			continue
 		}
@@ -145,6 +175,13 @@ func (p *Pipeline) ingest(data []byte, verbose bool) int {
 		}
 	}
 	return applied
+}
+
+func occupancyShooterName(shooter *state.ShotShooter) string {
+	if shooter == nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimSpace(shooter.Firstname) + " " + strings.TrimSpace(shooter.Lastname))
 }
 
 // IngestPacket is the UDP pipeline without a socket — tests and simulators use this

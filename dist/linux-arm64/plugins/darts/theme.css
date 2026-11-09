@@ -32,7 +32,7 @@
 
 .dt-side { --dt-player-scale: 1; --dt-player-row-height: 54px; display:flex; flex-direction:column; gap:calc(.45rem * var(--dt-player-scale)); overflow:hidden; min-width:var(--dt-player-min-width, 500px); width:100%; max-width:none; justify-self:stretch; min-height:0; }
 .dt-panel { background:var(--dt-panel); border:1px solid var(--dt-line); border-radius:14px; padding:calc(.55rem * var(--dt-player-scale, 1)) calc(.65rem * var(--dt-player-scale, 1)); min-height:0; }
-[data-gameinfo], [data-history] { flex:0 0 auto; }
+[data-gameinfo] { flex:0 0 auto; }
 [data-players] { display:flex; flex-direction:column; flex:1 1 0; overflow:hidden; }
 .dt-panel h3 { margin:0 0 calc(.35rem * var(--dt-player-scale, 1)); font-size:calc(.9rem * var(--dt-player-scale, 1)); color:var(--dt-muted); }
 .dt-player-head { flex:0 0 auto; display:grid; grid-template-columns:9px minmax(0,1fr) auto auto auto; gap:calc(.45rem * var(--dt-player-scale, 1)); align-items:center; padding:0 calc(.5rem * var(--dt-player-scale, 1)) calc(.35rem * var(--dt-player-scale, 1)); margin:0 0 calc(.35rem * var(--dt-player-scale, 1)); color:var(--dt-muted); font-size:calc(.9rem * var(--dt-player-scale, 1)); font-weight:800; }

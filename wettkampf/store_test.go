@@ -371,3 +371,52 @@ func TestShotPayloadUnmarshalsTeam(t *testing.T) {
 		t.Fatalf("snapshot team=%q club=%q", got.TeamName, got.ClubName)
 	}
 }
+
+func TestBestXScorersOnlyAffectsTeamAggregate(t *testing.T) {
+	s, _ := Open("")
+	three := 3
+	s.Apply(Patch{ExpectedPerTeam: &three})
+	for i, score := range []int{100, 300, 200, 400} {
+		s.Observe(wertungSnap([]string{"A One", "B Two", "C Three", "D Four"}[i], "SV Adler", "Adler I", i+1, 40, 40, score, float64(score)))
+	}
+
+	// With the option off, all four shooters contribute as before.
+	v := s.View()
+	team := teamByName(v, "Adler I")
+	if team.SumInt != 1000 || team.Count != 4 || len(team.Members) != 4 {
+		t.Fatalf("default aggregation changed: sum=%d count=%d members=%d", team.SumInt, team.Count, len(team.Members))
+	}
+
+	yes := true
+	v = s.Apply(Patch{BestXScorers: &yes})
+	team = teamByName(v, "Adler I")
+	if !v.BestXScorers {
+		t.Fatal("best-x setting was not returned in snapshot")
+	}
+	if team.SumInt != 900 || team.SumDec != 900 || team.PredInt != 900 || team.PredDec != 900 {
+		t.Fatalf("best 3 aggregation = int:%d dec:%v predInt:%d predDec:%v", team.SumInt, team.SumDec, team.PredInt, team.PredDec)
+	}
+	if team.Count != 3 || len(team.Members) != 4 {
+		t.Fatalf("best-x should count only selected shooters but retain all assignments: count=%d members=%d", team.Count, len(team.Members))
+	}
+}
+
+func TestBestXScorersPersists(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "wettkampf.xml")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	s.Apply(Patch{BestXScorers: &yes})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.View().BestXScorers {
+		t.Fatal("best-x setting did not survive reload")
+	}
+}

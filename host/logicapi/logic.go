@@ -53,6 +53,13 @@ type Logic interface {
 	ViewModel(sess SessionState, rangeNum int) (map[string]any, error)
 }
 
+// OccupancyAwareLogic is optional for plugins that retain the assigned shooter
+// name in their session state. It is called for OpticScore occupancy notifications,
+// including an empty name when a stand is cleared.
+type OccupancyAwareLogic interface {
+	OnOccupancy(sess SessionState, rangeNum int, shooterName string) (SessionState, error)
+}
+
 // ExtendedLogic is optional for builtin shared games (tick + control + live-aware shots).
 type ExtendedLogic interface {
 	Logic

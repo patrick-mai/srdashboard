@@ -329,6 +329,10 @@ func TestBustOnFirstDartImmediatelyEndsTurnAndRestoresScore(t *testing.T) {
 	if gs.ActiveRange != 2 || gs.TurnPending {
 		t.Fatalf("next player not activated after audio: active=%d pending=%v", gs.ActiveRange, gs.TurnPending)
 	}
+	p = gs.Players["1"]
+	if p.LastResult != "" {
+		t.Fatalf("bust result should be cleared when the next player starts, got %q", p.LastResult)
+	}
 }
 
 func TestBeginnerOrderRotatesRangeOrder(t *testing.T) {
@@ -513,5 +517,35 @@ func TestCricketClosesTripleAndScoresOnlyAfterClosed(t *testing.T) {
 	gs = applyDart(t, l, gs, dartShot(20, 2290, "fun_dart"), 1)
 	if gs.Players["1"].CricketPoints != 20 {
 		t.Fatalf("extra 20 should score 20 while opponent open, got %d", gs.Players["1"].CricketPoints)
+	}
+}
+
+func TestOccupancyNotificationUpdatesAndClearsPlayerName(t *testing.T) {
+	l, gs := startTestGame(t, defaultConfig(), 2)
+	st, err := marshalState(gs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err = l.OnOccupancy(st, 1, "Max Mustermann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := unmarshalState(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := playerLabel(updated.Players["1"]); got != "Max Mustermann" {
+		t.Fatalf("player label after occupancy = %q", got)
+	}
+	st, err = l.OnOccupancy(st, 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err = unmarshalState(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := playerLabel(updated.Players["1"]); got != "Stand 1" {
+		t.Fatalf("player label after clearing occupancy = %q, want Stand 1", got)
 	}
 }

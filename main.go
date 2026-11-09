@@ -107,6 +107,15 @@ func main() {
 		Wettkampf:   wkStore,
 	}
 	udpListener.SetShotFilter(handlers)
+	udpListener.SetOccupancyNotifier(func(rng int) {
+		if rs, ok := st.RangeSnapshot(rng); ok {
+			ps.OnOccupancy(rng, rs.ShooterName)
+			hub.BroadcastRange(rng, map[string]any{
+				"type":  "live",
+				"range": rs,
+			})
+		}
+	})
 	udpListener.SetShotNotifier(func(rng int, shot state.Shot, shotIndex int) {
 		ps.OnShot(rng, shot, shotIndex)
 		// Only re-sync ready flags on warmup transitions — every shot used to

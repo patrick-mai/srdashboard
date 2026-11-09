@@ -124,3 +124,32 @@ func TestPrediction(t *testing.T) {
 		})
 	}
 }
+
+
+func TestUpdateRangeOccupancyResetsRangeWhenShooterIsLoggedOff(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		shooter *ShotShooter
+	}{
+		{name: "null shooter"},
+		{name: "empty shooter", shooter: &ShotShooter{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ls := NewLiveState(1)
+			rs := ls.Ranges[1]
+			rs.ShooterName = "Max Mustermann"
+			rs.ClubName = "Schützenverein"
+			rs.DiscType = "LG"
+			rs.ShotNumber = 3
+			rs.OverallSumInt = 30
+			rs.Shots = []Shot{{}}
+			if !ls.UpdateRangeOccupancy(1, &ShotPayload{Shooter: tc.shooter}) {
+				t.Fatal("UpdateRangeOccupancy returned false")
+			}
+			got := ls.Snapshot()[0]
+			if got.ShooterName != "" || got.ClubName != "" || got.DiscType != "" || got.ShotNumber != 0 || got.OverallSumInt != 0 || len(got.Shots) != 0 {
+				t.Fatalf("range was not reset: %+v", got)
+			}
+		})
+	}
+}

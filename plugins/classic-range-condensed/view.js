@@ -813,6 +813,15 @@ function ensureWettkampfModal() {
       if (row) row.remove();
     }
   });
+  modal.addEventListener('input', function (ev) {
+    if (ev.target && ev.target.id === 'crc-wk-expected') {
+      const label = modal.querySelector('#crc-wk-best-x-label');
+      if (label) {
+        const n = Math.max(0, Math.min(20, parseInt(ev.target.value, 10) || 0));
+        label.textContent = 'Pro Mannschaft die besten ' + n + ' Schützen in die Wertung nehmen';
+      }
+    }
+  });
   modal.addEventListener('change', function (ev) {
     const t = ev.target;
     if (!t || !t.classList || !t.classList.contains('crc-wk-exclude')) return;
@@ -853,8 +862,13 @@ function paintWettkampfModal(modal, data) {
   const teams = (data && data.teams) || [];
   const roster = (data && data.roster) || [];
   const exp = data && data.expectedPerTeam != null ? data.expectedPerTeam : 4;
+  const bestX = !!(data && data.bestXScorers);
   let html = '<label class="crc-wk-field">Schützen pro Mannschaft (0 = ohne Bruch)' +
-    '<input type="number" min="0" max="20" id="crc-wk-expected" value="' + escapeHtml(String(exp)) + '"></label>';
+    '<input type="number" min="0" max="20" id="crc-wk-expected" value="' + escapeHtml(String(exp)) + '"></label>' +
+    '<label class="crc-wk-field crc-wk-best-x"><input type="checkbox" id="crc-wk-best-x"' +
+    (bestX ? ' checked' : '') + '> <span id="crc-wk-best-x-label">Pro Mannschaft die besten ' +
+    escapeHtml(String(Math.max(0, Math.min(20, parseInt(exp, 10) || 0)))) +
+    ' Schützen in die Wertung nehmen</span></label>';
   html += '<div class="crc-wk-team-edits">';
   teams.forEach(function (t) {
     html += wettkampfTeamRow(t.id, t.name);
@@ -913,6 +927,8 @@ function collectWettkampfPatch(modal, extra) {
   const patch = extra || {};
   const expEl = modal.querySelector('#crc-wk-expected');
   if (expEl) patch.expectedPerTeam = parseInt(expEl.value, 10) || 0;
+  const bestXEl = modal.querySelector('#crc-wk-best-x');
+  if (bestXEl) patch.bestXScorers = !!bestXEl.checked;
   patch.teams = [];
   modal.querySelectorAll('.crc-wk-team-edit').forEach(function (row) {
     const name = (row.querySelector('.crc-wk-team-name') || {}).value || '';

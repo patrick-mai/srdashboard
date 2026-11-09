@@ -32,6 +32,9 @@ func (m Message) EventTime() (time.Time, bool) {
 // ShotNotifier is called after a shot is applied to live state.
 type ShotNotifier func(rng int, shot state.Shot, shotIndex int)
 
+// OccupancyNotifier is called after a range's shooter/discipline metadata changes.
+type OccupancyNotifier func(rng int)
+
 // Listener reads DISAG OpticScore UDP datagrams and runs them through Pipeline.
 type Listener struct {
 	conn     *net.UDPConn
@@ -90,6 +93,11 @@ func (l *Listener) LocalAddr() net.Addr {
 // SetShotNotifier registers a callback invoked after each shot is applied.
 func (l *Listener) SetShotNotifier(fn ShotNotifier) {
 	l.pipe.OnShot = fn
+}
+
+// SetOccupancyNotifier registers a callback invoked after a range occupancy update.
+func (l *Listener) SetOccupancyNotifier(fn OccupancyNotifier) {
+	l.pipe.OnOccupancy = fn
 }
 
 // SetShotFilter registers the membership gate (configured 1..N and not inactive).

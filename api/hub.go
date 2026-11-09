@@ -197,7 +197,7 @@ func parseIntQuery(r *http.Request, key string, def int) int {
 
 
 func validAudioEventFile(file string) bool {
-	if file == "busted.mp3" || file == "next-player.mp3" || file == "bullseye.mp3" || file == "tripple17.mp3" || file == "tripple18.mp3" || file == "tripple19.mp3" || file == "tripple20.mp3" { return true }
+	if file == "busted.mp3" || file == "next-player.mp3" || file == "bullseye.mp3" || file == "double20.mp3" || file == "tripple17.mp3" || file == "tripple18.mp3" || file == "tripple19.mp3" || file == "tripple20.mp3" { return true }
 	if !strings.HasSuffix(file, ".mp3") { return false }
 	n, err := strconv.Atoi(strings.TrimSuffix(file, ".mp3"))
 	return err == nil && n >= 1 && n <= 180

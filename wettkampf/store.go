@@ -31,6 +31,7 @@ type Store struct {
 type fileState struct {
 	XMLName         xml.Name     `xml:"wettkampf"`
 	ExpectedPerTeam int          `xml:"expectedPerTeam"`
+	BestXScorers    bool         `xml:"bestXScorers"`
 	NextTeamSeq     int          `xml:"nextTeamSeq"`
 	Teams           []fileTeam   `xml:"teams>team"`
 	Roster          []fileRoster `xml:"roster>entry"`
@@ -64,6 +65,7 @@ type fileRoster struct {
 // Snapshot is the JSON view for GET /api/wettkampf and WS.
 type Snapshot struct {
 	ExpectedPerTeam int          `json:"expectedPerTeam"`
+	BestXScorers    bool         `json:"bestXScorers"`
 	Teams           []TeamView   `json:"teams"`
 	Roster          []RosterView `json:"roster"`
 }
@@ -142,6 +144,7 @@ type Patch struct {
 	Name            string        `json:"name"`
 	ID              string        `json:"id"`
 	ExpectedPerTeam *int          `json:"expectedPerTeam"`
+	BestXScorers    *bool         `json:"bestXScorers"`
 	Teams           []Team        `json:"teams"`
 	Roster          []RosterPatch `json:"roster"`
 	AssignByClub    bool          `json:"assignByClub"`
@@ -473,12 +476,40 @@ func (s *Store) viewLocked() Snapshot {
 			}
 			tv.Members = append(tv.Members, memberFrom(e))
 			if e.HasWertung {
-				tv.SumInt += e.SumInt
-				tv.SumDec += e.SumDec
-				tv.PredInt += e.PredInt
-				tv.PredDec += e.PredDec
 				tv.Count++
 			}
+		}
+		// The setting limits only the team aggregate, not assignments or the
+		// individual member list. Rank using the same score type the tile shows.
+		scorers := make([]MemberView, 0, len(tv.Members))
+		for _, m := range tv.Members {
+			if m.HasWertung {
+				scorers = append(scorers, m)
+			}
+		}
+		decimal := teamUsesDecimal(scorers)
+		if s.state.BestXScorers && exp > 0 {
+			sort.SliceStable(scorers, func(i, j int) bool {
+				if decimal && scorers[i].SumDec != scorers[j].SumDec {
+					return scorers[i].SumDec > scorers[j].SumDec
+				}
+				if !decimal && scorers[i].SumInt != scorers[j].SumInt {
+					return scorers[i].SumInt > scorers[j].SumInt
+				}
+				return scorers[i].Name < scorers[j].Name
+			})
+			if len(scorers) > exp {
+				scorers = scorers[:exp]
+			}
+			// In best-X mode, the displayed count reflects the shooters
+			// actually used in the team aggregate, not every assigned scorer.
+			tv.Count = len(scorers)
+		}
+		for _, m := range scorers {
+			tv.SumInt += m.SumInt
+			tv.SumDec += m.SumDec
+			tv.PredInt += m.PredInt
+			tv.PredDec += m.PredDec
 		}
 		sort.Slice(tv.Members, func(i, j int) bool {
 			return tv.Members[i].Name < tv.Members[j].Name
@@ -501,6 +532,7 @@ func (s *Store) viewLocked() Snapshot {
 	})
 	return Snapshot{
 		ExpectedPerTeam: exp,
+		BestXScorers:    s.state.BestXScorers,
 		Teams:           teams,
 		Roster:          roster,
 	}
@@ -619,6 +651,9 @@ func (s *Store) Apply(p Patch) Snapshot {
 			n = 0
 		}
 		s.state.ExpectedPerTeam = n
+	}
+	if p.BestXScorers != nil {
+		s.state.BestXScorers = *p.BestXScorers
 	}
 	if p.Teams != nil {
 		s.replaceTeamsLocked(p.Teams)

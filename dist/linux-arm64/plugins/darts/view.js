@@ -183,6 +183,7 @@ window.SRPluginViews = window.SRPluginViews || {};
 
     switch (notation) {
       case 'T20': return 'tripple20.mp3';
+      case 'D20': return 'double20.mp3';
       case 'T19': return 'tripple19.mp3';
       case 'T18': return 'tripple18.mp3';
       case 'T17': return 'tripple17.mp3';
@@ -258,7 +259,7 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   function queueRemoteAudioFile(file) {
-    if (!dartsAudioActive || !audioEnabled || !/^(busted|next-player|bullseye|bull|tripple16|tripple17|tripple18|tripple19|tripple20|[1-9]?[0-9]|1[0-7][0-9]|180)\.mp3$/.test(file)) return;
+    if (!dartsAudioActive || !audioEnabled || !/^(busted|next-player|bullseye|bull|double20|tripple16|tripple17|tripple18|tripple19|tripple20|[1-9]?[0-9]|1[0-7][0-9]|180)\.mp3$/.test(file)) return;
     audioQueue.push(file);
     playNextAudio();
   }
@@ -533,7 +534,7 @@ window.SRPluginViews = window.SRPluginViews || {};
         return;
       }
 
-      // T17/T18/T19/T20/Bullseye
+      // D20, T17/T18/T19/T20/Bullseye
       // direkt nach dem Dart.
       if (ev.type === 'dart') {
         const special = audioFileForSpecialDart(ev);
@@ -762,20 +763,19 @@ window.SRPluginViews = window.SRPluginViews || {};
     );
   }
 
-  function dartPoint(d) {
-    // DISAG/OpticScore X/Y sind in 1/100 mm.
-    // Die Dartboard-SVG wird im ViewBox-Koordinatensystem
-    // mit 1 SVG-Einheit pro mm dargestellt. Daher keine
-    // zusätzliche Skalierung der Trefferkoordinaten.
-    // SVG-Y zeigt nach unten, deshalb Y spiegeln.
-    const boardScale = 340 / 451; // 0.75388
+  function dartPoint(d, geometry) {
+    // Coordinates and board radii are both converted from mm using the same
+    // physical geometry. SVG-Y points down, so mirror the DISAG Y coordinate.
+    const unitsPerMm = Number(geometry && geometry.distanceUnitsPerMm) || 100;
+    const assetViewBoxUnits = Number(geometry && geometry.assetViewBoxUnits) || 451;
+    const mmToSvg = 340 / assetViewBoxUnits;
     return {
-      x: (num(d.x) / 100) * boardScale,
-      y: (-num(d.y) / 100) * boardScale
+      x: (num(d.x) / unitsPerMm) * mmToSvg,
+      y: (-num(d.y) / unitsPerMm) * mmToSvg
     };
   }
 
-  function boardSvg(darts) {
+  function boardSvg(darts, geometry) {
     const parts = [];
     parts.push(
       '<svg class="dt-board-svg" ' +
@@ -800,9 +800,8 @@ window.SRPluginViews = window.SRPluginViews || {};
     // Dynamische Treffer über dem statischen Dartboard.
     (darts || []).forEach(
       function (d, i) {
-        const p = dartPoint(d);
-    	const boardScale = 340 / 451;
-	    const hitScale = 0.309050772626711 * boardScale;
+        const p = dartPoint(d, geometry);
+        const hitScale = 0.309050772626711 * (340 / 451);
 
         const label =
           d.notation ||
@@ -1370,9 +1369,6 @@ window.SRPluginViews = window.SRPluginViews || {};
         '<div class="dt-panel" ' +
         'data-players></div>' +
 
-        '<div class="dt-panel" ' +
-        'data-history></div>' +
-
         '</section>' +
 
         '</main>' +
@@ -1591,7 +1587,7 @@ window.SRPluginViews = window.SRPluginViews || {};
       );
 
     board.innerHTML =
-      boardSvg(darts);
+      boardSvg(darts, game.dartboardGeometry);
 
     const info =
       container.querySelector(
@@ -1675,58 +1671,6 @@ window.SRPluginViews = window.SRPluginViews || {};
     if (playerFitSide && playerFitSide._dtFitPlayerData) {
       requestAnimationFrame(playerFitSide._dtFitPlayerData);
     }
-
-    const recent =
-      (
-        game.recentDarts ||
-        []
-      )
-        .slice(-9)
-        .reverse();
-
-    container
-      .querySelector(
-        '[data-history]'
-      )
-      .innerHTML =
-
-        '<h3>Letzte Darts</h3>' +
-
-        (
-          recent.length
-            ? (
-              '<div class="dt-darts">' +
-
-              recent
-                .map(
-                  function (d) {
-                    return (
-                      '<span class="dt-dart-chip">' +
-
-                      esc(
-                        d.notation
-                      ) +
-
-                      ' · ' +
-
-                      esc(
-                        Number(d.score) || Number(d.value) || 0
-                      ) +
-
-                      '</span>'
-                    );
-                  }
-                )
-                .join('') +
-
-              '</div>'
-            )
-            : (
-              '<div class="dt-help">' +
-              'Noch keine Darts.' +
-              '</div>'
-            )
-        );
 
     container
       .querySelector(
