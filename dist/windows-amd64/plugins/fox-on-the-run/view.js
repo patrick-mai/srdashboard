@@ -234,15 +234,15 @@ window.SRPluginViews = window.SRPluginViews || {};
   }
 
   async function renderRevier(host, assetsBase, hunt, focusRange) {
-    const url = (assetsBase || '/plugins/fox-on-the-run/assets').replace(/\/?$/, '/') + 'revier.svg?v=6';
-    if (host.dataset.revierVer !== '6' || !host.querySelector('svg')) {
-      host.dataset.revierVer = '6';
+    const url = (assetsBase || '/plugins/fox-on-the-run/assets').replace(/\/?$/, '/') + 'revier.svg?v=7';
+    if (host.dataset.revierVer !== '7' || !host.querySelector('svg')) {
+      host.dataset.revierVer = '7';
       try {
         const res = await fetch(url);
         host.innerHTML = await res.text();
         const img = host.querySelector('image');
         if (img && assetsBase) {
-          const mapUrl = assetsBase.replace(/\/?$/, '/') + 'revier-map.png?v=6';
+          const mapUrl = assetsBase.replace(/\/?$/, '/') + 'revier-map.png?v=7';
           img.setAttribute('href', mapUrl);
           img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', mapUrl);
         }
